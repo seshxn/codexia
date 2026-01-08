@@ -1,0 +1,44 @@
+{
+  "name": "codexia",
+  "version": "0.1.0",
+  "description": "Engineering intelligence layer for repositories",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "codexia": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli/index.js",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "code-analysis",
+    "engineering-intelligence",
+    "git",
+    "impact-analysis",
+    "developer-tools"
+  ],
+  "author": "Seshan Pillay",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "glob": "^10.3.10",
+    "simple-git": "^3.22.0",
+    "ts-morph": "^21.0.1",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
