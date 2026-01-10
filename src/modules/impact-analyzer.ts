@@ -163,7 +163,7 @@ export class ImpactAnalyzer {
             );
 
             // Also check explicit boundaries
-            const boundary = this.architecture!.boundaries.find(b =>
+            const boundary = this.architecture.boundaries.find(b =>
               b.from.toLowerCase() === fromLayer.name.toLowerCase() &&
               b.to.toLowerCase() === toLayer.name.toLowerCase()
             );
@@ -180,10 +180,8 @@ export class ImpactAnalyzer {
           }
         }
       }
-    }
-
-    // Fallback: simple heuristic if no architecture memory
-    if (violations.length === 0) {
+    } else {
+      // Fallback: simple heuristic if no architecture memory
       for (const file of diff.files) {
         // Example: CLI shouldn't import directly from modules internals
         if (file.path.includes('/cli/') && file.path.includes('/modules/')) {
@@ -203,7 +201,7 @@ export class ImpactAnalyzer {
   /**
    * Find which architecture layer a file path belongs to
    */
-  private findLayerForPath(filePath: string): typeof this.architecture extends null ? null : NonNullable<typeof this.architecture>['layers'][0] | null {
+  private findLayerForPath(filePath: string): ArchitectureMemory['layers'][0] | null {
     if (!this.architecture) return null;
 
     for (const layer of this.architecture.layers) {

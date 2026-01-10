@@ -14,8 +14,15 @@ export class Formatter {
   private markdown: boolean;
 
   constructor(json: boolean = false, markdown: boolean = false) {
-    this.json = json;
-    this.markdown = markdown;
+    // Ensure output modes are mutually exclusive:
+    // if both json and markdown are requested, json takes precedence.
+    if (json && markdown) {
+      this.json = true;
+      this.markdown = false;
+    } else {
+      this.json = json;
+      this.markdown = markdown;
+    }
   }
 
   /**

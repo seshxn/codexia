@@ -9,14 +9,20 @@ interface CacheMetadata {
   fileCount: number;
 }
 
+interface CachedFileInfo {
+  info: FileInfo;
+  mtime: number; // File modification time in milliseconds
+}
+
 interface IndexCache {
   metadata: CacheMetadata;
-  files: Record<string, FileInfo>;
+  files: Record<string, CachedFileInfo>;
 }
 
 const CACHE_VERSION = '1.0.0';
 const CACHE_DIR = '.codexia';
 const CACHE_FILE = 'index-cache.json';
+const CACHE_STALENESS_MS = parseInt(process.env.CODEXIA_CACHE_STALENESS_MS || '3600000', 10); // Default: 1 hour
 
 export class RepoIndexer {
   private repoRoot: string;
@@ -36,7 +42,12 @@ export class RepoIndexer {
     if (useCache) {
       const cached = await this.loadCache();
       if (cached) {
-        this.files = new Map(Object.entries(cached.files));
+        // Extract FileInfo from CachedFileInfo
+        const filesMap = new Map<string, FileInfo>();
+        for (const [key, cachedFile] of Object.entries(cached.files)) {
+          filesMap.set(key, cachedFile.info);
+        }
+        this.files = filesMap;
         this.indexed = true;
         return;
       }
@@ -124,10 +135,24 @@ export class RepoIndexer {
         return null;
       }
       
-      // Check if cache is stale (older than 1 hour)
-      const oneHour = 60 * 60 * 1000;
-      if (Date.now() - cache.metadata.timestamp > oneHour) {
+      // Check if cache is stale (default: 1 hour, configurable via CODEXIA_CACHE_STALENESS_MS)
+      if (Date.now() - cache.metadata.timestamp > CACHE_STALENESS_MS) {
         return null;
+      }
+      
+      // Validate that cached files still exist and haven't been modified
+      for (const [relativePath, cachedFile] of Object.entries(cache.files)) {
+        const absolutePath = path.join(this.repoRoot, relativePath);
+        try {
+          const stats = await fs.stat(absolutePath);
+          // If file has been modified since caching, invalidate entire cache
+          if (stats.mtimeMs > cachedFile.mtime) {
+            return null;
+          }
+        } catch {
+          // File no longer exists, invalidate cache
+          return null;
+        }
       }
       
       return cache;
@@ -153,9 +178,18 @@ export class RepoIndexer {
     }
     
     try {
-      const filesObj: Record<string, FileInfo> = {};
+      const filesObj: Record<string, CachedFileInfo> = {};
       for (const [key, value] of this.files) {
-        filesObj[key] = value;
+        const absolutePath = path.join(this.repoRoot, key);
+        try {
+          const stats = await fs.stat(absolutePath);
+          filesObj[key] = {
+            info: value,
+            mtime: stats.mtimeMs,
+          };
+        } catch {
+          // Skip files that can't be accessed
+        }
       }
       
       const cache: IndexCache = {
