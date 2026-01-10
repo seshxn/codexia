@@ -3,6 +3,7 @@ import type {
   GitDiff, 
   DiffFile, 
   DiffStats, 
+  DiffHunk,
   FileHistory, 
   CommitInfo, 
   AuthorStats 
@@ -37,6 +38,18 @@ export class GitAnalyzer {
   }
 
   /**
+   * Check if a git ref exists
+   */
+  async hasRef(ref: string): Promise<boolean> {
+    try {
+      await this.git.revparse([ref]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Get the current branch name
    */
   async getCurrentBranch(): Promise<string> {
@@ -50,6 +63,10 @@ export class GitAnalyzer {
   async getDiff(base: string = 'HEAD', head: string = ''): Promise<GitDiff> {
     const diffSummary = await this.git.diffSummary([base, head].filter(Boolean));
     
+    // Get raw diff output for hunk parsing
+    const rawDiff = await this.git.diff([base, head].filter(Boolean));
+    const fileHunks = this.parseDiffHunks(rawDiff);
+    
     const files: DiffFile[] = diffSummary.files.map(file => {
       const filePath = 'file' in file ? (file as { file: string }).file : '';
       return {
@@ -57,7 +74,7 @@ export class GitAnalyzer {
         status: this.getFileStatus(file),
         additions: 'insertions' in file ? (file as { insertions: number }).insertions : 0,
         deletions: 'deletions' in file ? (file as { deletions: number }).deletions : 0,
-        hunks: [],
+        hunks: fileHunks.get(filePath) || [],
       };
     });
 
@@ -76,6 +93,10 @@ export class GitAnalyzer {
   async getStagedDiff(): Promise<GitDiff> {
     const diffSummary = await this.git.diffSummary(['--staged']);
     
+    // Get raw diff output for hunk parsing
+    const rawDiff = await this.git.diff(['--staged']);
+    const fileHunks = this.parseDiffHunks(rawDiff);
+    
     const files: DiffFile[] = diffSummary.files.map(file => {
       const filePath = 'file' in file ? (file as { file: string }).file : '';
       return {
@@ -83,7 +104,7 @@ export class GitAnalyzer {
         status: this.getFileStatus(file),
         additions: 'insertions' in file ? (file as { insertions: number }).insertions : 0,
         deletions: 'deletions' in file ? (file as { deletions: number }).deletions : 0,
-        hunks: [],
+        hunks: fileHunks.get(filePath) || [],
       };
     });
 
@@ -213,5 +234,52 @@ export class GitAnalyzer {
     if (f.insertions && !f.deletions) return 'added';
     if (!f.insertions && f.deletions) return 'deleted';
     return 'modified';
+  }
+
+  /**
+   * Parse unified diff output into hunks per file
+   */
+  private parseDiffHunks(rawDiff: string): Map<string, DiffHunk[]> {
+    const fileHunks = new Map<string, DiffHunk[]>();
+    
+    if (!rawDiff) return fileHunks;
+
+    let currentFile: string | null = null;
+    let currentHunk: DiffHunk | null = null;
+    const lines = rawDiff.split('\n');
+
+    for (const line of lines) {
+      // Match file header: diff --git a/path b/path
+      const fileMatch = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+      if (fileMatch) {
+        currentFile = fileMatch[2];
+        if (!fileHunks.has(currentFile)) {
+          fileHunks.set(currentFile, []);
+        }
+        currentHunk = null;
+        continue;
+      }
+
+      // Match hunk header: @@ -oldStart,oldLines +newStart,newLines @@
+      const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/);
+      if (hunkMatch && currentFile) {
+        currentHunk = {
+          oldStart: parseInt(hunkMatch[1], 10),
+          oldLines: parseInt(hunkMatch[2] || '1', 10),
+          newStart: parseInt(hunkMatch[3], 10),
+          newLines: parseInt(hunkMatch[4] || '1', 10),
+          content: hunkMatch[5] ? hunkMatch[5].trim() + '\n' : '',
+        };
+        fileHunks.get(currentFile)!.push(currentHunk);
+        continue;
+      }
+
+      // Accumulate hunk content (context, additions, deletions)
+      if (currentHunk && (line.startsWith(' ') || line.startsWith('+') || line.startsWith('-'))) {
+        currentHunk.content += line + '\n';
+      }
+    }
+
+    return fileHunks;
   }
 }

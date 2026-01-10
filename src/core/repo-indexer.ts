@@ -3,6 +3,21 @@ import * as path from 'node:path';
 import { glob } from 'glob';
 import type { FileInfo, ImportInfo, ExportInfo, Symbol, SymbolKind } from './types.js';
 
+interface CacheMetadata {
+  version: string;
+  timestamp: number;
+  fileCount: number;
+}
+
+interface IndexCache {
+  metadata: CacheMetadata;
+  files: Record<string, FileInfo>;
+}
+
+const CACHE_VERSION = '1.0.0';
+const CACHE_DIR = '.codexia';
+const CACHE_FILE = 'index-cache.json';
+
 export class RepoIndexer {
   private repoRoot: string;
   private files: Map<string, FileInfo> = new Map();
@@ -13,9 +28,50 @@ export class RepoIndexer {
   }
 
   /**
-   * Index the repository
+   * Index the repository (with optional caching)
    */
-  async index(): Promise<void> {
+  async index(options: { useCache?: boolean } = {}): Promise<void> {
+    const { useCache = true } = options;
+
+    if (useCache) {
+      const cached = await this.loadCache();
+      if (cached) {
+        this.files = new Map(Object.entries(cached.files));
+        this.indexed = true;
+        return;
+      }
+    }
+
+    await this.performIndex();
+
+    if (useCache) {
+      await this.saveCache();
+    }
+  }
+
+  /**
+   * Force re-index without using cache
+   */
+  async reindex(): Promise<void> {
+    await this.performIndex();
+    await this.saveCache();
+  }
+
+  /**
+   * Clear the index cache
+   */
+  async clearCache(): Promise<void> {
+    const cachePath = path.join(this.repoRoot, CACHE_DIR, CACHE_FILE);
+    try {
+      await fs.unlink(cachePath);
+    } catch {
+      // Cache file doesn't exist, nothing to clear
+    }
+  }
+
+  private async performIndex(): Promise<void> {
+    this.files.clear();
+    
     const patterns = [
       '**/*.ts',
       '**/*.tsx',
@@ -51,6 +107,70 @@ export class RepoIndexer {
     }
 
     this.indexed = true;
+  }
+
+  /**
+   * Load index from cache file
+   */
+  private async loadCache(): Promise<IndexCache | null> {
+    const cachePath = path.join(this.repoRoot, CACHE_DIR, CACHE_FILE);
+    
+    try {
+      const content = await fs.readFile(cachePath, 'utf-8');
+      const cache = JSON.parse(content) as IndexCache;
+      
+      // Validate cache version
+      if (cache.metadata.version !== CACHE_VERSION) {
+        return null;
+      }
+      
+      // Check if cache is stale (older than 1 hour)
+      const oneHour = 60 * 60 * 1000;
+      if (Date.now() - cache.metadata.timestamp > oneHour) {
+        return null;
+      }
+      
+      return cache;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Save index to cache file (only if .codexia directory exists)
+   */
+  private async saveCache(): Promise<void> {
+    const cacheDir = path.join(this.repoRoot, CACHE_DIR);
+    const cachePath = path.join(cacheDir, CACHE_FILE);
+    
+    try {
+      // Only save cache if .codexia directory already exists
+      // (i.e., user has run `codexia init`)
+      await fs.access(cacheDir);
+    } catch {
+      // .codexia directory doesn't exist, skip caching
+      return;
+    }
+    
+    try {
+      const filesObj: Record<string, FileInfo> = {};
+      for (const [key, value] of this.files) {
+        filesObj[key] = value;
+      }
+      
+      const cache: IndexCache = {
+        metadata: {
+          version: CACHE_VERSION,
+          timestamp: Date.now(),
+          fileCount: this.files.size,
+        },
+        files: filesObj,
+      };
+      
+      await fs.writeFile(cachePath, JSON.stringify(cache, null, 2), 'utf-8');
+    } catch {
+      // Silently fail if we can't write cache
+    }
   }
 
   /**

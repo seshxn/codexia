@@ -137,6 +137,18 @@ export class DependencyGraph {
     };
   }
 
+  /**
+   * Get the count of files that import a specific symbol from a file
+   */
+  getImportCount(_symbolName: string, filePath: string): number {
+    const node = this.nodes.get(filePath);
+    if (!node) return 0;
+    
+    // For now, we count files that import the module
+    // A more sophisticated implementation would track specific symbol imports
+    return node.importedBy.length;
+  }
+
   private resolveImport(fromPath: string, importSource: string): string | null {
     // Skip external modules
     if (!importSource.startsWith('.') && !importSource.startsWith('/')) {

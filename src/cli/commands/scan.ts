@@ -4,6 +4,11 @@ import { Formatter } from '../formatter.js';
 
 export const scanCommand = new Command('scan')
   .description('Scan and index the repository')
+  .addHelpText('after', `
+Examples:
+  $ codexia scan              Index the repository
+  $ codexia scan --json       Output as JSON for CI pipelines
+`)
   .action(async (_options, command) => {
     const globalOpts = command.parent?.opts() || {};
     const formatter = new Formatter(globalOpts.json);
