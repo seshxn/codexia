@@ -207,13 +207,15 @@ export class ImpactAnalyzer {
     for (const layer of this.architecture.layers) {
       for (const pattern of layer.paths) {
         // Simple pattern matching (supports ** and *)
-        const regex = new RegExp(
-          '^' + pattern
-            .replace(/\*\*/g, '.*')
-            .replace(/\*/g, '[^/]*')
-            .replace(/\//g, '[\\\\/]') +
-          '$'
-        );
+        // Use placeholder to handle ** before * to avoid incorrect replacement
+        let regexPattern = pattern
+          .replace(/\\/g, '/')  // Normalize backslashes
+          .replace(/\*\*/g, '__DOUBLESTAR__')  // Placeholder for **
+          .replace(/\*/g, '[^/]*')  // Single * matches anything except /
+          .replace(/__DOUBLESTAR__/g, '.*')  // ** matches anything including /
+          .replace(/\//g, '[\\\\/]');  // / matches forward or backslash
+        
+        const regex = new RegExp('^' + regexPattern + '$');
         if (regex.test(filePath)) {
           return layer;
         }
