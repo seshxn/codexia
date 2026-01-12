@@ -133,23 +133,105 @@ export class MemoryLoader {
 
     const lines = content.split('\n');
     let currentSection = '';
+    let currentLayer: ArchitectureMemory['layers'][0] | null = null;
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
       if (line.startsWith('## ')) {
-        currentSection = line.slice(3).toLowerCase();
-      } else if (line.startsWith('- ') && currentSection === 'layers') {
-        const match = line.match(/- \*\*(.+)\*\*: (.+)/);
-        if (match) {
-          layers.push({
-            name: match[1],
-            description: match[2],
+        // Save current layer if any
+        if (currentLayer) {
+          layers.push(currentLayer);
+          currentLayer = null;
+        }
+        currentSection = line.slice(3).toLowerCase().trim();
+      } else if (currentSection === 'layers' || currentSection.includes('architecture')) {
+        // Parse layer definition: **LayerName**: Description
+        const layerMatch = line.match(/^[-*]\s*\*\*(.+?)\*\*:\s*(.+)$/);
+        if (layerMatch) {
+          if (currentLayer) {
+            layers.push(currentLayer);
+          }
+          currentLayer = {
+            name: layerMatch[1].trim(),
+            description: layerMatch[2].trim(),
             paths: [],
             allowedDependencies: [],
+          };
+        }
+        // Parse paths (indented under layer): - path: `src/foo/**`
+        else if (currentLayer) {
+          const pathMatch = line.match(/^\s+[-*]\s*(?:path|folder|directory|location)s?:\s*`(.+?)`/i);
+          if (pathMatch) {
+            currentLayer.paths.push(pathMatch[1]);
+          }
+          // Also match simple path patterns in backticks
+          const simplePathMatch = line.match(/^\s+[-*]\s*`([^`]+)`/);
+          if (simplePathMatch && !pathMatch) {
+            currentLayer.paths.push(simplePathMatch[1]);
+          }
+          // Parse allowed dependencies
+          const depsMatch = line.match(/^\s+[-*]\s*(?:can\s+)?(?:depend|import)s?\s*(?:on)?:\s*(.+)/i);
+          if (depsMatch) {
+            const deps = depsMatch[1].split(/[,;]/).map(d => d.trim().replace(/`/g, '')).filter(Boolean);
+            currentLayer.allowedDependencies.push(...deps);
+          }
+        }
+      } else if (currentSection.includes('boundaries') || currentSection.includes('rules')) {
+        // Parse boundary rules: **From** cannot import **To**: reason
+        const boundaryMatch = line.match(/^[-*]\s*\*\*(.+?)\*\*\s*(cannot|must not|should not|can|may)\s*(?:import|depend on)\s*\*\*(.+?)\*\*(?::\s*(.+))?/i);
+        if (boundaryMatch) {
+          boundaries.push({
+            from: boundaryMatch[1].trim(),
+            to: boundaryMatch[3].trim(),
+            allowed: !['cannot', 'must not', 'should not'].includes(boundaryMatch[2].toLowerCase()),
+            reason: boundaryMatch[4]?.trim() || '',
           });
         }
-      } else if (line.startsWith('- ') && currentSection === 'entry points') {
-        entryPoints.push(line.slice(2).trim());
+      } else if (currentSection.includes('entry point')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          const content = trimmed.replace(/^[-*]\s+/, '').trim();
+          let entry: string | null = null;
+
+          // Case 1: entire content is a single backticked value, e.g. - `src/index.ts`
+          const backticked = content.match(/^`([^`]+)`$/);
+          if (backticked) {
+            entry = backticked[1].trim();
+          } else if (!content.includes('`') && /^[\w./\\*-]+$/.test(content)) {
+            // Case 2: bare path-like pattern without backticks, e.g. - src/index.ts
+            entry = content;
+          }
+
+          if (entry) {
+            entryPoints.push(entry);
+          }
+        }
+      } else if (currentSection.includes('critical path')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          const content = trimmed.replace(/^[-*]\s+/, '').trim();
+          let criticalPath: string | null = null;
+
+          // Case 1: entire content is a single backticked value, e.g. - `src/feature/**`
+          const backticked = content.match(/^`([^`]+)`$/);
+          if (backticked) {
+            criticalPath = backticked[1].trim();
+          } else if (!content.includes('`') && /^[\w./\\*-]+$/.test(content)) {
+            // Case 2: bare path-like pattern without backticks
+            criticalPath = content;
+          }
+
+          if (criticalPath) {
+            criticalPaths.push(criticalPath);
+          }
+        }
       }
+    }
+
+    // Don't forget the last layer
+    if (currentLayer) {
+      layers.push(currentLayer);
     }
 
     return { layers, boundaries, entryPoints, criticalPaths };

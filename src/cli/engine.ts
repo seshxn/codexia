@@ -3,6 +3,7 @@ import {
   RepoIndexer,
   DependencyGraph,
   SymbolMap,
+  SignalsEngine,
 } from '../core/index.js';
 import {
   MemoryLoader,
@@ -20,6 +21,7 @@ import type {
   AnalysisResult,
   ProjectMemory,
   Symbol,
+  Signal,
 } from '../core/types.js';
 
 export interface EngineOptions {
@@ -37,6 +39,7 @@ export class CodexiaEngine {
   private impactAnalyzer: ImpactAnalyzer;
   private conventionChecker: ConventionChecker;
   private testSuggester: TestSuggester;
+  private signalsEngine: SignalsEngine;
   private initialized = false;
 
   constructor(options: EngineOptions = {}) {
@@ -51,6 +54,7 @@ export class CodexiaEngine {
     this.impactAnalyzer = new ImpactAnalyzer(this.depGraph);
     this.conventionChecker = new ConventionChecker();
     this.testSuggester = new TestSuggester();
+    this.signalsEngine = new SignalsEngine();
   }
 
   /**
@@ -73,6 +77,9 @@ export class CodexiaEngine {
     const projectMemory = await this.memory.loadMemory();
     if (projectMemory?.conventions) {
       this.conventionChecker.loadFromMemory(projectMemory.conventions);
+    }
+    if (projectMemory?.architecture) {
+      this.impactAnalyzer.setArchitecture(projectMemory.architecture);
     }
 
     this.initialized = true;
@@ -170,6 +177,59 @@ export class CodexiaEngine {
   }
 
   /**
+   * Analyze code signals (orphans, god classes, cycles)
+   */
+  async analyzeSignals(options: {
+    checkOrphans?: boolean;
+    checkGodClasses?: boolean;
+    checkCycles?: boolean;
+  } = {}): Promise<Signal[]> {
+    await this.initialize();
+
+    const signals: Signal[] = [];
+    const files = this.indexer.getFiles();
+
+    // Check for god classes
+    if (options.checkGodClasses !== false) {
+      for (const [filePath, fileInfo] of files) {
+        const signal = this.signalsEngine.detectGodClass(
+          filePath,
+          fileInfo.lines,
+          fileInfo.symbols.length
+        );
+        if (signal) {
+          signals.push(signal);
+        }
+      }
+    }
+
+    // Check for circular dependencies
+    if (options.checkCycles !== false) {
+      const cycles = this.depGraph.detectCycles();
+      for (const cycle of cycles) {
+        signals.push(this.signalsEngine.detectCircularDependency(cycle));
+      }
+    }
+
+    // Check for orphan code (exported but never imported)
+    if (options.checkOrphans !== false) {
+      for (const [, fileInfo] of files) {
+        for (const symbol of fileInfo.symbols) {
+          if (symbol.exported) {
+            const importCount = this.depGraph.getImportCount(symbol.name, symbol.filePath);
+            const signal = this.signalsEngine.detectOrphanCode(symbol, importCount);
+            if (signal) {
+              signals.push(signal);
+            }
+          }
+        }
+      }
+    }
+
+    return signals;
+  }
+
+  /**
    * Generate PR report
    */
   async generatePrReport(options: {
@@ -178,8 +238,15 @@ export class CodexiaEngine {
   } = {}): Promise<PrReport> {
     await this.initialize();
 
+    // Determine base ref - fall back to HEAD if HEAD~1 doesn't exist (single commit repo)
+    let baseRef = options.base;
+    if (!baseRef) {
+      const hasParent = await this.git.hasRef('HEAD~1');
+      baseRef = hasParent ? 'HEAD~1' : 'HEAD';
+    }
+
     const diff = await this.git.getDiff(
-      options.base || 'HEAD~1',
+      baseRef,
       options.head || 'HEAD'
     );
 

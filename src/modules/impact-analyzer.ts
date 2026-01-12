@@ -9,14 +9,23 @@ import type {
   BoundaryViolation,
   Symbol,
   FileInfo,
+  ArchitectureMemory,
 } from '../core/types.js';
 import { DependencyGraph } from '../core/dependency-graph.js';
 
 export class ImpactAnalyzer {
   private depGraph: DependencyGraph;
+  private architecture: ArchitectureMemory | null = null;
 
   constructor(depGraph: DependencyGraph) {
     this.depGraph = depGraph;
+  }
+
+  /**
+   * Set architecture memory for boundary checking
+   */
+  setArchitecture(architecture: ArchitectureMemory): void {
+    this.architecture = architecture;
   }
 
   /**
@@ -129,26 +138,91 @@ export class ImpactAnalyzer {
    */
   private checkBoundaryViolations(
     diff: GitDiff,
-    _files: Map<string, FileInfo>
+    files: Map<string, FileInfo>
   ): BoundaryViolation[] {
     const violations: BoundaryViolation[] = [];
 
-    // Simple heuristic: check for imports across layer boundaries
-    // In a full implementation, this would use the architecture memory
+    // Use architecture memory if available
+    if (this.architecture) {
+      for (const file of diff.files) {
+        const fileInfo = files.get(file.path);
+        if (!fileInfo) continue;
 
-    for (const file of diff.files) {
-      // Example: CLI shouldn't import directly from modules internals
-      if (file.path.includes('/cli/') && file.path.includes('/modules/')) {
-        violations.push({
-          from: file.path,
-          to: 'modules internal',
-          rule: 'CLI should not directly access module internals',
-          severity: 'warning',
-        });
+        const fromLayer = this.findLayerForPath(file.path);
+        if (!fromLayer) continue;
+
+        // Check imports against allowed dependencies
+        for (const imp of fileInfo.imports) {
+          const toLayer = this.findLayerForPath(imp.source);
+          if (!toLayer) continue;
+
+          // Check if this dependency is allowed
+          if (fromLayer.name !== toLayer.name) {
+            const isAllowed = fromLayer.allowedDependencies.some(dep => 
+              dep.toLowerCase() === toLayer.name.toLowerCase()
+            );
+
+            // Also check explicit boundaries
+            const boundary = this.architecture.boundaries.find(b =>
+              b.from.toLowerCase() === fromLayer.name.toLowerCase() &&
+              b.to.toLowerCase() === toLayer.name.toLowerCase()
+            );
+
+            if (!isAllowed && (!boundary || !boundary.allowed)) {
+              violations.push({
+                from: file.path,
+                to: imp.source,
+                rule: boundary?.reason || 
+                  `${fromLayer.name} should not depend on ${toLayer.name}`,
+                severity: 'error',
+              });
+            }
+          }
+        }
+      }
+    } else {
+      // Fallback: simple heuristic if no architecture memory
+      for (const file of diff.files) {
+        // Example: CLI shouldn't import directly from modules internals
+        if (file.path.includes('/cli/') && file.path.includes('/modules/')) {
+          violations.push({
+            from: file.path,
+            to: 'modules internal',
+            rule: 'CLI should not directly access module internals',
+            severity: 'warning',
+          });
+        }
       }
     }
 
     return violations;
+  }
+
+  /**
+   * Find which architecture layer a file path belongs to
+   */
+  private findLayerForPath(filePath: string): ArchitectureMemory['layers'][0] | null {
+    if (!this.architecture) return null;
+
+    for (const layer of this.architecture.layers) {
+      for (const pattern of layer.paths) {
+        // Simple pattern matching (supports ** and *)
+        // Use placeholder to handle ** before * to avoid incorrect replacement
+        let regexPattern = pattern
+          .replace(/\\/g, '/')  // Normalize backslashes
+          .replace(/\*\*/g, '__DOUBLESTAR__')  // Placeholder for **
+          .replace(/\*/g, '[^/]*')  // Single * matches anything except /
+          .replace(/__DOUBLESTAR__/g, '.*')  // ** matches anything including /
+          .replace(/\//g, '[\\\\/]');  // / matches forward or backslash
+        
+        const regex = new RegExp('^' + regexPattern + '$');
+        if (regex.test(filePath)) {
+          return layer;
+        }
+      }
+    }
+
+    return null;
   }
 
   /**

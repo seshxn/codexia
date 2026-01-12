@@ -6,6 +6,12 @@ export const testsCommand = new Command('tests')
   .description('Suggest tests for changed code')
   .option('-b, --base <ref>', 'Base ref for comparison', 'HEAD')
   .option('--staged', 'Analyze only staged changes')
+  .addHelpText('after', `
+Examples:
+  $ codexia tests              Suggest tests for changed code
+  $ codexia tests --staged     Suggest tests for staged changes
+  $ codexia tests -b main      Suggest tests for changes since main
+`)
   .action(async (options, command) => {
     const globalOpts = command.parent?.opts() || {};
     const formatter = new Formatter(globalOpts.json);

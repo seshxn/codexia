@@ -6,6 +6,12 @@ export const checkCommand = new Command('check')
   .description('Check code against project conventions')
   .option('-b, --base <ref>', 'Base ref for comparison', 'HEAD')
   .option('--staged', 'Check only staged changes')
+  .addHelpText('after', `
+Examples:
+  $ codexia check              Check convention violations in changes
+  $ codexia check --staged     Check staged changes only
+  $ codexia check -b main      Check changes since main branch
+`)
   .action(async (options, command) => {
     const globalOpts = command.parent?.opts() || {};
     const formatter = new Formatter(globalOpts.json);
