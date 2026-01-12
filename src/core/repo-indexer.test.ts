@@ -63,7 +63,6 @@ describe('RepoIndexer', () => {
     it('should use cache on subsequent indexes if available', async () => {
       // First index without cache
       await indexer.index({ useCache: false });
-      const firstFiles = indexer.getFiles();
       
       // Create a new indexer instance
       const indexer2 = new RepoIndexer(process.cwd());
