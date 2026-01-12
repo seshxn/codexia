@@ -26,17 +26,24 @@ Examples:
     console.log(chalk.gray(`   Directory: ${cwd}`));
     console.log(chalk.gray('   Press Ctrl+C to stop\n'));
 
-    const engine = new CodexiaEngine();
+    let engine = new CodexiaEngine();
     let debounceTimer: NodeJS.Timeout | null = null;
     let isProcessing = false;
 
-    const runAnalysis = async () => {
+    const runAnalysis = async (configChanged: boolean = false) => {
       if (isProcessing) return;
       isProcessing = true;
 
       try {
         const timestamp = new Date().toLocaleTimeString();
-        console.log(chalk.gray(`[${timestamp}]`) + ' Change detected, analyzing...\n');
+        
+        // Recreate engine if configuration files changed
+        if (configChanged) {
+          console.log(chalk.gray(`[${timestamp}]`) + ' Configuration changed, reloading engine...\n');
+          engine = new CodexiaEngine();
+        } else {
+          console.log(chalk.gray(`[${timestamp}]`) + ' Change detected, analyzing...\n');
+        }
 
         if (options.signals) {
           const signals = await engine.analyzeSignals({});
@@ -62,16 +69,28 @@ Examples:
     };
 
     // Initial run
-    await runAnalysis();
+    await runAnalysis(false);
 
-    // Set up file watcher
-    const watchDirs = ['src', 'lib', 'app', '.'].filter(dir => {
+    // Set up file watcher - only watch specific source directories
+    const watchDirs = ['src', 'lib', 'app'].filter(dir => {
       try {
         return fs.statSync(path.join(cwd, dir)).isDirectory();
       } catch {
         return false;
       }
     });
+
+    // Also watch .codexia directory if it exists for configuration changes
+    const codexiaDir = path.join(cwd, '.codexia');
+    let watchCodexia = false;
+    try {
+      if (fs.statSync(codexiaDir).isDirectory()) {
+        watchDirs.push('.codexia');
+        watchCodexia = true;
+      }
+    } catch {
+      // .codexia directory doesn't exist
+    }
 
     const watchers: fs.FSWatcher[] = [];
 
@@ -83,10 +102,16 @@ Examples:
           (_eventType, filename) => {
             if (!filename) return;
             
+            // Check if it's a .codexia configuration file change
+            const isConfigChange = watchCodexia && 
+              (filename.includes('.codexia') && 
+               (filename.endsWith('.md') || filename.endsWith('template.md')));
+            
             // Ignore certain files
             if (
               filename.includes('node_modules') ||
               filename.includes('.git') ||
+              filename.includes('.codexia/index-cache.json') ||
               filename.includes('dist') ||
               filename.endsWith('.log')
             ) {
@@ -97,7 +122,7 @@ Examples:
             if (debounceTimer) {
               clearTimeout(debounceTimer);
             }
-            debounceTimer = setTimeout(runAnalysis, 300);
+            debounceTimer = setTimeout(() => runAnalysis(isConfigChange), 300);
           }
         );
         watchers.push(watcher);

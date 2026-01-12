@@ -139,6 +139,23 @@ Examples:
       ];
 
       for (const file of files) {
+        let backupPath: string | null = null;
+        if (options.force) {
+          try {
+            await fs.access(file.path);
+            const ext = path.extname(file.path);
+            const base = file.path.slice(0, file.path.length - ext.length);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            backupPath = `${base}.${timestamp}.bak${ext}`;
+            await fs.rename(file.path, backupPath);
+            console.log(
+              chalk.yellow('⚠') +
+                ` Existing ${path.relative(cwd, file.path)} backed up to ${path.relative(cwd, backupPath)}`
+            );
+          } catch {
+            // File does not exist or cannot be accessed; no backup created
+          }
+        }
         await fs.writeFile(file.path, file.content, 'utf-8');
         console.log(chalk.green('✓') + ` Created ${path.relative(cwd, file.path)}`);
       }

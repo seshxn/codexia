@@ -163,7 +163,7 @@ export class ImpactAnalyzer {
             );
 
             // Also check explicit boundaries
-            const boundary = this.architecture!.boundaries.find(b =>
+            const boundary = this.architecture.boundaries.find(b =>
               b.from.toLowerCase() === fromLayer.name.toLowerCase() &&
               b.to.toLowerCase() === toLayer.name.toLowerCase()
             );
@@ -180,10 +180,8 @@ export class ImpactAnalyzer {
           }
         }
       }
-    }
-
-    // Fallback: simple heuristic if no architecture memory
-    if (violations.length === 0) {
+    } else {
+      // Fallback: simple heuristic if no architecture memory
       for (const file of diff.files) {
         // Example: CLI shouldn't import directly from modules internals
         if (file.path.includes('/cli/') && file.path.includes('/modules/')) {
@@ -203,19 +201,21 @@ export class ImpactAnalyzer {
   /**
    * Find which architecture layer a file path belongs to
    */
-  private findLayerForPath(filePath: string): typeof this.architecture extends null ? null : NonNullable<typeof this.architecture>['layers'][0] | null {
+  private findLayerForPath(filePath: string): ArchitectureMemory['layers'][0] | null {
     if (!this.architecture) return null;
 
     for (const layer of this.architecture.layers) {
       for (const pattern of layer.paths) {
         // Simple pattern matching (supports ** and *)
-        const regex = new RegExp(
-          '^' + pattern
-            .replace(/\*\*/g, '.*')
-            .replace(/\*/g, '[^/]*')
-            .replace(/\//g, '[\\\\/]') +
-          '$'
-        );
+        // Use placeholder to handle ** before * to avoid incorrect replacement
+        let regexPattern = pattern
+          .replace(/\\/g, '/')  // Normalize backslashes
+          .replace(/\*\*/g, '__DOUBLESTAR__')  // Placeholder for **
+          .replace(/\*/g, '[^/]*')  // Single * matches anything except /
+          .replace(/__DOUBLESTAR__/g, '.*')  // ** matches anything including /
+          .replace(/\//g, '[\\\\/]');  // / matches forward or backslash
+        
+        const regex = new RegExp('^' + regexPattern + '$');
         if (regex.test(filePath)) {
           return layer;
         }

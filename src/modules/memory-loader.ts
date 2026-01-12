@@ -189,14 +189,42 @@ export class MemoryLoader {
           });
         }
       } else if (currentSection.includes('entry point')) {
-        const entryMatch = line.match(/^[-*]\s*`?([^`\n]+)`?/);
-        if (entryMatch && line.trim().startsWith('-')) {
-          entryPoints.push(entryMatch[1].trim());
+        const trimmed = line.trim();
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          const content = trimmed.replace(/^[-*]\s+/, '').trim();
+          let entry: string | null = null;
+
+          // Case 1: entire content is a single backticked value, e.g. - `src/index.ts`
+          const backticked = content.match(/^`([^`]+)`$/);
+          if (backticked) {
+            entry = backticked[1].trim();
+          } else if (!content.includes('`') && /^[\w./\\*-]+$/.test(content)) {
+            // Case 2: bare path-like pattern without backticks, e.g. - src/index.ts
+            entry = content;
+          }
+
+          if (entry) {
+            entryPoints.push(entry);
+          }
         }
       } else if (currentSection.includes('critical path')) {
-        const pathMatch = line.match(/^[-*]\s*`?([^`\n]+)`?/);
-        if (pathMatch && line.trim().startsWith('-')) {
-          criticalPaths.push(pathMatch[1].trim());
+        const trimmed = line.trim();
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          const content = trimmed.replace(/^[-*]\s+/, '').trim();
+          let criticalPath: string | null = null;
+
+          // Case 1: entire content is a single backticked value, e.g. - `src/feature/**`
+          const backticked = content.match(/^`([^`]+)`$/);
+          if (backticked) {
+            criticalPath = backticked[1].trim();
+          } else if (!content.includes('`') && /^[\w./\\*-]+$/.test(content)) {
+            // Case 2: bare path-like pattern without backticks
+            criticalPath = content;
+          }
+
+          if (criticalPath) {
+            criticalPaths.push(criticalPath);
+          }
         }
       }
     }
