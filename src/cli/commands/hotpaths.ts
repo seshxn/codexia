@@ -60,8 +60,8 @@ Examples:
         console.log(chalk.dim('  No explicit entry points detected. Using dependency roots.\n'));
       }
 
-      // Hot paths - handle both 'paths' and 'hotPaths' field names
-      const hotPaths = analysis.hotPaths || analysis.paths || [];
+      // Hot paths - engine returns 'paths' field
+      const hotPaths = analysis.paths || [];
 
       // Hot paths
       console.log(chalk.bold('\n🛤️  Critical Hot Paths:\n'));
