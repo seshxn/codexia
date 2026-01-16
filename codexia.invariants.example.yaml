@@ -1,0 +1,165 @@
+# Codexia Invariants Configuration
+# Copy this file to codexia.invariants.yaml and customize for your project
+
+rules:
+  # ============================================
+  # Dependency Rules
+  # ============================================
+  
+  # Core module should not depend on CLI
+  - name: "core-no-cli-deps"
+    description: "Core modules must not import from CLI layer"
+    pattern: "src/core/**/*.ts"
+    forbiddenImports:
+      - "../cli/**"
+      - "../../cli/**"
+    severity: "error"
+  
+  # UI components should not directly access data layer
+  - name: "ui-no-data-access"
+    description: "UI components must go through service layer"
+    pattern: "src/components/**/*.tsx"
+    forbiddenImports:
+      - "../data/**"
+      - "../../data/**"
+      - "../database/**"
+    allowedImports:
+      - "../services/**"
+      - "../hooks/**"
+      - "../utils/**"
+    severity: "error"
+
+  # ============================================
+  # Naming Conventions
+  # ============================================
+  
+  # React components must be PascalCase
+  - name: "react-component-naming"
+    description: "React component files must use PascalCase"
+    pattern: "src/components/**/*.tsx"
+    namingConvention: "PascalCase"
+    severity: "warning"
+  
+  # Test files must end with .test.ts
+  - name: "test-file-naming"
+    description: "Test files must follow *.test.ts pattern"
+    pattern: "src/**/*.test.ts"
+    namingConvention: "kebab-case"
+    severity: "info"
+  
+  # Hooks must start with 'use'
+  - name: "hook-naming"
+    description: "Custom hooks must start with 'use'"
+    pattern: "src/hooks/**/*.ts"
+    exportNamePattern: "^use[A-Z]"
+    severity: "error"
+
+  # ============================================
+  # Size Limits
+  # ============================================
+  
+  # No file should exceed 500 lines
+  - name: "max-file-size"
+    description: "Files should not exceed 500 lines"
+    pattern: "src/**/*.ts"
+    maxLines: 500
+    severity: "warning"
+  
+  # Components should be small and focused
+  - name: "component-size"
+    description: "React components should be under 300 lines"
+    pattern: "src/components/**/*.tsx"
+    maxLines: 300
+    severity: "warning"
+  
+  # Limit exports per module
+  - name: "max-exports"
+    description: "Modules should not export more than 10 items"
+    pattern: "src/**/*.ts"
+    maxExports: 10
+    severity: "info"
+
+  # ============================================
+  # Required Patterns
+  # ============================================
+  
+  # API routes must have error handling
+  - name: "api-error-handling"
+    description: "API routes must include try-catch blocks"
+    pattern: "src/api/**/*.ts"
+    requiredPattern: "try\\s*\\{[\\s\\S]*?\\}\\s*catch"
+    severity: "error"
+  
+  # Services must be typed
+  - name: "service-typing"
+    description: "Service functions must have explicit return types"
+    pattern: "src/services/**/*.ts"
+    requiredPattern: "\\):\\s*Promise<|\\):\\s*\\w+"
+    severity: "warning"
+  
+  # Ensure license header in source files
+  - name: "license-header"
+    description: "Source files must include license header"
+    pattern: "src/**/*.ts"
+    requiredPattern: "^\\/\\*\\*\\s*\\n\\s*\\*.*[Ll]icense"
+    severity: "info"
+
+  # ============================================
+  # Complexity Rules
+  # ============================================
+  
+  # Keep cyclomatic complexity low
+  - name: "cyclomatic-complexity"
+    description: "Functions should have cyclomatic complexity under 15"
+    pattern: "src/**/*.ts"
+    maxCyclomaticComplexity: 15
+    severity: "warning"
+  
+  # Limit cognitive complexity
+  - name: "cognitive-complexity"
+    description: "Functions should have cognitive complexity under 20"
+    pattern: "src/**/*.ts"
+    maxCognitiveComplexity: 20
+    severity: "warning"
+
+  # ============================================
+  # Architecture Boundaries
+  # ============================================
+  
+  # Feature modules should be isolated
+  - name: "feature-isolation"
+    description: "Feature modules should not import from other features"
+    pattern: "src/features/*/**.ts"
+    forbiddenImports:
+      - "../*/index"  # Other feature modules
+    allowedImports:
+      - "../../shared/**"
+      - "../../core/**"
+    severity: "error"
+  
+  # Only index files should re-export
+  - name: "barrel-exports"
+    description: "Only index.ts files should have re-exports"
+    pattern: "src/**/!(index).ts"
+    forbiddenPattern: "export\\s*\\{[^}]+\\}\\s*from"
+    severity: "info"
+
+# Global settings
+settings:
+  # Treat warnings as errors in CI
+  strictMode: false
+  
+  # Paths to exclude from analysis
+  exclude:
+    - "node_modules/**"
+    - "dist/**"
+    - "coverage/**"
+    - "**/*.d.ts"
+    - "**/*.test.ts"
+    - "**/*.spec.ts"
+  
+  # Custom severity mappings
+  severityExitCodes:
+    error: 1
+    warning: 0
+    info: 0

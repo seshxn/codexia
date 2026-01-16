@@ -397,3 +397,277 @@ export interface Evidence {
   description: string;
   source: string;
 }
+
+// ============================================================================
+// Complexity Types
+// ============================================================================
+
+export interface ComplexityMetrics {
+  cyclomatic: number;
+  cognitive: number;
+  maintainability: number;
+  coupling: number;
+  cohesion: number;
+  abstractness: number;
+  instability: number;
+  linesOfCode: number;
+}
+
+export interface FileComplexityResult {
+  file: string;
+  metrics: ComplexityMetrics;
+  symbols?: SymbolComplexityResult[];
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+}
+
+export interface SymbolComplexityResult {
+  name: string;
+  type: SymbolKind;
+  complexity: number;
+  cognitive: number;
+  lines: number;
+}
+
+// ============================================================================
+// Temporal Analysis Types
+// ============================================================================
+
+export interface TemporalAnalysisResult {
+  churn?: ChurnEntry[];
+  ownership?: OwnershipEntry[];
+  coupling?: CouplingEntry[];
+  regressionRisk?: RegressionRiskEntry[];
+  summary: TemporalSummary;
+}
+
+export interface ChurnEntry {
+  file: string;
+  commits: number;
+  additions: number;
+  deletions: number;
+  churnRate: number;
+  stability: number;
+}
+
+export interface OwnershipEntry {
+  file: string;
+  primaryOwner: string;
+  ownershipPercentage: number;
+  totalContributors: number;
+  busFactor: number;
+}
+
+export interface CouplingEntry {
+  file1: string;
+  file2: string;
+  coChanges: number;
+  couplingStrength: number;
+  suggestedRefactor?: string;
+}
+
+export interface RegressionRiskEntry {
+  file: string;
+  riskScore: number;
+  bugFixRatio: number;
+  recentIssues: number;
+  riskFactors: string[];
+}
+
+export interface TemporalSummary {
+  totalFiles: number;
+  totalCommits: number;
+  highRiskFiles: number;
+  singleOwnerFiles: number;
+  highlyCoupledPairs: number;
+}
+
+// ============================================================================
+// Hot Path Types
+// ============================================================================
+
+export interface HotPathResult {
+  entryPoints: EntryPoint[];
+  hotPaths: HotPathInfo[];
+  traceResults?: TraceResult;
+  impactAnalysis?: HotPathImpact;
+  summary: HotPathSummary;
+}
+
+export interface EntryPoint {
+  file: string;
+  type: 'main' | 'api' | 'handler' | 'export' | 'test';
+  exports?: string[];
+}
+
+export interface HotPathInfo {
+  name: string;
+  criticalityScore: number;
+  depth: number;
+  nodeCount: number;
+  nodes: HotPathNodeInfo[];
+  riskFactors?: string[];
+}
+
+export interface HotPathNodeInfo {
+  symbol: string;
+  file: string;
+  type: SymbolKind;
+  fanOut: number;
+}
+
+export interface TraceResult {
+  symbol: string;
+  pathsThrough: HotPathInfo[];
+}
+
+export interface HotPathImpact {
+  file: string;
+  hotPathsAffected: number;
+  totalImpactScore: number;
+  affectedPaths: HotPathInfo[];
+  recommendations: string[];
+}
+
+export interface HotPathSummary {
+  averageDepth: number;
+  maxDepth: number;
+  totalNodes: number;
+  criticalNodes: number;
+}
+
+// ============================================================================
+// Invariant Types
+// ============================================================================
+
+export interface InvariantResult {
+  rulesChecked: number;
+  filesScanned: number;
+  violations: InvariantViolationInfo[];
+  rules?: InvariantRuleInfo[];
+}
+
+export interface InvariantViolationInfo {
+  rule: string;
+  file: string;
+  line?: number;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  suggestion?: string;
+  fixed?: boolean;
+}
+
+export interface InvariantRuleInfo {
+  name: string;
+  type: string;
+  description?: string;
+  severity: 'error' | 'warning' | 'info';
+}
+
+// ============================================================================
+// Changelog Types
+// ============================================================================
+
+export interface ChangelogResult {
+  version?: string;
+  from: string;
+  to: string;
+  date: string;
+  summary: ChangelogSummary;
+  sections: ChangelogSection[];
+  apiChanges?: ApiChangesResult;
+}
+
+export interface ChangelogSummary {
+  totalCommits: number;
+  features: number;
+  fixes: number;
+  breaking: number;
+  contributors: string[];
+}
+
+export interface ChangelogSection {
+  type: string;
+  title: string;
+  items: ChangelogItem[];
+}
+
+export interface ChangelogItem {
+  message: string;
+  scope?: string;
+  hash: string;
+  author: string;
+  breaking?: boolean;
+  pr?: string;
+}
+
+export interface ApiChangesResult {
+  breaking: { symbol: string; file: string; change: string }[];
+  additions: { symbol: string; file: string }[];
+  deprecations: { symbol: string; file: string; replacement?: string }[];
+}
+
+// ============================================================================
+// Monorepo Types
+// ============================================================================
+
+export interface MonorepoResult {
+  type: string | null;
+  root: string;
+  packages: MonorepoPackageInfo[];
+  dependencies: Record<string, string[]>;
+  dependents: Record<string, string[]>;
+  graph?: string;
+  sharedDeps?: SharedDependency[];
+  cycles?: string[][];
+  impact?: MonorepoImpact;
+  summary: MonorepoSummary;
+  recommendations?: string[];
+}
+
+export interface MonorepoPackageInfo {
+  name: string;
+  path: string;
+  version?: string;
+  private?: boolean;
+}
+
+export interface SharedDependency {
+  name: string;
+  usedBy: string[];
+  versions: string[];
+}
+
+export interface MonorepoImpact {
+  direct: string[];
+  transitive: string[];
+  buildOrder?: string[];
+}
+
+export interface MonorepoSummary {
+  internalDeps: number;
+  sharedDeps: number;
+}
+
+// ============================================================================
+// Test Prioritization Types
+// ============================================================================
+
+export interface TestPrioritizationResult {
+  tests: PrioritizedTestInfo[];
+  summary: TestPrioritizationSummary;
+}
+
+export interface PrioritizedTestInfo {
+  file: string;
+  score: number;
+  reasons: string[];
+  category: 'critical' | 'high' | 'medium' | 'low';
+  estimatedDuration?: number;
+}
+
+export interface TestPrioritizationSummary {
+  totalTests: number;
+  affectedTests: number;
+  minimalSubset: number;
+  estimatedCoverage: number;
+}
