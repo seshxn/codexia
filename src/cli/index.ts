@@ -18,6 +18,9 @@ import { changelogCommand } from './commands/changelog.js';
 import { monorepoCommand } from './commands/monorepo.js';
 import { mcpServerCommand } from './commands/mcp-server.js';
 
+// Interactive wizard
+import { runInteractiveWizard } from './interactive.js';
+
 const program = new Command();
 
 program
@@ -51,7 +54,12 @@ program.addCommand(mcpServerCommand);
 // Wrap in async IIFE for ES module compatibility
 (async () => {
   try {
-    await program.parseAsync(process.argv);
+    // If no arguments provided (just 'codexia'), launch interactive wizard
+    if (process.argv.length <= 2) {
+      await runInteractiveWizard();
+    } else {
+      await program.parseAsync(process.argv);
+    }
   } catch (error) {
     console.error('Error:', error instanceof Error ? error.message : error);
     process.exit(1);

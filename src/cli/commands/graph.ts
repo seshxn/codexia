@@ -27,7 +27,42 @@ Examples:
       const engine = new CodexiaEngine();
       await engine.initialize();
 
-      const graphData = await engine.getGraphData(file);
+      const rawData = await engine.getGraphData(file);
+      
+      // Transform engine's format to Visualizer's expected format
+      const nodeMap = new Map<string, { path: string; imports: string[]; importedBy: string[]; depth: number }>();
+      
+      // Initialize all nodes
+      for (const node of rawData.nodes) {
+        nodeMap.set(node.id, { path: node.id, imports: [], importedBy: [], depth: 0 });
+      }
+      
+      // Build imports/importedBy from edges
+      for (const edge of rawData.edges) {
+        const fromNode = nodeMap.get(edge.from);
+        const toNode = nodeMap.get(edge.to);
+        if (fromNode) fromNode.imports.push(edge.to);
+        if (toNode) toNode.importedBy.push(edge.from);
+      }
+      
+      const nodes = Array.from(nodeMap.values());
+      const rootNodes = nodes.filter(n => n.importedBy.length === 0).map(n => n.path);
+      const leafNodes = nodes.filter(n => n.imports.length === 0).map(n => n.path);
+      
+      // Transform edges to include 'kind'
+      const edges = rawData.edges.map((e: { from: string; to: string }) => ({
+        from: e.from,
+        to: e.to,
+        kind: 'static' as const,
+      }));
+      
+      const graphData = {
+        nodes,
+        edges,
+        rootNodes,
+        leafNodes,
+      };
+      
       const visualizer = new Visualizer();
 
       const output = visualizer.visualize(graphData, {

@@ -45,18 +45,29 @@ Examples:
       console.log(chalk.bold.cyan('\n🔥 Hot Path Analysis\n'));
       console.log(chalk.dim('─'.repeat(80)));
 
-      // Entry points
-      console.log(chalk.bold('\n📍 Entry Points Detected:\n'));
-      for (const entry of analysis.entryPoints) {
-        console.log(`  ${chalk.green('●')} ${chalk.cyan(entry.file)}`);
-        console.log(chalk.dim(`    Type: ${entry.type} | Exports: ${entry.exports?.join(', ') || 'default'}`));
+      // Entry points - handle missing entryPoints gracefully
+      const detectedEntryPoints = analysis.entryPoints || [];
+      if (detectedEntryPoints.length > 0) {
+        console.log(chalk.bold('\\n📍 Entry Points Detected:\\n'));
+        for (const entry of detectedEntryPoints) {
+          console.log(`  ${chalk.green('●')} ${chalk.cyan(entry.file || entry)}`);
+          if (entry.type) {
+            console.log(chalk.dim(`    Type: ${entry.type} | Exports: ${entry.exports?.join(', ') || 'default'}`));
+          }
+        }
+      } else {
+        console.log(chalk.bold('\n📍 Entry Points:\n'));
+        console.log(chalk.dim('  No explicit entry points detected. Using dependency roots.\n'));
       }
+
+      // Hot paths - handle both 'paths' and 'hotPaths' field names
+      const hotPaths = analysis.hotPaths || analysis.paths || [];
 
       // Hot paths
       console.log(chalk.bold('\n🛤️  Critical Hot Paths:\n'));
       
-      const filteredPaths = analysis.hotPaths
-        .filter((p: any) => p.criticalityScore >= minScore)
+      const filteredPaths = hotPaths
+        .filter((p: any) => (p.criticalityScore || 0.5) >= minScore)
         .slice(0, topN);
 
       if (filteredPaths.length === 0) {
@@ -64,25 +75,36 @@ Examples:
       } else {
         for (let i = 0; i < filteredPaths.length; i++) {
           const path = filteredPaths[i];
-          const scoreBar = '█'.repeat(Math.round(path.criticalityScore * 10));
-          const scoreColor = path.criticalityScore >= 0.8 ? chalk.red :
-                            path.criticalityScore >= 0.5 ? chalk.yellow :
+          const score = path.criticalityScore ?? 0.5;
+          const scoreBar = '█'.repeat(Math.round(score * 10));
+          const scoreColor = score >= 0.8 ? chalk.red :
+                            score >= 0.5 ? chalk.yellow :
                             chalk.green;
 
-          console.log(`  ${chalk.bold(`#${i + 1}`)} ${chalk.cyan(path.name)}`);
-          console.log(`    Score: ${scoreColor(scoreBar)} ${(path.criticalityScore * 100).toFixed(0)}%`);
-          console.log(`    Depth: ${path.depth} | Nodes: ${path.nodeCount}`);
+          console.log(`  ${chalk.bold(`#${i + 1}`)} ${chalk.cyan(path.name || path.id || 'Unnamed path')}`);
+          console.log(`    Score: ${scoreColor(scoreBar)} ${(score * 100).toFixed(0)}%`);
+          console.log(`    Criticality: ${path.criticality || 'medium'}`);
           
-          // Show path
-          console.log(chalk.dim('    Path:'));
-          for (let j = 0; j < Math.min(5, path.nodes.length); j++) {
-            const node = path.nodes[j];
-            const indent = '    ' + '  '.repeat(j);
-            const arrow = j > 0 ? '↳ ' : '';
-            console.log(chalk.dim(`${indent}${arrow}${node.symbol} (${node.file.split('/').pop()})`));
+          // Show path nodes if available
+          const nodes = path.nodes || [];
+          if (nodes.length > 0) {
+            console.log(chalk.dim('    Path:'));
+            for (let j = 0; j < Math.min(5, nodes.length); j++) {
+              const node = nodes[j];
+              const indent = '    ' + '  '.repeat(j);
+              const arrow = j > 0 ? '↳ ' : '';
+              const nodeName = node.symbol || node.path?.split('/').pop() || 'unknown';
+              const fileName = node.file?.split('/').pop() || node.path?.split('/').pop() || '';
+              console.log(chalk.dim(`${indent}${arrow}${nodeName}${fileName ? ` (${fileName})` : ''}`));
+            }
+            if (nodes.length > 5) {
+              console.log(chalk.dim(`      ... +${nodes.length - 5} more nodes`));
+            }
           }
-          if (path.nodes.length > 5) {
-            console.log(chalk.dim(`      ... +${path.nodes.length - 5} more nodes`));
+
+          // Description if available
+          if (path.description) {
+            console.log(chalk.dim(`    ${path.description}`));
           }
 
           // Risk factors
@@ -132,11 +154,13 @@ Examples:
       // Summary
       console.log(chalk.dim('─'.repeat(80)));
       console.log(chalk.bold('\n📊 Summary:\n'));
-      console.log(`  Total entry points:      ${chalk.yellow(analysis.entryPoints.length)}`);
-      console.log(`  Total hot paths:         ${chalk.yellow(analysis.hotPaths.length)}`);
-      console.log(`  Critical paths (>80%):   ${chalk.red(analysis.hotPaths.filter((p: any) => p.criticalityScore >= 0.8).length)}`);
-      console.log(`  Average path depth:      ${chalk.yellow(analysis.summary.averageDepth.toFixed(1))}`);
-      console.log(`  Max path depth:          ${chalk.yellow(analysis.summary.maxDepth)}`);
+      console.log(`  Total entry points:      ${chalk.yellow(detectedEntryPoints.length)}`);
+      console.log(`  Total hot paths:         ${chalk.yellow(hotPaths.length)}`);
+      console.log(`  Critical paths (>80%):   ${chalk.red(hotPaths.filter((p: any) => (p.criticalityScore || 0) >= 0.8).length)}`);
+      if (analysis.summary?.averageDepth !== undefined) {
+        console.log(`  Average path depth:      ${chalk.yellow(analysis.summary.averageDepth.toFixed(1))}`);
+        console.log(`  Max path depth:          ${chalk.yellow(analysis.summary.maxDepth)}`);
+      }
 
       console.log();
     } catch (error) {
