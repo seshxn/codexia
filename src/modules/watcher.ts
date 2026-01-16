@@ -108,7 +108,7 @@ export class CodexiaWatcher extends EventEmitter {
    */
   private watchDirectory(dir: string): void {
     try {
-      const watcher = fs.watch(dir, { recursive: true }, (eventType, filename) => {
+      const watcher = fs.watch(dir, { recursive: true }, (_eventType, filename) => {
         if (!filename) return;
         
         const fullPath = path.join(dir, filename);
