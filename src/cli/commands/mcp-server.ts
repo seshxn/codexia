@@ -50,7 +50,7 @@ Available MCP Tools:
 
       // Start MCP server with appropriate transport
       const transport = options.port ? 'http' : 'stdio';
-      await startMCPServer(transport);
+      await startMCPServer(transport, options.port);
 
       // Keep process alive
       if (options.port) {

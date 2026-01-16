@@ -498,7 +498,7 @@ export class CodexiaMCPServer {
               protocolVersion: '2024-11-05',
               serverInfo: {
                 name: 'codexia',
-                version: '0.1.0',
+                version: '0.2.0',
               },
               capabilities: {
                 tools: {},

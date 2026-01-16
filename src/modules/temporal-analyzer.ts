@@ -203,8 +203,16 @@ export class TemporalAnalyzer {
         }
         
         files.set(filePath, insights);
-      } catch {
-        // Skip files with no git history
+      } catch (error) {
+        // Skip files with no git history or other per-file git issues.
+        // Enable DEBUG_TEMPORAL_ANALYZER=true to log these errors for debugging.
+        if (process.env.DEBUG_TEMPORAL_ANALYZER === 'true') {
+          // eslint-disable-next-line no-console
+          console.debug(
+            `TemporalAnalyzer: failed to analyze file "${filePath}":`,
+            error
+          );
+        }
       }
     }
 
