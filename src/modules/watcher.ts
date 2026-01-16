@@ -121,7 +121,7 @@ export class CodexiaWatcher extends EventEmitter {
 
         // Queue the change
         this.queueChange({
-          type: eventType === 'rename' ? 'change' : 'change',
+          type: 'change',
           path: path.relative(this.repoRoot, fullPath),
           timestamp: new Date(),
         });

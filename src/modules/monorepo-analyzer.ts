@@ -361,7 +361,7 @@ export class MonorepoAnalyzer {
     }
 
     const crossPackageDependencies = this.findCrossPackageDependencies();
-    const sharedDependencies = this.findSharedDependencies();
+    const sharedDependencies = await this.findSharedDependencies();
     const packageStats = this.calculatePackageStats();
     const issues = this.findIssues(crossPackageDependencies, sharedDependencies);
 
@@ -398,17 +398,28 @@ export class MonorepoAnalyzer {
   /**
    * Find shared external dependencies
    */
-  private findSharedDependencies(): SharedDependency[] {
+  private async findSharedDependencies(): Promise<SharedDependency[]> {
     const depVersions = new Map<string, Array<{ package: string; version: string }>>();
 
     for (const pkg of this.config.packages) {
-      // Would need to read actual versions from package.json
-      for (const dep of pkg.dependencies) {
-        if (!this.config.packages.some(p => p.name === dep)) {
-          const existing = depVersions.get(dep) || [];
-          existing.push({ package: pkg.name, version: '*' }); // TODO: actual version
-          depVersions.set(dep, existing);
+      // Read actual versions from package.json
+      try {
+        const pkgJson = await this.readPackageJson(pkg.path);
+        const allDeps = {
+          ...(pkgJson.dependencies as Record<string, string> || {}),
+          ...(pkgJson.devDependencies as Record<string, string> || {}),
+        };
+
+        for (const dep of pkg.dependencies) {
+          if (!this.config.packages.some(p => p.name === dep)) {
+            const existing = depVersions.get(dep) || [];
+            const version = allDeps[dep] || '*';
+            existing.push({ package: pkg.name, version });
+            depVersions.set(dep, existing);
+          }
         }
+      } catch {
+        // If we can't read package.json, skip this package
       }
     }
 
@@ -419,6 +430,17 @@ export class MonorepoAnalyzer {
         versions,
         hasVersionMismatch: new Set(versions.map(v => v.version)).size > 1,
       }));
+  }
+
+  /**
+   * Read and parse package.json from a directory
+   */
+  private async readPackageJson(pkgPath: string): Promise<Record<string, unknown>> {
+    const content = await fs.readFile(
+      path.join(pkgPath, 'package.json'),
+      'utf-8'
+    );
+    return JSON.parse(content);
   }
 
   /**
