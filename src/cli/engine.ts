@@ -10,6 +10,13 @@ import {
   ImpactAnalyzer,
   ConventionChecker,
   TestSuggester,
+  TemporalAnalyzer,
+  InvariantEngine,
+  HotPathDetector,
+  ChangelogGenerator,
+  MonorepoAnalyzer,
+  MonorepoDetector,
+  SmartTestPrioritizer,
 } from '../modules/index.js';
 import type {
   GitDiff,
@@ -40,6 +47,13 @@ export class CodexiaEngine {
   private conventionChecker: ConventionChecker;
   private testSuggester: TestSuggester;
   private signalsEngine: SignalsEngine;
+  private temporalAnalyzer: TemporalAnalyzer;
+  private invariantEngine: InvariantEngine;
+  private hotPathDetector: HotPathDetector;
+  private changelogGenerator: ChangelogGenerator;
+  private monorepoDetector: MonorepoDetector;
+  private monorepoAnalyzer: MonorepoAnalyzer | null = null;
+  private testPrioritizer: SmartTestPrioritizer;
   private initialized = false;
 
   constructor(options: EngineOptions = {}) {
@@ -55,6 +69,14 @@ export class CodexiaEngine {
     this.conventionChecker = new ConventionChecker();
     this.testSuggester = new TestSuggester();
     this.signalsEngine = new SignalsEngine();
+    
+    // New advanced components
+    this.temporalAnalyzer = new TemporalAnalyzer(this.repoRoot);
+    this.invariantEngine = new InvariantEngine(this.repoRoot);
+    this.hotPathDetector = new HotPathDetector(this.repoRoot);
+    this.changelogGenerator = new ChangelogGenerator(this.repoRoot);
+    this.monorepoDetector = new MonorepoDetector(this.repoRoot);
+    this.testPrioritizer = new SmartTestPrioritizer();
   }
 
   /**
@@ -339,5 +361,397 @@ export class CodexiaEngine {
     }
 
     return recommendations;
+  }
+
+  // ============================================
+  // NEW: Visualization Methods
+  // ============================================
+
+  /**
+   * Get graph data for visualization
+   */
+  async getGraphData(file?: string): Promise<any> {
+    await this.initialize();
+    
+    const files = this.indexer.getFiles();
+    const edges: Array<{ from: string; to: string }> = [];
+    
+    for (const [filePath, fileInfo] of files) {
+      for (const imp of fileInfo.imports || []) {
+        edges.push({ from: filePath, to: imp.source });
+      }
+    }
+
+    if (file) {
+      // Filter to show only connected nodes
+      const connected = new Set<string>();
+      connected.add(file);
+      for (const edge of edges) {
+        if (edge.from === file || edge.to === file) {
+          connected.add(edge.from);
+          connected.add(edge.to);
+        }
+      }
+      return {
+        nodes: Array.from(connected).map(f => ({ id: f, label: f.split('/').pop() })),
+        edges: edges.filter(e => connected.has(e.from) && connected.has(e.to)),
+      };
+    }
+
+    return {
+      nodes: Array.from(files.keys()).map(f => ({ id: f, label: f.split('/').pop() })),
+      edges,
+    };
+  }
+
+  // ============================================
+  // NEW: Complexity Analysis Methods
+  // ============================================
+
+  /**
+   * Analyze code complexity
+   */
+  async analyzeComplexity(path?: string, options: {
+    threshold?: number;
+    includeSymbols?: boolean;
+  } = {}): Promise<any> {
+    await this.initialize();
+
+    const files = this.indexer.getFiles();
+    const results: any[] = [];
+
+    for (const [filePath, fileInfo] of files) {
+      if (path && !filePath.includes(path)) continue;
+
+      // Simple complexity calculation based on file info
+      const complexity = {
+        cyclomatic: Math.max(1, fileInfo.symbols.length),
+        cognitive: fileInfo.symbols.filter(s => s.kind === 'function' || s.kind === 'method').length * 2,
+        coupling: fileInfo.imports.length,
+        maintainability: Math.max(0, 100 - fileInfo.lines / 10 - fileInfo.symbols.length),
+        linesOfCode: fileInfo.lines,
+        symbols: options.includeSymbols ? fileInfo.symbols.map(s => ({
+          name: s.name,
+          type: s.kind,
+          complexity: 1,
+          lines: 1,
+        })) : undefined,
+      };
+
+      if (!options.threshold || complexity.maintainability <= options.threshold) {
+        results.push({
+          file: filePath,
+          metrics: complexity,
+          symbols: complexity.symbols,
+        });
+      }
+    }
+
+    // Calculate summary
+    const avgMaintainability = results.length > 0
+      ? results.reduce((sum, r) => sum + (r.metrics.maintainability || 0), 0) / results.length
+      : 100;
+
+    return {
+      files: results,
+      summary: {
+        totalFiles: results.length,
+        averageMaintainability: avgMaintainability,
+        filesNeedingAttention: results.filter(r => r.metrics.maintainability < 60).length,
+        criticalFiles: results.filter(r => r.metrics.maintainability < 40).length,
+      },
+      recommendations: this.generateComplexityRecommendations(results),
+    };
+  }
+
+  private generateComplexityRecommendations(results: any[]): string[] {
+    const recs: string[] = [];
+    const critical = results.filter(r => r.metrics.maintainability < 40);
+    
+    if (critical.length > 0) {
+      recs.push(`${critical.length} files have critical complexity. Consider refactoring.`);
+    }
+    
+    const highCyclomatic = results.filter(r => r.metrics.cyclomatic > 20);
+    if (highCyclomatic.length > 0) {
+      recs.push('Some files have high cyclomatic complexity. Extract helper functions.');
+    }
+    
+    const highCoupling = results.filter(r => r.metrics.coupling > 15);
+    if (highCoupling.length > 0) {
+      recs.push('High coupling detected. Consider dependency injection or facades.');
+    }
+
+    return recs;
+  }
+
+  // ============================================
+  // NEW: Temporal Analysis Methods
+  // ============================================
+
+  /**
+   * Analyze git history patterns
+   */
+  async analyzeHistory(options: {
+    file?: string;
+    since?: string;
+    includeChurn?: boolean;
+    includeOwnership?: boolean;
+    includeCoupling?: boolean;
+    includeRegressionRisk?: boolean;
+  } = {}): Promise<any> {
+    await this.initialize();
+    
+    const files = this.indexer.getFiles();
+    const filePaths = options.file 
+      ? [options.file] 
+      : Array.from(files.keys()).slice(0, 50); // Limit for performance
+    
+    // Analyze temporal patterns
+    const analysis = await this.temporalAnalyzer.analyzeAll(filePaths);
+    
+    return {
+      files: Object.fromEntries(analysis.files),
+      hotspots: analysis.hotspots,
+      riskFiles: analysis.riskFiles,
+      staleFiles: analysis.staleFiles,
+      coChangeClusters: analysis.coChangeClusters,
+      summary: {
+        filesAnalyzed: analysis.files.size,
+        hotspotCount: analysis.hotspots.length,
+        riskFileCount: analysis.riskFiles.length,
+        staleFileCount: analysis.staleFiles.length,
+      },
+    };
+  }
+
+  // ============================================
+  // NEW: Invariant Checking Methods
+  // ============================================
+
+  /**
+   * Check architectural invariants
+   */
+  async checkInvariants(_options: {
+    configFile?: string;
+    fix?: boolean;
+  } = {}): Promise<any> {
+    await this.initialize();
+    
+    // Load invariants from file
+    await this.invariantEngine.loadFromFile();
+    
+    const files = this.indexer.getFiles();
+    const result = await this.invariantEngine.check(files);
+    
+    return {
+      passed: result.passed,
+      rulesChecked: result.checkedRules,
+      passedRules: result.passedRules,
+      filesScanned: files.size,
+      violations: result.violations.map((v) => ({
+        rule: v.rule.id,
+        severity: v.rule.severity,
+        file: v.filePath,
+        line: v.line,
+        message: v.message,
+        suggestion: v.suggestion,
+      })),
+    };
+  }
+
+  // ============================================
+  // NEW: Hot Path Detection Methods
+  // ============================================
+
+  /**
+   * Analyze hot paths in the codebase
+   */
+  async analyzeHotPaths(_options: {
+    entryPoints?: string[];
+    autoDetect?: boolean;
+    trace?: string;
+    impactFile?: string;
+  } = {}): Promise<any> {
+    await this.initialize();
+    
+    const files = this.indexer.getFiles();
+    const deps = this.depGraph.getNodes();
+    
+    // Detect hot paths using the dependency graph
+    const hotPaths = this.hotPathDetector.detectPaths(files, deps);
+    
+    return {
+      paths: hotPaths,
+      summary: {
+        totalPaths: hotPaths.length,
+        criticalPaths: hotPaths.filter((p) => p.criticality === 'critical').length,
+        highPaths: hotPaths.filter((p) => p.criticality === 'high').length,
+        mediumPaths: hotPaths.filter((p) => p.criticality === 'medium').length,
+      },
+    };
+  }
+
+  // ============================================
+  // NEW: Changelog Generation Methods
+  // ============================================
+
+  /**
+   * Get the latest git tag
+   */
+  async getLatestTag(): Promise<string | null> {
+    try {
+      // Use simple-git to get tags
+      const git = await import('simple-git').then(m => m.simpleGit(this.repoRoot));
+      const tags = await git.tags();
+      return tags.all[tags.all.length - 1] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Generate changelog from git history
+   */
+  async generateChangelog(options: {
+    from: string;
+    to?: string;
+    includeApiChanges?: boolean;
+    includeBreaking?: boolean;
+    groupBy?: string;
+  }): Promise<any> {
+    await this.initialize();
+    
+    const changelogOptions = {
+      from: options.from,
+      to: options.to || 'HEAD',
+      includeInternal: false,
+      groupBy: (options.groupBy as 'type' | 'scope' | 'author') || 'type',
+    };
+    
+    return this.changelogGenerator.generate(changelogOptions);
+  }
+
+  // ============================================
+  // NEW: Monorepo Analysis Methods
+  // ============================================
+
+  /**
+   * Analyze monorepo structure
+   */
+  async analyzeMonorepo(options: {
+    scope?: string[];
+    includeGraph?: boolean;
+    includeShared?: boolean;
+    includeCycles?: boolean;
+    impactPackage?: string;
+  } = {}): Promise<any> {
+    // Detect monorepo type
+    const detection = await this.monorepoDetector.detect();
+    
+    // Check if this is a monorepo
+    if (detection.type === 'single') {
+      return {
+        type: null,
+        root: this.repoRoot,
+        packages: [],
+        dependencies: {},
+        dependents: {},
+        summary: { internalDeps: 0, sharedDeps: 0 },
+      };
+    }
+
+    // Initialize monorepo analyzer if not already done
+    if (!this.monorepoAnalyzer) {
+      this.monorepoAnalyzer = new MonorepoAnalyzer(detection);
+    }
+
+    const analysis = await this.monorepoAnalyzer.analyze();
+    
+    return {
+      type: detection.type,
+      root: this.repoRoot,
+      packages: detection.packages,
+      dependencies: analysis.crossPackageDependencies.reduce((acc: Record<string, string[]>, edge) => {
+        if (!acc[edge.from]) acc[edge.from] = [];
+        acc[edge.from].push(edge.to);
+        return acc;
+      }, {}),
+      dependents: analysis.crossPackageDependencies.reduce((acc: Record<string, string[]>, edge) => {
+        if (!acc[edge.to]) acc[edge.to] = [];
+        acc[edge.to].push(edge.from);
+        return acc;
+      }, {}),
+      sharedDeps: options.includeShared ? analysis.sharedDependencies : undefined,
+      cycles: options.includeCycles ? this.detectPackageCycles(analysis.crossPackageDependencies) : undefined,
+      summary: {
+        internalDeps: analysis.crossPackageDependencies.length,
+        sharedDeps: analysis.sharedDependencies.length,
+      },
+    };
+  }
+
+  private detectPackageCycles(edges: Array<{ from: string; to: string }>): string[][] {
+    // Simple cycle detection
+    const graph = new Map<string, string[]>();
+    for (const edge of edges) {
+      if (!graph.has(edge.from)) graph.set(edge.from, []);
+      graph.get(edge.from)!.push(edge.to);
+    }
+    
+    const cycles: string[][] = [];
+    const visited = new Set<string>();
+    const path: string[] = [];
+    
+    const dfs = (node: string) => {
+      if (path.includes(node)) {
+        const cycleStart = path.indexOf(node);
+        cycles.push(path.slice(cycleStart));
+        return;
+      }
+      if (visited.has(node)) return;
+      
+      visited.add(node);
+      path.push(node);
+      
+      for (const neighbor of graph.get(node) || []) {
+        dfs(neighbor);
+      }
+      
+      path.pop();
+    };
+    
+    for (const node of graph.keys()) {
+      dfs(node);
+    }
+    
+    return cycles;
+  }
+
+  // ============================================
+  // NEW: Smart Test Prioritization Methods
+  // ============================================
+
+  /**
+   * Get prioritized test list based on changes
+   */
+  async getPrioritizedTests(options: {
+    base?: string;
+    staged?: boolean;
+    limit?: number;
+  } = {}): Promise<any> {
+    await this.initialize();
+
+    let diff: GitDiff;
+    if (options.staged) {
+      diff = await this.git.getStagedDiff();
+    } else {
+      diff = await this.git.getDiff(options.base || 'HEAD');
+    }
+
+    const files = this.indexer.getFiles();
+    const impact = await this.impactAnalyzer.analyze(diff, files, new Map());
+    
+    return this.testPrioritizer.prioritize(diff, files, impact);
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "codexia",
-  "version": "0.1.0",
-  "description": "Engineering intelligence layer for repositories",
+  "version": "0.2.0",
+  "description": "Engineering intelligence layer for repositories - analyze impact, complexity, history, and enforce architectural invariants",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,14 +14,22 @@
     "dev": "tsc --watch",
     "test": "vitest",
     "lint": "eslint src --ext .ts",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "mcp": "node dist/mcp/server.js"
   },
   "keywords": [
     "code-analysis",
     "engineering-intelligence",
     "git",
     "impact-analysis",
-    "developer-tools"
+    "developer-tools",
+    "complexity",
+    "monorepo",
+    "architectural-invariants",
+    "mcp",
+    "ai-tools",
+    "changelog",
+    "dependency-graph"
   ],
   "author": "Seshan Pillay",
   "license": "AGPL-3.0",
@@ -40,5 +48,13 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seshxn/codexia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/seshxn/codexia/issues"
+  },
+  "homepage": "https://github.com/seshxn/codexia#readme"
 }

@@ -8,6 +8,16 @@ import { signalsCommand } from './commands/signals.js';
 import { initCommand } from './commands/init.js';
 import { watchCommand } from './commands/watch.js';
 
+// New commands
+import { graphCommand } from './commands/graph.js';
+import { complexityCommand } from './commands/complexity.js';
+import { historyCommand } from './commands/history.js';
+import { invariantsCommand } from './commands/invariants.js';
+import { hotpathsCommand } from './commands/hotpaths.js';
+import { changelogCommand } from './commands/changelog.js';
+import { monorepoCommand } from './commands/monorepo.js';
+import { mcpServerCommand } from './commands/mcp-server.js';
+
 const program = new Command();
 
 program
@@ -18,6 +28,7 @@ program
   .option('--format <format>', 'Output format: text, json, or markdown', 'text')
   .option('-v, --verbose', 'Verbose output');
 
+// Core commands
 program.addCommand(initCommand);
 program.addCommand(scanCommand);
 program.addCommand(impactCommand);
@@ -26,6 +37,16 @@ program.addCommand(testsCommand);
 program.addCommand(signalsCommand);
 program.addCommand(prReportCommand);
 program.addCommand(watchCommand);
+
+// Advanced analysis commands
+program.addCommand(graphCommand);
+program.addCommand(complexityCommand);
+program.addCommand(historyCommand);
+program.addCommand(invariantsCommand);
+program.addCommand(hotpathsCommand);
+program.addCommand(changelogCommand);
+program.addCommand(monorepoCommand);
+program.addCommand(mcpServerCommand);
 
 // Wrap in async IIFE for ES module compatibility
 (async () => {

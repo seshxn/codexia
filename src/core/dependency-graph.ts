@@ -214,4 +214,11 @@ export class DependencyGraph {
       }
     }
   }
+
+  /**
+   * Get all nodes in the dependency graph
+   */
+  getNodes(): Map<string, DependencyNode> {
+    return this.nodes;
+  }
 }
