@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.3.0] - 2026-01-17
+
+### What's Changed
+
+- chore: add release workflow for automated versioning and publishing (#11) (d8846d4)
+- feat: add interactive wizard for command selection and execution (#6) (37610b2)
+- feat: Add 12 new analysis modules and MCP server (#4) (d02f673)
+- feat: Add new commands and features to Codexia CLI (#1) (900702f)
+- chore: Add GitHub Actions CI workflow for testing and building (#2) (3370888)
+- Initial commit (02b3f9a)
+
+
 All notable changes to Codexia will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
