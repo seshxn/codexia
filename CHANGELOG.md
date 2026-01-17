@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.3.0] - 2026-01-17
+
+### What's Changed
+
+- chore: release v0.2.0 (0f3865c)
+- chore: release v0.1.0 (2dabe28)
+- fix: fix version bump step with logging for better visibility (46e0351)
+- chore: release v0.1.0 (e6456e4)
+- feat: enhance release workflow with separate push for version bump and tag (0a1f061)
+- chore: release v0.3.0 (3075ea2)
+- chore: add release workflow for automated versioning and publishing (#11) (d8846d4)
+- feat: add interactive wizard for command selection and execution (#6) (37610b2)
+- feat: Add 12 new analysis modules and MCP server (#4) (d02f673)
+- feat: Add new commands and features to Codexia CLI (#1) (900702f)
+- chore: Add GitHub Actions CI workflow for testing and building (#2) (3370888)
+- Initial commit (02b3f9a)
+
+
 ## [v0.2.0] - 2026-01-17
 
 ### What's Changed
