@@ -65,5 +65,6 @@
   "bugs": {
     "url": "https://github.com/seshxn/codexia/issues"
   },
-  "homepage": "https://github.com/seshxn/codexia#readme"
+  "homepage": "https://github.com/seshxn/codexia#readme",
+  "version": "0.1.0"
 }

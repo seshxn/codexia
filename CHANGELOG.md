@@ -4,6 +4,13 @@
 
 ### What's Changed
 
+- fix: fix version bump step with logging for better visibility (46e0351)
+
+
+## [v0.1.0] - 2026-01-17
+
+### What's Changed
+
 
 
 
