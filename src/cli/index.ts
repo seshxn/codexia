@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from 'commander';
 import { scanCommand } from './commands/scan.js';
 import { impactCommand } from './commands/impact.js';

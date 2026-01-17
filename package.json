@@ -1,6 +1,6 @@
 {
   "name": "codexia",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Engineering intelligence layer for repositories - analyze impact, complexity, history, and enforce architectural invariants",
   "type": "module",
   "main": "dist/index.js",
@@ -37,6 +37,7 @@
     "@inquirer/prompts": "^7.10.1",
     "boxen": "^8.0.1",
     "chalk": "^5.3.0",
+    "codexia": "^0.2.0",
     "commander": "^12.1.0",
     "glob": "^10.3.10",
     "gradient-string": "^3.0.0",
@@ -66,6 +67,5 @@
   "bugs": {
     "url": "https://github.com/seshxn/codexia/issues"
   },
-  "homepage": "https://github.com/seshxn/codexia#readme",
-  "version": "0.2.0"
+  "homepage": "https://github.com/seshxn/codexia#readme"
 }
