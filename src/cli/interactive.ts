@@ -196,7 +196,7 @@ function printBanner(): void {
   console.log();
 }
 
-async function selectCategory(): Promise<string> {
+export async function selectCategory(): Promise<string> {
   return select({
     message: chalk.bold('What would you like to do?'),
     choices: categories.map((cat) => ({
@@ -206,7 +206,7 @@ async function selectCategory(): Promise<string> {
   });
 }
 
-async function selectCommand(categoryValue: string): Promise<string> {
+export async function selectCommand(categoryValue: string): Promise<string> {
   const category = categories.find((c) => c.value === categoryValue);
   if (!category) throw new Error('Invalid category');
 
@@ -226,7 +226,7 @@ async function selectCommand(categoryValue: string): Promise<string> {
   });
 }
 
-async function getCommandOptions(command: string): Promise<Record<string, unknown>> {
+export async function getCommandOptions(command: string): Promise<Record<string, unknown>> {
   const options: Record<string, unknown> = {};
 
   // Command-specific prompts
@@ -294,7 +294,7 @@ function createSpinner(text: string) {
   });
 }
 
-async function executeCommand(command: string, options: Record<string, unknown>): Promise<void> {
+export async function executeCommand(command: string, options: Record<string, unknown>): Promise<void> {
   const formatter = new Formatter(options.json as boolean);
   const engine = new CodexiaEngine();
 
