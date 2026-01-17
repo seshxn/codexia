@@ -121,8 +121,10 @@ jobs:
 
       - name: Bump version
         id: version
+        env:
+          NEW_VERSION: ${{ needs.build.outputs.version }}
         run: |
-          NEW_VERSION="${{ needs.build.outputs.version }}"
+          echo "Bumping to version ${NEW_VERSION}"
           
           # Update package.json to use the version computed in the build job
           node -e "
