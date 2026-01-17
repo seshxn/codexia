@@ -93,7 +93,17 @@ function formatMarkdownChangelog(data: any, options: any): string {
   const title = data.version ? `## ${data.version}` : `## Changelog`;
   lines.push(title);
   lines.push('');
-  const dateStr = data.date instanceof Date ? data.date.toISOString().split('T')[0] : data.date;
+  
+  // Safe date handling
+  let dateStr: string;
+  if (data.date instanceof Date) {
+    dateStr = data.date.toISOString().split('T')[0];
+  } else if (typeof data.date === 'string' && data.date.trim() !== '') {
+    dateStr = data.date;
+  } else {
+    dateStr = new Date().toISOString().split('T')[0];
+  }
+  
   lines.push(`*${dateStr}* | ${totalCommits} commits | ${contributors.length} contributors`);
   lines.push('');
 
@@ -197,7 +207,16 @@ function formatPlainChangelog(data: any): string {
   const totalCommits = stats.commits || stats.totalCommits || 0;
   const from = data.from || '';
   const to = data.to || data.version || 'HEAD';
-  const dateStr = data.date instanceof Date ? data.date.toISOString().split('T')[0] : data.date;
+  
+  // Safe date handling
+  let dateStr: string;
+  if (data.date instanceof Date) {
+    dateStr = data.date.toISOString().split('T')[0];
+  } else if (typeof data.date === 'string' && data.date.trim() !== '') {
+    dateStr = data.date;
+  } else {
+    dateStr = new Date().toISOString().split('T')[0];
+  }
   
   lines.push(`CHANGELOG ${from} → ${to}`);
   lines.push(`Date: ${dateStr}`);

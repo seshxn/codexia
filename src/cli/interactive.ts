@@ -6,6 +6,7 @@ import ora from 'ora';
 import { CodexiaEngine } from './engine.js';
 import { Formatter } from './formatter.js';
 import { Visualizer } from '../modules/visualizer.js';
+import { transformGraphData } from '../modules/graph-utils.js';
 
 interface CommandOption {
   name: string;
@@ -19,6 +20,92 @@ interface CommandCategory {
   description: string;
   icon: string;
   commands: CommandOption[];
+}
+
+// Result types for formatting functions
+interface ComplexityResult {
+  summary: {
+    totalFiles: number;
+    averageMaintainability: number;
+    filesNeedingAttention: number;
+    criticalFiles: number;
+  };
+  recommendations: string[];
+}
+
+interface HistoryResult {
+  summary: {
+    filesAnalyzed: number;
+    hotspotCount: number;
+    riskFileCount: number;
+    staleFileCount: number;
+  };
+}
+
+interface InvariantsResult {
+  passed: boolean;
+  rulesChecked: number;
+  passedRules: number;
+  violations: Array<{
+    severity: string;
+    message: string;
+    file: string;
+    line?: number;
+  }>;
+}
+
+interface HotPathsResult {
+  summary: {
+    totalPaths: number;
+    criticalPaths: number;
+    highPaths: number;
+    mediumPaths: number;
+  };
+}
+
+interface ChangelogStats {
+  commits?: number;
+  additions?: number;
+  deletions?: number;
+  contributors: string[];
+}
+
+interface ChangelogItem {
+  breaking?: boolean;
+  description?: string;
+  message?: string;
+  scope?: string;
+  pr?: string;
+}
+
+interface ChangelogSection {
+  title?: string;
+  type?: string;
+  items: ChangelogItem[];
+}
+
+interface ChangelogResult {
+  stats?: ChangelogStats;
+  sections: ChangelogSection[];
+  entries?: Array<{
+    message?: string;
+    description?: string;
+  }>;
+  version?: string;
+  date?: Date | string;
+}
+
+interface MonorepoPackage {
+  name?: string;
+}
+
+interface MonorepoResult {
+  type?: string;
+  packages?: Array<MonorepoPackage | string>;
+  summary?: {
+    internalDeps?: number;
+    sharedDeps?: number;
+  };
 }
 
 const categories: CommandCategory[] = [
@@ -280,39 +367,8 @@ async function executeCommand(command: string, options: Record<string, unknown>)
         await engine.initialize();
         const rawData = await engine.getGraphData(file);
         
-        // Transform engine's format to Visualizer's expected format
-        const nodeMap = new Map<string, { path: string; imports: string[]; importedBy: string[]; depth: number }>();
-        
-        // Initialize all nodes
-        for (const node of rawData.nodes) {
-          nodeMap.set(node.id, { path: node.id, imports: [], importedBy: [], depth: 0 });
-        }
-        
-        // Build imports/importedBy from edges
-        for (const edge of rawData.edges) {
-          const fromNode = nodeMap.get(edge.from);
-          const toNode = nodeMap.get(edge.to);
-          if (fromNode) fromNode.imports.push(edge.to);
-          if (toNode) toNode.importedBy.push(edge.from);
-        }
-        
-        const nodes = Array.from(nodeMap.values());
-        const rootNodes = nodes.filter(n => n.importedBy.length === 0).map(n => n.path);
-        const leafNodes = nodes.filter(n => n.imports.length === 0).map(n => n.path);
-        
-        // Transform edges to include 'kind'
-        const edges = rawData.edges.map((e: { from: string; to: string }) => ({
-          from: e.from,
-          to: e.to,
-          kind: 'static' as const,
-        }));
-        
-        const graphData = {
-          nodes,
-          edges,
-          rootNodes,
-          leafNodes,
-        };
+        // Transform engine's format to Visualizer's expected format using utility
+        const graphData = transformGraphData(rawData);
         
         spinner.succeed(chalk.green('Graph generated'));
         console.log();
@@ -416,8 +472,9 @@ async function executeCommand(command: string, options: Record<string, unknown>)
           } else {
             formatChangelogResult(result);
           }
-        } catch {
+        } catch (error) {
           spinner.fail(chalk.red('Could not generate changelog'));
+          console.error(chalk.dim(`Error: ${error instanceof Error ? error.message : String(error)}`));
           console.log(chalk.yellow('Try specifying a valid --from ref.'));
         }
         break;
@@ -521,7 +578,7 @@ rules:
 }
 
 // Helper formatters for commands without dedicated formatter methods
-function formatComplexityResult(result: any): void {
+function formatComplexityResult(result: ComplexityResult): void {
   const maintainability = result.summary.averageMaintainability;
   const maintColor = maintainability >= 70 ? 'green' : maintainability >= 50 ? 'yellow' : 'red';
   
@@ -551,7 +608,7 @@ function formatComplexityResult(result: any): void {
   console.log();
 }
 
-function formatHistoryResult(result: any): void {
+function formatHistoryResult(result: HistoryResult): void {
   console.log(
     boxen(
       `${chalk.bold('📜 History Analysis')}\n\n` +
@@ -569,7 +626,7 @@ function formatHistoryResult(result: any): void {
   console.log();
 }
 
-function formatInvariantsResult(result: any): void {
+function formatInvariantsResult(result: InvariantsResult): void {
   const statusIcon = result.passed ? chalk.green('✓') : chalk.red('✗');
   const statusText = result.passed ? chalk.green('All invariants passed') : chalk.red('Violations found');
   const borderColor = result.passed ? 'green' : 'red';
@@ -605,7 +662,7 @@ function formatInvariantsResult(result: any): void {
   console.log();
 }
 
-function formatHotPathsResult(result: any): void {
+function formatHotPathsResult(result: HotPathsResult): void {
   console.log(
     boxen(
       `${chalk.bold('🔥 Hot Paths Analysis')}\n\n` +
@@ -623,7 +680,7 @@ function formatHotPathsResult(result: any): void {
   console.log();
 }
 
-function formatChangelogResult(result: any): void {
+function formatChangelogResult(result: ChangelogResult): void {
   let statsLine = '';
   if (result.stats) {
     statsLine = `  ${chalk.cyan(result.stats.commits)} commits  ${chalk.green('+' + result.stats.additions)}  ${chalk.red('-' + result.stats.deletions)}`;
@@ -669,7 +726,7 @@ function formatChangelogResult(result: any): void {
   console.log();
 }
 
-function formatMonorepoResult(result: any): void {
+function formatMonorepoResult(result: MonorepoResult): void {
   if (!result.type) {
     console.log(
       boxen(
@@ -706,7 +763,8 @@ function formatMonorepoResult(result: any): void {
     console.log(chalk.bold('  📁 Packages'));
     console.log(chalk.dim('  ' + '─'.repeat(40)));
     for (const pkg of result.packages.slice(0, 10)) {
-      console.log(`   ${chalk.cyan('▸')} ${pkg.name || pkg}`);
+      const pkgName = typeof pkg === 'string' ? pkg : (pkg.name || 'unknown');
+      console.log(`   ${chalk.cyan('▸')} ${pkgName}`);
     }
     if (result.packages.length > 10) {
       console.log(chalk.gray(`   ... and ${result.packages.length - 10} more`));
