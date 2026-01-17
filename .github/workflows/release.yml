@@ -125,7 +125,14 @@ jobs:
           NEW_VERSION="${{ needs.build.outputs.version }}"
           
           # Update package.json to use the version computed in the build job
-          node -e "const fs = require('fs'); const path = require('path'); const pkgPath = path.join(process.cwd(), 'package.json'); const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); pkg.version = process.env.NEW_VERSION; fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');"
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const pkgPath = path.join(process.cwd(), 'package.json');
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+            pkg.version = process.env.NEW_VERSION;
+            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          "
           
           # Update package-lock.json to reflect the new version
           npm install --package-lock-only
@@ -172,20 +179,20 @@ jobs:
             mv "$tmpfile" CHANGELOG.md
           else
             echo "CHANGELOG.md not found, creating a new one"
-            cat << EOC > CHANGELOG.md
-          # Changelog
-          
-          All notable changes to this project will be documented in this file.
-          
-          The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-          and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-          
-          ## [$VERSION] - $DATE
-          
-          ### What's Changed
-          
-          $COMMITS
-          EOC
+            {
+              echo "# Changelog"
+              echo ""
+              echo "All notable changes to this project will be documented in this file."
+              echo ""
+              echo "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),"
+              echo "and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)."
+              echo ""
+              echo "## [$VERSION] - $DATE"
+              echo ""
+              echo "### What's Changed"
+              echo ""
+              echo "$COMMITS"
+            } > CHANGELOG.md
           fi
           
           # Create release notes
