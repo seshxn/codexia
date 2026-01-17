@@ -28,3 +28,6 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# User-specific config (use example files as templates)
+codexia.invariants.yaml
