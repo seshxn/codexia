@@ -35,8 +35,17 @@ Examples:
           options.from = latestTag;
           console.error(chalk.dim(`Using latest tag: ${latestTag}`));
         } else {
-          options.from = 'HEAD~50';
-          console.error(chalk.dim('No tags found, using last 50 commits'));
+          // Get the root commit as fallback
+          const { simpleGit } = await import('simple-git');
+          const git = simpleGit(process.cwd());
+          try {
+            const rootCommit = await git.raw(['rev-list', '--max-parents=0', 'HEAD']);
+            options.from = rootCommit.trim();
+            console.error(chalk.dim('No tags found, showing all commits'));
+          } catch {
+            options.from = 'HEAD~5';
+            console.error(chalk.dim('Using last 5 commits'));
+          }
         }
       }
 
@@ -71,53 +80,39 @@ Examples:
     }
   });
 
-interface ChangelogData {
-  version?: string;
-  from: string;
-  to: string;
-  date: string;
-  summary: {
-    totalCommits: number;
-    features: number;
-    fixes: number;
-    breaking: number;
-    contributors: string[];
-  };
-  sections: Array<{
-    type: string;
-    title: string;
-    items: Array<{
-      message: string;
-      scope?: string;
-      hash: string;
-      author: string;
-      breaking?: boolean;
-      pr?: string;
-    }>;
-  }>;
-  apiChanges?: {
-    breaking: Array<{ symbol: string; file: string; change: string }>;
-    additions: Array<{ symbol: string; file: string }>;
-    deprecations: Array<{ symbol: string; file: string; replacement?: string }>;
-  };
-}
-
-function formatMarkdownChangelog(data: ChangelogData, options: any): string {
+function formatMarkdownChangelog(data: any, options: any): string {
   const lines: string[] = [];
+  
+  // Handle both ChangelogEntry (from generator) and ChangelogData formats
+  const stats = data.stats || data.summary || {};
+  const totalCommits = stats.commits || stats.totalCommits || 0;
+  const contributors = stats.contributors || [];
+  const breakingCount = stats.breakingChanges || stats.breaking || 0;
   
   // Header
   const title = data.version ? `## ${data.version}` : `## Changelog`;
   lines.push(title);
   lines.push('');
-  lines.push(`*${data.date}* | ${data.summary.totalCommits} commits | ${data.summary.contributors.length} contributors`);
+  
+  // Safe date handling
+  let dateStr: string;
+  if (data.date instanceof Date) {
+    dateStr = data.date.toISOString().split('T')[0];
+  } else if (typeof data.date === 'string' && data.date.trim() !== '') {
+    dateStr = data.date;
+  } else {
+    dateStr = new Date().toISOString().split('T')[0];
+  }
+  
+  lines.push(`*${dateStr}* | ${totalCommits} commits | ${contributors.length} contributors`);
   lines.push('');
 
   // Breaking changes first
-  if (options.includeBreaking && data.summary.breaking > 0) {
+  if (options.includeBreaking && breakingCount > 0) {
     lines.push('### ⚠️ Breaking Changes');
     lines.push('');
     for (const section of data.sections) {
-      const breaking = section.items.filter(i => i.breaking);
+      const breaking = section.items.filter((i: any) => i.breaking);
       for (const item of breaking) {
         lines.push(`- **${section.type}${item.scope ? `(${item.scope})` : ''}**: ${item.message}`);
       }
@@ -174,7 +169,7 @@ function formatMarkdownChangelog(data: ChangelogData, options: any): string {
   };
 
   for (const section of data.sections) {
-    const nonBreaking = section.items.filter(i => !i.breaking);
+    const nonBreaking = section.items.filter((i: any) => !i.breaking);
     if (nonBreaking.length === 0) continue;
 
     lines.push(typeMap[section.type] || `### ${section.title}`);
@@ -185,7 +180,7 @@ function formatMarkdownChangelog(data: ChangelogData, options: any): string {
       if (item.scope) {
         line += `**${item.scope}**: `;
       }
-      line += item.message;
+      line += item.message || item.description || 'Unknown change';
       if (item.pr) {
         line += ` (${item.pr})`;
       }
@@ -195,30 +190,45 @@ function formatMarkdownChangelog(data: ChangelogData, options: any): string {
   }
 
   // Contributors
-  if (data.summary.contributors.length > 0) {
+  if (contributors.length > 0) {
     lines.push('### 👥 Contributors');
     lines.push('');
-    lines.push(data.summary.contributors.map(c => `@${c}`).join(', '));
+    lines.push(contributors.map((c: string) => `@${c}`).join(', '));
     lines.push('');
   }
 
   return lines.join('\n');
 }
 
-function formatPlainChangelog(data: ChangelogData): string {
+function formatPlainChangelog(data: any): string {
   const lines: string[] = [];
   
-  lines.push(`CHANGELOG ${data.from} → ${data.to}`);
-  lines.push(`Date: ${data.date}`);
-  lines.push(`Commits: ${data.summary.totalCommits}`);
+  const stats = data.stats || data.summary || {};
+  const totalCommits = stats.commits || stats.totalCommits || 0;
+  const from = data.from || '';
+  const to = data.to || data.version || 'HEAD';
+  
+  // Safe date handling
+  let dateStr: string;
+  if (data.date instanceof Date) {
+    dateStr = data.date.toISOString().split('T')[0];
+  } else if (typeof data.date === 'string' && data.date.trim() !== '') {
+    dateStr = data.date;
+  } else {
+    dateStr = new Date().toISOString().split('T')[0];
+  }
+  
+  lines.push(`CHANGELOG ${from} → ${to}`);
+  lines.push(`Date: ${dateStr}`);
+  lines.push(`Commits: ${totalCommits}`);
   lines.push('');
 
   for (const section of data.sections) {
-    lines.push(`[${section.type.toUpperCase()}]`);
+    lines.push(`[${(section.type || 'other').toUpperCase()}]`);
     for (const item of section.items) {
       const breaking = item.breaking ? '[BREAKING] ' : '';
       const scope = item.scope ? `(${item.scope}) ` : '';
-      lines.push(`  ${breaking}${scope}${item.message}`);
+      lines.push(`  ${breaking}${scope}${item.message || item.description}`);
     }
     lines.push('');
   }

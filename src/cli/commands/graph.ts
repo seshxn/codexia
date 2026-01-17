@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { CodexiaEngine } from '../engine.js';
 import { Formatter } from '../formatter.js';
 import { Visualizer } from '../../modules/visualizer.js';
+import { transformGraphData } from '../../modules/graph-utils.js';
 
 export const graphCommand = new Command('graph')
   .description('Visualize dependency graph')
@@ -27,7 +28,11 @@ Examples:
       const engine = new CodexiaEngine();
       await engine.initialize();
 
-      const graphData = await engine.getGraphData(file);
+      const rawData = await engine.getGraphData(file);
+      
+      // Transform engine's format to Visualizer's expected format
+      const graphData = transformGraphData(rawData);
+      
       const visualizer = new Visualizer();
 
       const output = visualizer.visualize(graphData, {

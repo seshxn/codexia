@@ -8,6 +8,43 @@ Codexia understands your codebase, its history, its architecture, and its rules�
 
 ---
 
+## Quick Start
+
+```bash
+# Install globally
+npm install -g codexia
+
+# Run the interactive wizard
+codexia
+```
+
+When you run `codexia` without any arguments, an interactive wizard guides you through all features:
+
+```text
+┌────────────────────────────────────────┐
+│  🧠 Codexia - Engineering Intelligence │
+└────────────────────────────────────────┘
+
+? What would you like to do?
+  📊 Analyze - Scan, signals, impact analysis
+  📋 Reports - PR reports, changelog, history
+  🎯 Quality - Complexity, invariants, conventions
+  🧪 Testing - Test suggestions, prioritization
+  ⚙️  Setup - Initialize, watch mode, MCP server
+```
+
+Select a category, then choose a specific command—the wizard handles paths, options, and output format prompts for you.
+
+Or use commands directly for scripting and CI:
+
+```bash
+codexia scan          # Full repository scan
+codexia impact        # Analyze change impact
+codexia signals       # Detect code smells
+```
+
+---
+
 ## What Codexia Does
 
 ### 🔍 **Repository Scanning**
@@ -277,8 +314,11 @@ codexia history --json
 
 ## CLI Reference
 
-```
+```text
 Usage: codexia [options] [command]
+
+Interactive Mode:
+  codexia             Launch interactive wizard (no arguments)
 
 Commands:
   init                Initialize .codexia directory

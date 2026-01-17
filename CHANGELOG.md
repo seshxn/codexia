@@ -5,6 +5,22 @@ All notable changes to Codexia will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Interactive Wizard Mode** — Run `codexia` without arguments to launch an interactive menu-driven experience
+  - 5 command categories: Analyze, Reports, Quality, Testing, Setup
+  - Guided prompts for paths, options, and output formats
+  - Built with `@inquirer/prompts` for a modern CLI experience
+
+### Fixed
+
+- **Graph command** — Fixed data transformation to properly generate dependency visualizations
+- **Changelog command** — Auto-detects repository root commit when no tags exist; fixed formatter to handle actual engine output structure
+- **Hot paths command** — Gracefully handles missing entry points and paths data
+- **History command** — Fixed undefined values in summary output with proper fallbacks
+
 ## [0.2.0] - 2026-01-13
 
 ### Added

@@ -119,11 +119,13 @@ Examples:
       console.log(chalk.dim('─'.repeat(80)));
       console.log(chalk.bold('\n📊 Summary:\n'));
       if (analysis.summary) {
-        console.log(`  Total files analyzed:     ${chalk.yellow(analysis.summary.totalFiles)}`);
-        console.log(`  Total commits analyzed:   ${chalk.yellow(analysis.summary.totalCommits)}`);
-        console.log(`  High-risk files:          ${chalk.red(analysis.summary.highRiskFiles)}`);
-        console.log(`  Single-owner files:       ${chalk.yellow(analysis.summary.singleOwnerFiles)}`);
-        console.log(`  Highly coupled pairs:     ${chalk.yellow(analysis.summary.highlyCoupledPairs)}`);
+        console.log(`  Total files analyzed:     ${chalk.yellow(analysis.summary.totalFiles ?? analysis.summary.filesAnalyzed ?? 0)}`);
+        console.log(`  Total commits analyzed:   ${chalk.yellow(analysis.summary.totalCommits ?? 'N/A')}`);
+        console.log(`  High-risk files:          ${chalk.red(analysis.summary.highRiskFiles ?? analysis.summary.riskFileCount ?? 0)}`);
+        console.log(`  Single-owner files:       ${chalk.yellow(analysis.summary.singleOwnerFiles ?? 0)}`);
+        console.log(`  Highly coupled pairs:     ${chalk.yellow(analysis.summary.highlyCoupledPairs ?? 0)}`);
+      } else {
+        console.log(chalk.dim('  Summary data not available.'));
       }
 
       console.log();
