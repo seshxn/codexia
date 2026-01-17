@@ -1,5 +1,6 @@
 {
   "name": "codexia",
+  "version": "0.2.0",
   "description": "Engineering intelligence layer for repositories - analyze impact, complexity, history, and enforce architectural invariants",
   "type": "module",
   "main": "dist/index.js",
