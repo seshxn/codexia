@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.1.0] - 2026-01-17
+
+### What's Changed
+
+
+
+
 ## [v0.3.0] - 2026-01-17
 
 ### What's Changed
