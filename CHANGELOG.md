@@ -1,70 +1,74 @@
 # Changelog
 
-## [v0.2.0] - 2026-01-17
-
-### What's Changed
-
-- chore: release v0.1.0 (2dabe28)
-- fix: fix version bump step with logging for better visibility (46e0351)
-- chore: release v0.1.0 (e6456e4)
-- feat: enhance release workflow with separate push for version bump and tag (0a1f061)
-- chore: release v0.3.0 (3075ea2)
-- chore: add release workflow for automated versioning and publishing (#11) (d8846d4)
-- feat: add interactive wizard for command selection and execution (#6) (37610b2)
-- feat: Add 12 new analysis modules and MCP server (#4) (d02f673)
-- feat: Add new commands and features to Codexia CLI (#1) (900702f)
-- chore: Add GitHub Actions CI workflow for testing and building (#2) (3370888)
-- Initial commit (02b3f9a)
-
-
-## [v0.1.0] - 2026-01-17
-
-### What's Changed
-
-- fix: fix version bump step with logging for better visibility (46e0351)
-
-
-## [v0.1.0] - 2026-01-17
-
-### What's Changed
-
-
-
-
-## [v0.3.0] - 2026-01-17
-
-### What's Changed
-
-- chore: add release workflow for automated versioning and publishing (#11) (d8846d4)
-- feat: add interactive wizard for command selection and execution (#6) (37610b2)
-- feat: Add 12 new analysis modules and MCP server (#4) (d02f673)
-- feat: Add new commands and features to Codexia CLI (#1) (900702f)
-- chore: Add GitHub Actions CI workflow for testing and building (#2) (3370888)
-- Initial commit (02b3f9a)
-
-
 All notable changes to Codexia will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+
+## [0.3.0] - 2026-01-18
 
 ### Added
 
-- **Interactive Wizard Mode** — Run `codexia` without arguments to launch an interactive menu-driven experience
-  - 5 command categories: Analyze, Reports, Quality, Testing, Setup
-  - Guided prompts for paths, options, and output formats
-  - Built with `@inquirer/prompts` for a modern CLI experience
+#### 📊 Web Dashboard
+- **Real-time Dashboard** (`codexia dashboard`) — Beautiful, modern web interface for repository visualization
+  - Repository health score with interactive breakdown
+  - Complexity heatmap with clickable file details
+  - Code signals list with severity filtering
+  - Hot paths visualization
+  - Team leaderboard with contributor statistics
+  - GitHub-style commit activity heatmap
+  - Code ownership and bus factor analysis
+  - Branch overview with stale branch detection
+  - Interactive modals with detailed information for all items
+- **Modern Dark Theme** — Vercel-inspired design with smooth animations
+  - Pure black background with subtle neutral accents
+  - Inter + JetBrains Mono typography
+  - Smooth modal open/close animations
+  - Hover effects and micro-interactions
+
+#### 🤖 AI Integration
+- **Multi-Provider AI Support** — Optional AI-powered features with graceful fallback
+  - OpenAI integration (GPT-4, GPT-3.5)
+  - Anthropic integration (Claude)
+  - Ollama integration (local models, free)
+  - Automatic provider detection from environment variables
+  - Graceful fallback when no API keys configured
+
+#### 🌍 Multi-Language Support
+- **Python** — Full symbol extraction, import analysis, complexity metrics
+- **Ruby** — Class, method, and module detection with gem dependencies
+- **Java** — Package imports, class hierarchy, and annotation support
+- **Go** — Package analysis, struct/interface extraction, import detection
+- **Rust** — Mod/use statements, struct/enum/trait/impl detection
+
+### Changed
+- Dashboard REST API now includes git statistics endpoints
+- Improved error handling across all API endpoints
+- Enhanced type definitions for multi-language support
+
+### Technical
+- Added `src/ai/` module with provider abstraction
+- Added `src/languages/` with 6 language providers
+- Added `src/dashboard/` with React + Vite + Tailwind client
+- Native Node.js HTTP server (no Express dependency)
+- Comprehensive TypeScript types for all features
+
+## [v0.2.0] - 2026-01-17
+
+### Added
+- Interactive wizard mode with guided prompts
+- 12 new analysis modules
+- MCP server for AI assistant integration
 
 ### Fixed
+- Graph command data transformation
+- Changelog auto-detection for repos without tags
+- Hot paths graceful error handling
 
-- **Graph command** — Fixed data transformation to properly generate dependency visualizations
-- **Changelog command** — Auto-detects repository root commit when no tags exist; fixed formatter to handle actual engine output structure
-- **Hot paths command** — Gracefully handles missing entry points and paths data
-- **History command** — Fixed undefined values in summary output with proper fallbacks
+---
 
-## [0.2.0] - 2026-01-13
+## [v0.2.0] - 2026-01-13
 
 ### Added
 
