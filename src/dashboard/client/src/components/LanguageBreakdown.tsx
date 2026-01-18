@@ -25,7 +25,7 @@ export function LanguageBreakdown({ languages }: LanguageBreakdownProps) {
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-slate-500">
+      <div className="flex items-center justify-center h-48 text-neutral-600">
         No language data available
       </div>
     );
@@ -67,8 +67,8 @@ export function LanguageBreakdown({ languages }: LanguageBreakdownProps) {
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: COLORS[index % COLORS.length] }}
             />
-            <span className="text-sm text-slate-300 flex-1">{item.name}</span>
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-neutral-300 flex-1">{item.name}</span>
+            <span className="text-sm text-neutral-500">
               {item.value} ({Math.round((item.value / total) * 100)}%)
             </span>
           </div>

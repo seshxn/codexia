@@ -1,18 +1,19 @@
 interface HealthScoreProps {
   score: number;
   size?: 'sm' | 'md' | 'lg';
+  onClick?: () => void;
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 80) return 'text-green-400';
-  if (score >= 60) return 'text-yellow-400';
+  if (score >= 80) return 'text-emerald-400';
+  if (score >= 60) return 'text-amber-400';
   if (score >= 40) return 'text-orange-400';
   return 'text-red-400';
 }
 
 function getScoreGradient(score: number): string {
-  if (score >= 80) return 'from-green-500 to-green-400';
-  if (score >= 60) return 'from-yellow-500 to-yellow-400';
+  if (score >= 80) return 'from-emerald-500 to-emerald-400';
+  if (score >= 60) return 'from-amber-500 to-amber-400';
   if (score >= 40) return 'from-orange-500 to-orange-400';
   return 'from-red-500 to-red-400';
 }
@@ -30,13 +31,16 @@ const sizeClasses = {
   lg: { container: 'w-40 h-40', text: 'text-4xl', label: 'text-base' },
 };
 
-export function HealthScore({ score, size = 'md' }: HealthScoreProps) {
+export function HealthScore({ score, size = 'md', onClick }: HealthScoreProps) {
   const classes = sizeClasses[size];
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="flex flex-col items-center">
+    <div 
+      className={`flex flex-col items-center ${onClick ? 'cursor-pointer hover:scale-105 transition-all duration-300' : ''}`}
+      onClick={onClick}
+    >
       <div className={`relative ${classes.container}`}>
         <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
           {/* Background circle */}
@@ -45,9 +49,9 @@ export function HealthScore({ score, size = 'md' }: HealthScoreProps) {
             cy="50"
             r="45"
             stroke="currentColor"
-            strokeWidth="8"
+            strokeWidth="6"
             fill="none"
-            className="text-slate-700"
+            className="text-neutral-800"
           />
           {/* Progress circle */}
           <circle
@@ -55,13 +59,13 @@ export function HealthScore({ score, size = 'md' }: HealthScoreProps) {
             cy="50"
             r="45"
             stroke="url(#scoreGradient)"
-            strokeWidth="8"
+            strokeWidth="6"
             fill="none"
             strokeLinecap="round"
             style={{
               strokeDasharray: circumference,
               strokeDashoffset,
-              transition: 'stroke-dashoffset 0.5s ease-in-out',
+              transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           />
           <defs>

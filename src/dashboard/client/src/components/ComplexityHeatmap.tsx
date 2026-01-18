@@ -3,6 +3,7 @@ import type { ComplexityData } from '../types';
 
 interface ComplexityHeatmapProps {
   data: ComplexityData;
+  onFileClick?: (file: ComplexityData['files'][0]) => void;
 }
 
 function getComplexityColor(score: number): string {
@@ -13,7 +14,7 @@ function getComplexityColor(score: number): string {
   return '#ef4444'; // red
 }
 
-export function ComplexityHeatmap({ data }: ComplexityHeatmapProps) {
+export function ComplexityHeatmap({ data, onFileClick }: ComplexityHeatmapProps) {
   const chartData = data.files
     .slice(0, 15)
     .map((file) => ({
@@ -22,15 +23,23 @@ export function ComplexityHeatmap({ data }: ComplexityHeatmapProps) {
       score: file.score,
       lines: file.metrics.lines,
       functions: file.metrics.functions,
+      metrics: file.metrics,
+      originalFile: file,
     }));
 
   if (chartData.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-500">
+      <div className="flex items-center justify-center h-64 text-neutral-600">
         No complexity data available
       </div>
     );
   }
+
+  const handleClick = (data: any) => {
+    if (onFileClick && data?.originalFile) {
+      onFileClick(data.originalFile);
+    }
+  };
 
   return (
     <div className="h-80">
@@ -55,16 +64,22 @@ export function ComplexityHeatmap({ data }: ComplexityHeatmapProps) {
               if (!payload || !payload[0]) return null;
               const item = payload[0].payload;
               return (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-sm">
                   <p className="font-medium text-white mb-1">{item.fullPath}</p>
-                  <p className="text-slate-400">Score: {item.score.toFixed(1)}</p>
-                  <p className="text-slate-400">Lines: {item.lines}</p>
-                  <p className="text-slate-400">Functions: {item.functions}</p>
+                  <p className="text-neutral-500">Score: {item.score.toFixed(1)}</p>
+                  <p className="text-neutral-500">Lines: {item.lines}</p>
+                  <p className="text-neutral-500">Functions: {item.functions}</p>
+                  {onFileClick && <p className="text-blue-400 text-xs mt-2">Click for details</p>}
                 </div>
               );
             }}
           />
-          <Bar dataKey="score" radius={[0, 4, 4, 0]}>
+          <Bar 
+            dataKey="score" 
+            radius={[0, 4, 4, 0]} 
+            cursor={onFileClick ? 'pointer' : undefined}
+            onClick={handleClick}
+          >
             {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={getComplexityColor(entry.score)} />
             ))}

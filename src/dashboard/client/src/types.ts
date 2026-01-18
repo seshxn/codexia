@@ -91,3 +91,88 @@ export interface LanguagesData {
   detected: Record<string, number>;
   coverage: number;
 }
+
+// Git-related types
+export interface Contributor {
+  rank: number;
+  name: string;
+  email: string;
+  avatar: string;
+  commits: number;
+  additions: number;
+  deletions: number;
+  firstCommit: string;
+  lastCommit: string;
+  recentCommits: number;
+  isActive: boolean;
+}
+
+export interface ContributorsData {
+  contributors: Contributor[];
+  totalContributors: number;
+  activeContributors: number;
+}
+
+export interface Commit {
+  hash: string;
+  fullHash: string;
+  message: string;
+  author: string;
+  email: string;
+  avatar: string;
+  date: string;
+  relativeDate: string;
+}
+
+export interface CommitsData {
+  commits: Commit[];
+}
+
+export interface Branch {
+  name: string;
+  isCurrent: boolean;
+  lastActivity: string;
+  lastCommitMessage: string;
+  lastCommitAuthor: string;
+  daysSinceActivity: number;
+  isStale: boolean;
+}
+
+export interface BranchesData {
+  current: string;
+  branches: Branch[];
+  totalBranches: number;
+  staleBranches: number;
+}
+
+export interface ActivityData {
+  activityByDate: Array<{ date: string; count: number }>;
+  activityByHour: Array<{ hour: number; label: string; count: number }>;
+  activityByDayOfWeek: Array<{ day: string; index: number; count: number }>;
+  totalCommits: number;
+  peakHour: string;
+  peakDay: string;
+  averagePerDay: string;
+}
+
+export interface FileOwnership {
+  file: string;
+  primaryOwner: string;
+  ownerEmail: string;
+  ownership: number;
+  contributors: number;
+  lastModified: string;
+  busFactor: number;
+}
+
+export interface OwnershipData {
+  files: FileOwnership[];
+  highRiskFiles: FileOwnership[];
+  ownersByFiles: Array<{
+    name: string;
+    email: string;
+    filesOwned: number;
+    avgOwnership: number;
+  }>;
+  averageBusFactor: string;
+}

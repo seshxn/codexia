@@ -2,6 +2,7 @@ import * as http from 'node:http';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { exec } from 'node:child_process';
+import { simpleGit, SimpleGit } from 'simple-git';
 import { CodexiaEngine } from '../../cli/engine.js';
 
 export interface DashboardServerOptions {
@@ -16,12 +17,14 @@ export class DashboardServer {
   private server: http.Server | null = null;
   private engine: CodexiaEngine;
   private staticDir: string;
+  private git: SimpleGit;
 
   constructor(engine: CodexiaEngine) {
     this.engine = engine;
     // Static files are built by Vite to src/dashboard/dist
     // Navigate from dist/dashboard/server -> project root -> src/dashboard/dist
     this.staticDir = path.join(import.meta.dirname, '../../../src/dashboard/dist');
+    this.git = simpleGit(process.cwd());
   }
 
   /**
@@ -124,6 +127,21 @@ export class DashboardServer {
           break;
         case '/api/languages':
           data = await this.getLanguageStats();
+          break;
+        case '/api/contributors':
+          data = await this.getContributors();
+          break;
+        case '/api/commits':
+          data = await this.getRecentCommits();
+          break;
+        case '/api/branches':
+          data = await this.getBranches();
+          break;
+        case '/api/activity':
+          data = await this.getCommitActivity();
+          break;
+        case '/api/ownership':
+          data = await this.getFileOwnership();
           break;
         default:
           res.writeHead(404);
@@ -355,6 +373,374 @@ export class DashboardServer {
       lines: langLines,
       total: files.size,
     };
+  }
+
+  /**
+   * Get contributors/authors with their stats
+   */
+  private async getContributors(): Promise<object> {
+    try {
+      // Get all commits with author info
+      const log = await this.git.log({ maxCount: 500 });
+      
+      const contributorMap = new Map<string, {
+        name: string;
+        email: string;
+        commits: number;
+        additions: number;
+        deletions: number;
+        firstCommit: Date;
+        lastCommit: Date;
+        recentCommits: number; // Last 30 days
+      }>();
+
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      for (const commit of log.all) {
+        const key = commit.author_email;
+        const commitDate = new Date(commit.date);
+        const isRecent = commitDate > thirtyDaysAgo;
+        
+        const existing = contributorMap.get(key);
+        if (existing) {
+          existing.commits++;
+          if (isRecent) existing.recentCommits++;
+          if (commitDate > existing.lastCommit) existing.lastCommit = commitDate;
+          if (commitDate < existing.firstCommit) existing.firstCommit = commitDate;
+        } else {
+          contributorMap.set(key, {
+            name: commit.author_name,
+            email: commit.author_email,
+            commits: 1,
+            additions: 0,
+            deletions: 0,
+            firstCommit: commitDate,
+            lastCommit: commitDate,
+            recentCommits: isRecent ? 1 : 0,
+          });
+        }
+      }
+
+      // Get stats for top contributors
+      const contributors = Array.from(contributorMap.values())
+        .sort((a, b) => b.commits - a.commits)
+        .slice(0, 20)
+        .map((c, index) => ({
+          rank: index + 1,
+          name: c.name,
+          email: c.email,
+          avatar: `https://www.gravatar.com/avatar/${this.md5(c.email.toLowerCase().trim())}?d=identicon&s=80`,
+          commits: c.commits,
+          additions: c.additions,
+          deletions: c.deletions,
+          firstCommit: c.firstCommit.toISOString(),
+          lastCommit: c.lastCommit.toISOString(),
+          recentCommits: c.recentCommits,
+          isActive: c.recentCommits > 0,
+        }));
+
+      return {
+        contributors,
+        totalContributors: contributorMap.size,
+        activeContributors: contributors.filter(c => c.isActive).length,
+      };
+    } catch (error) {
+      console.error('Error getting contributors:', error);
+      return { contributors: [], totalContributors: 0, activeContributors: 0 };
+    }
+  }
+
+  /**
+   * Get recent commits
+   */
+  private async getRecentCommits(): Promise<object> {
+    try {
+      const log = await this.git.log({ maxCount: 50 });
+      
+      const commits = log.all.map(commit => ({
+        hash: commit.hash.substring(0, 7),
+        fullHash: commit.hash,
+        message: commit.message.split('\n')[0], // First line only
+        author: commit.author_name,
+        email: commit.author_email,
+        avatar: `https://www.gravatar.com/avatar/${this.md5(commit.author_email.toLowerCase().trim())}?d=identicon&s=40`,
+        date: new Date(commit.date).toISOString(),
+        relativeDate: this.getRelativeTime(new Date(commit.date)),
+      }));
+
+      return { commits };
+    } catch (error) {
+      console.error('Error getting commits:', error);
+      return { commits: [] };
+    }
+  }
+
+  /**
+   * Get branch information
+   */
+  private async getBranches(): Promise<object> {
+    try {
+      const branches = await this.git.branchLocal();
+      const currentBranch = branches.current;
+      
+      const branchList = await Promise.all(
+        branches.all.map(async (branch) => {
+          try {
+            const log = await this.git.log({ maxCount: 1, [branch]: null } as any);
+            const lastCommit = log.all[0];
+            const lastActivity = lastCommit ? new Date(lastCommit.date) : new Date();
+            const daysSinceActivity = Math.floor((Date.now() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
+            
+            return {
+              name: branch,
+              isCurrent: branch === currentBranch,
+              lastActivity: lastActivity.toISOString(),
+              lastCommitMessage: lastCommit?.message.split('\n')[0] || '',
+              lastCommitAuthor: lastCommit?.author_name || '',
+              daysSinceActivity,
+              isStale: daysSinceActivity > 30,
+            };
+          } catch {
+            return {
+              name: branch,
+              isCurrent: branch === currentBranch,
+              lastActivity: new Date().toISOString(),
+              lastCommitMessage: '',
+              lastCommitAuthor: '',
+              daysSinceActivity: 0,
+              isStale: false,
+            };
+          }
+        })
+      );
+
+      return {
+        current: currentBranch,
+        branches: branchList.sort((a, b) => {
+          if (a.isCurrent) return -1;
+          if (b.isCurrent) return 1;
+          return a.daysSinceActivity - b.daysSinceActivity;
+        }),
+        totalBranches: branches.all.length,
+        staleBranches: branchList.filter(b => b.isStale).length,
+      };
+    } catch (error) {
+      console.error('Error getting branches:', error);
+      return { current: 'main', branches: [], totalBranches: 0, staleBranches: 0 };
+    }
+  }
+
+  /**
+   * Get commit activity over time (for heatmap/calendar)
+   */
+  private async getCommitActivity(): Promise<object> {
+    try {
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      const log = await this.git.log({
+        '--since': oneYearAgo.toISOString(),
+        maxCount: 5000,
+      });
+
+      // Group by date and hour
+      const byDate: Record<string, number> = {};
+      const byHour: Record<number, number> = {};
+      const byDayOfWeek: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
+      for (const commit of log.all) {
+        const date = new Date(commit.date);
+        const dateStr = date.toISOString().split('T')[0];
+        const hour = date.getHours();
+        const dayOfWeek = date.getDay();
+
+        byDate[dateStr] = (byDate[dateStr] || 0) + 1;
+        byHour[hour] = (byHour[hour] || 0) + 1;
+        byDayOfWeek[dayOfWeek]++;
+      }
+
+      // Convert to array format for charts
+      const activityByDate = Object.entries(byDate)
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const activityByHour = Array.from({ length: 24 }, (_, hour) => ({
+        hour,
+        label: `${hour.toString().padStart(2, '0')}:00`,
+        count: byHour[hour] || 0,
+      }));
+
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const activityByDayOfWeek = dayNames.map((name, index) => ({
+        day: name,
+        index,
+        count: byDayOfWeek[index],
+      }));
+
+      // Find peak coding times
+      const peakHour = activityByHour.reduce((max, curr) => curr.count > max.count ? curr : max);
+      const peakDay = activityByDayOfWeek.reduce((max, curr) => curr.count > max.count ? curr : max);
+
+      return {
+        activityByDate,
+        activityByHour,
+        activityByDayOfWeek,
+        totalCommits: log.all.length,
+        peakHour: peakHour.label,
+        peakDay: peakDay.day,
+        averagePerDay: (log.all.length / 365).toFixed(1),
+      };
+    } catch (error) {
+      console.error('Error getting activity:', error);
+      return {
+        activityByDate: [],
+        activityByHour: [],
+        activityByDayOfWeek: [],
+        totalCommits: 0,
+        peakHour: '09:00',
+        peakDay: 'Mon',
+        averagePerDay: '0',
+      };
+    }
+  }
+
+  /**
+   * Get file ownership data (who owns what)
+   */
+  private async getFileOwnership(): Promise<object> {
+    try {
+      const files = this.engine.getFiles();
+      const ownershipData: Array<{
+        file: string;
+        primaryOwner: string;
+        ownerEmail: string;
+        ownership: number;
+        contributors: number;
+        lastModified: string;
+        busFactor: number;
+      }> = [];
+
+      // Sample files to analyze (limit for performance)
+      const filePaths = Array.from(files.keys()).slice(0, 100);
+
+      for (const filePath of filePaths) {
+        try {
+          const log = await this.git.log({ file: filePath, maxCount: 50 });
+          
+          if (log.all.length === 0) continue;
+
+          // Count commits per author
+          const authorCommits = new Map<string, { name: string; email: string; count: number }>();
+          for (const commit of log.all) {
+            const key = commit.author_email;
+            const existing = authorCommits.get(key);
+            if (existing) {
+              existing.count++;
+            } else {
+              authorCommits.set(key, {
+                name: commit.author_name,
+                email: commit.author_email,
+                count: 1,
+              });
+            }
+          }
+
+          // Find primary owner
+          const sorted = Array.from(authorCommits.values()).sort((a, b) => b.count - a.count);
+          const primaryOwner = sorted[0];
+          const totalCommits = log.all.length;
+          const ownership = primaryOwner ? Math.round((primaryOwner.count / totalCommits) * 100) : 0;
+          
+          // Bus factor: number of people needed to cover 50% of commits
+          let busFactor = 0;
+          let covered = 0;
+          for (const author of sorted) {
+            busFactor++;
+            covered += author.count;
+            if (covered >= totalCommits * 0.5) break;
+          }
+
+          ownershipData.push({
+            file: filePath,
+            primaryOwner: primaryOwner?.name || 'Unknown',
+            ownerEmail: primaryOwner?.email || '',
+            ownership,
+            contributors: authorCommits.size,
+            lastModified: new Date(log.all[0].date).toISOString(),
+            busFactor,
+          });
+        } catch {
+          // Skip files with errors
+        }
+      }
+
+      // Find high-risk files (single owner with 80%+ ownership)
+      const highRiskFiles = ownershipData.filter(f => f.ownership >= 80 && f.busFactor === 1);
+      
+      // Aggregate by owner
+      const ownerSummary = new Map<string, { name: string; filesOwned: number; totalOwnership: number }>();
+      for (const file of ownershipData) {
+        const existing = ownerSummary.get(file.ownerEmail);
+        if (existing) {
+          existing.filesOwned++;
+          existing.totalOwnership += file.ownership;
+        } else {
+          ownerSummary.set(file.ownerEmail, {
+            name: file.primaryOwner,
+            filesOwned: 1,
+            totalOwnership: file.ownership,
+          });
+        }
+      }
+
+      const ownersByFiles = Array.from(ownerSummary.entries())
+        .map(([email, data]) => ({
+          name: data.name,
+          email,
+          filesOwned: data.filesOwned,
+          avgOwnership: Math.round(data.totalOwnership / data.filesOwned),
+        }))
+        .sort((a, b) => b.filesOwned - a.filesOwned)
+        .slice(0, 10);
+
+      return {
+        files: ownershipData.slice(0, 50),
+        highRiskFiles: highRiskFiles.slice(0, 10),
+        ownersByFiles,
+        averageBusFactor: ownershipData.length > 0 
+          ? (ownershipData.reduce((sum, f) => sum + f.busFactor, 0) / ownershipData.length).toFixed(1)
+          : '0',
+      };
+    } catch (error) {
+      console.error('Error getting ownership:', error);
+      return { files: [], highRiskFiles: [], ownersByFiles: [], averageBusFactor: '0' };
+    }
+  }
+
+  /**
+   * Simple MD5 hash for gravatar (simplified implementation)
+   */
+  private md5(str: string): string {
+    // Use a simple hash for gravatar - in production you'd use crypto
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash).toString(16).padStart(32, '0');
+  }
+
+  /**
+   * Get relative time string
+   */
+  private getRelativeTime(date: Date): string {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+    if (seconds < 2592000) return `${Math.floor(seconds / 604800)} weeks ago`;
+    return `${Math.floor(seconds / 2592000)} months ago`;
   }
 
   /**

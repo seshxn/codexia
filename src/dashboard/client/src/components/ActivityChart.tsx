@@ -62,7 +62,7 @@ export function ActivityChart({ data }: ActivityChartProps) {
 
       {/* Recent Changes */}
       <div>
-        <h4 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
+        <h4 className="text-sm font-medium text-neutral-500 mb-3 flex items-center gap-2">
           <GitCommit className="w-4 h-4" />
           Recent Changes
         </h4>
@@ -70,13 +70,13 @@ export function ActivityChart({ data }: ActivityChartProps) {
           {data.recentChanges.slice(0, 5).map((change, index) => (
             <div
               key={index}
-              className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50"
+              className="flex items-center justify-between p-2 rounded-lg bg-neutral-900/50"
             >
-              <span className="text-sm text-slate-300 truncate flex-1">
+              <span className="text-sm text-neutral-300 truncate flex-1">
                 {change.file}
               </span>
               <div className="flex items-center gap-3 text-xs">
-                <span className="text-slate-500">
+                <span className="text-neutral-600">
                   {change.changeCount} changes
                 </span>
                 <span className="text-slate-600">
@@ -90,7 +90,7 @@ export function ActivityChart({ data }: ActivityChartProps) {
 
       {/* Top Contributors */}
       <div>
-        <h4 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
+        <h4 className="text-sm font-medium text-neutral-500 mb-3 flex items-center gap-2">
           <User className="w-4 h-4" />
           Top Contributors
         </h4>
@@ -98,12 +98,12 @@ export function ActivityChart({ data }: ActivityChartProps) {
           {data.authorStats.slice(0, 4).map((author, index) => (
             <div
               key={index}
-              className="p-3 rounded-lg bg-slate-900/50 border border-slate-700"
+              className="p-3 rounded-lg bg-neutral-900/50 border border-neutral-800"
             >
               <p className="text-sm font-medium text-white truncate">
                 {author.author}
               </p>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-neutral-500 mt-1">
                 {author.commits} commits • {author.filesChanged} files
               </p>
             </div>

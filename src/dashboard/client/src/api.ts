@@ -6,6 +6,11 @@ import type {
   HotPathsData,
   TemporalData,
   LanguagesData,
+  ContributorsData,
+  CommitsData,
+  BranchesData,
+  ActivityData,
+  OwnershipData,
 } from './types';
 
 const API_BASE = '/api';
@@ -44,4 +49,24 @@ export async function fetchTemporal(): Promise<TemporalData> {
 
 export async function fetchLanguages(): Promise<LanguagesData> {
   return fetchJson<LanguagesData>('/languages');
+}
+
+export async function fetchContributors(): Promise<ContributorsData> {
+  return fetchJson<ContributorsData>('/contributors');
+}
+
+export async function fetchCommits(): Promise<CommitsData> {
+  return fetchJson<CommitsData>('/commits');
+}
+
+export async function fetchBranches(): Promise<BranchesData> {
+  return fetchJson<BranchesData>('/branches');
+}
+
+export async function fetchActivity(): Promise<ActivityData> {
+  return fetchJson<ActivityData>('/activity');
+}
+
+export async function fetchOwnership(): Promise<OwnershipData> {
+  return fetchJson<OwnershipData>('/ownership');
 }
