@@ -312,7 +312,7 @@ describe('Interactive Wizard', () => {
       await executeCommand('graph', { file: 'src/test.ts' });
       
       expect(mockEngine.initialize).toHaveBeenCalled();
-      expect(mockEngine.getGraphData).toHaveBeenCalledWith('src/test.ts');
+      expect(mockEngine.getGraphData).toHaveBeenCalledWith({ focus: 'src/test.ts' });
     });
 
     it('should execute complexity command with json output', async () => {
