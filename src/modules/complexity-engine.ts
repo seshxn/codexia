@@ -1,4 +1,5 @@
 import type { Symbol, FileInfo } from '../core/types.js';
+import { getLanguageRegistry, type LanguageProvider } from '../core/language-providers/index.js';
 
 // ============================================================================
 // Complexity Metrics Types
@@ -50,12 +51,15 @@ export interface DetailedMetrics {
 // ============================================================================
 
 export class ComplexityEngine {
+  private languageRegistry = getLanguageRegistry();
+
   /**
    * Analyze complexity of a single file
    */
   analyzeFile(fileInfo: FileInfo, content: string): FileComplexity {
-    const metrics = this.calculateDetailedMetrics(content);
-    const symbolComplexities = this.analyzeSymbols(fileInfo.symbols, content);
+    const provider = this.languageRegistry.getForFile(fileInfo.relativePath);
+    const metrics = this.calculateDetailedMetrics(content, provider);
+    const symbolComplexities = this.analyzeSymbols(fileInfo.symbols, content, provider);
     const score = this.calculateScore(fileInfo, metrics, symbolComplexities);
 
     return {
@@ -99,8 +103,13 @@ export class ComplexityEngine {
   /**
    * Calculate detailed code metrics
    */
-  private calculateDetailedMetrics(content: string): DetailedMetrics {
+  private calculateDetailedMetrics(content: string, provider?: LanguageProvider): DetailedMetrics {
     const lines = content.split('\n');
+    const commentPatterns = provider?.getCommentPatterns() || {
+      singleLine: /\/\//,
+      blockStart: /\/\*/,
+      blockEnd: /\*\//,
+    };
     
     let logicalLines = 0;
     let commentLines = 0;
@@ -124,20 +133,20 @@ export class ComplexityEngine {
       }
 
       // Block comment handling
-      if (line.startsWith('/*')) {
+      if (commentPatterns.blockStart.test(line)) {
         inBlockComment = true;
         commentLines++;
-        if (line.includes('*/')) inBlockComment = false;
+        if (commentPatterns.blockEnd.test(line)) inBlockComment = false;
         continue;
       }
       if (inBlockComment) {
         commentLines++;
-        if (line.includes('*/')) inBlockComment = false;
+        if (commentPatterns.blockEnd.test(line)) inBlockComment = false;
         continue;
       }
 
       // Single line comment
-      if (line.startsWith('//')) {
+      if (commentPatterns.singleLine.test(line)) {
         commentLines++;
         continue;
       }
@@ -202,7 +211,7 @@ export class ComplexityEngine {
   /**
    * Analyze complexity of individual symbols
    */
-  private analyzeSymbols(symbols: Symbol[], content: string): SymbolComplexity[] {
+  private analyzeSymbols(symbols: Symbol[], content: string, provider?: LanguageProvider): SymbolComplexity[] {
     const results: SymbolComplexity[] = [];
     const lines = content.split('\n');
 
@@ -235,8 +244,8 @@ export class ComplexityEngine {
       results.push({
         name: symbol.name,
         kind: symbol.kind,
-        cyclomatic: this.calculateCyclomaticComplexity(symbolContent),
-        cognitive: this.calculateCognitiveComplexity(symbolContent),
+        cyclomatic: this.calculateCyclomaticComplexity(symbolContent, provider),
+        cognitive: this.calculateCognitiveComplexity(symbolContent, provider),
         linesOfCode: endLine - startLine + 1,
         parameters: this.countParameters(symbolContent),
         dependencies: symbol.references?.length || 0,
@@ -249,11 +258,11 @@ export class ComplexityEngine {
   /**
    * Calculate cyclomatic complexity (decision points + 1)
    */
-  private calculateCyclomaticComplexity(code: string): number {
+  private calculateCyclomaticComplexity(code: string, provider?: LanguageProvider): number {
     let complexity = 1;
 
-    // Control flow keywords
-    const patterns = [
+    // Use language-specific control flow patterns if available
+    const patterns = provider?.getControlFlowPatterns() || [
       /\bif\b/g,
       /\belse\s+if\b/g,
       /\bfor\b/g,
@@ -281,7 +290,7 @@ export class ComplexityEngine {
   /**
    * Calculate cognitive complexity (human-centric complexity)
    */
-  private calculateCognitiveComplexity(code: string): number {
+  private calculateCognitiveComplexity(code: string, _provider?: LanguageProvider): number {
     let complexity = 0;
     let nestingLevel = 0;
     const lines = code.split('\n');
@@ -289,18 +298,18 @@ export class ComplexityEngine {
     for (const line of lines) {
       const trimmed = line.trim();
 
-      // Increment for nesting
-      if (/\b(if|else|for|while|switch|try|catch)\b/.test(trimmed)) {
+      // Increment for nesting (common across most languages)
+      if (/\b(if|else|for|while|switch|try|catch|elif|elsif|unless|case|when|match|loop)\b/.test(trimmed)) {
         complexity += 1 + nestingLevel; // Base + nesting penalty
       }
 
       // Break/continue with labels add complexity
-      if (/\b(break|continue)\s+\w+/.test(trimmed)) {
+      if (/\b(break|continue|goto)\s+\w+/.test(trimmed)) {
         complexity += 1;
       }
 
       // Recursion is complex
-      if (/\bthis\.\w+\(/.test(trimmed) || /\brecurs/.test(trimmed)) {
+      if (/\bthis\.\w+\(/.test(trimmed) || /\bself\.\w+\(/.test(trimmed) || /\brecurs/.test(trimmed)) {
         complexity += 1;
       }
 

@@ -2,6 +2,8 @@
  * Utility functions for graph data transformations
  */
 
+import type { DependencyNode, DependencyEdge } from '../core/types.js';
+
 export interface RawGraphNode {
   id: string;
 }
@@ -14,6 +16,11 @@ export interface RawGraphEdge {
 export interface RawGraphData {
   nodes: RawGraphNode[];
   edges: RawGraphEdge[];
+}
+
+export interface EngineGraphData {
+  nodes: DependencyNode[];
+  edges: DependencyEdge[];
 }
 
 export interface TransformedGraphNode {
@@ -38,23 +45,29 @@ export interface TransformedGraphData {
 
 /**
  * Transform engine's graph format to Visualizer's expected format
- * @param rawData - Raw graph data from engine with nodes and edges
+ * @param rawData - Graph data from engine (DependencyNode[] or RawGraphNode[])
  * @returns Transformed graph data with imports, importedBy, root and leaf nodes
  */
-export function transformGraphData(rawData: RawGraphData): TransformedGraphData {
+export function transformGraphData(rawData: RawGraphData | EngineGraphData): TransformedGraphData {
   const nodeMap = new Map<string, TransformedGraphNode>();
   
-  // Initialize all nodes
+  // Initialize all nodes - handle both RawGraphNode (id) and DependencyNode (path)
   for (const node of rawData.nodes) {
-    nodeMap.set(node.id, { path: node.id, imports: [], importedBy: [], depth: 0 });
+    const nodeId = 'id' in node ? node.id : node.path;
+    const nodeData: TransformedGraphNode = 'path' in node 
+      ? { path: node.path, imports: [...node.imports], importedBy: [...node.importedBy], depth: node.depth }
+      : { path: nodeId, imports: [], importedBy: [], depth: 0 };
+    nodeMap.set(nodeId, nodeData);
   }
   
-  // Build imports/importedBy from edges
-  for (const edge of rawData.edges) {
-    const fromNode = nodeMap.get(edge.from);
-    const toNode = nodeMap.get(edge.to);
-    if (fromNode) fromNode.imports.push(edge.to);
-    if (toNode) toNode.importedBy.push(edge.from);
+  // Build imports/importedBy from edges only if using RawGraphNode
+  if (rawData.nodes.length > 0 && 'id' in rawData.nodes[0]) {
+    for (const edge of rawData.edges) {
+      const fromNode = nodeMap.get(edge.from);
+      const toNode = nodeMap.get(edge.to);
+      if (fromNode) fromNode.imports.push(edge.to);
+      if (toNode) toNode.importedBy.push(edge.from);
+    }
   }
   
   const nodes = Array.from(nodeMap.values());

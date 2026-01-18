@@ -28,7 +28,7 @@ Examples:
       const engine = new CodexiaEngine();
       await engine.initialize();
 
-      const rawData = await engine.getGraphData(file);
+      const rawData = await engine.getGraphData({ focus: file, depth: parseInt(options.depth) });
       
       // Transform engine's format to Visualizer's expected format
       const graphData = transformGraphData(rawData);

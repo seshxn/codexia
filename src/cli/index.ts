@@ -18,6 +18,7 @@ import { hotpathsCommand } from './commands/hotpaths.js';
 import { changelogCommand } from './commands/changelog.js';
 import { monorepoCommand } from './commands/monorepo.js';
 import { mcpServerCommand } from './commands/mcp-server.js';
+import { dashboardCommand } from './commands/dashboard.js';
 
 // Interactive wizard
 import { runInteractiveWizard } from './interactive.js';
@@ -51,6 +52,7 @@ program.addCommand(hotpathsCommand);
 program.addCommand(changelogCommand);
 program.addCommand(monorepoCommand);
 program.addCommand(mcpServerCommand);
+program.addCommand(dashboardCommand);
 
 // Wrap in async IIFE for ES module compatibility
 (async () => {

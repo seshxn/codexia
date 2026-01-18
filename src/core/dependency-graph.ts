@@ -1,18 +1,24 @@
 import * as path from 'node:path';
 import type { DependencyNode, DependencyEdge } from './types.js';
+import { getLanguageRegistry, type LanguageProviderRegistry } from './language-providers/index.js';
 
 export class DependencyGraph {
   private nodes: Map<string, DependencyNode> = new Map();
   private edges: DependencyEdge[] = [];
+  private languageRegistry: LanguageProviderRegistry;
+  private existingFiles: Set<string> = new Set();
 
   constructor(_repoRoot: string) {
-    // repoRoot reserved for future use
+    this.languageRegistry = getLanguageRegistry();
   }
 
   /**
    * Build dependency graph from file imports
    */
   buildFromImports(files: Map<string, { imports: Array<{ source: string }> }>): void {
+    // Track all existing files for import resolution
+    this.existingFiles = new Set(files.keys());
+
     // Initialize nodes
     for (const [filePath] of files) {
       this.nodes.set(filePath, {
@@ -26,9 +32,20 @@ export class DependencyGraph {
     // Build edges
     for (const [filePath, fileInfo] of files) {
       const node = this.nodes.get(filePath)!;
+      const provider = this.languageRegistry.getForFile(filePath);
 
       for (const imp of fileInfo.imports) {
-        const resolvedPath = this.resolveImport(filePath, imp.source);
+        // Try to resolve using language provider, fallback to legacy method
+        let resolvedPath: string | null = null;
+        
+        if (provider) {
+          resolvedPath = provider.resolveImportPath(filePath, imp.source, this.existingFiles);
+        }
+        
+        if (!resolvedPath) {
+          resolvedPath = this.resolveImportLegacy(filePath, imp.source);
+        }
+
         if (resolvedPath && this.nodes.has(resolvedPath)) {
           node.imports.push(resolvedPath);
           
@@ -155,17 +172,17 @@ export class DependencyGraph {
     return node.importedBy.length;
   }
 
-  private resolveImport(fromPath: string, importSource: string): string | null {
+  private resolveImportLegacy(fromPath: string, importSource: string): string | null {
     // Skip external modules
     if (!importSource.startsWith('.') && !importSource.startsWith('/')) {
       return null;
     }
 
     const fromDir = path.dirname(fromPath);
-    let resolved = path.join(fromDir, importSource);
+    let resolved = path.join(fromDir, importSource).replace(/\\/g, '/');
 
     // Try common extensions
-    const extensions = ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.js'];
+    const extensions = ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.js', '.py', '.rb', '.java', '.go', '.rs'];
     
     // Remove .js extension if present (common in ESM)
     if (resolved.endsWith('.js')) {
@@ -174,13 +191,13 @@ export class DependencyGraph {
 
     for (const ext of extensions) {
       const withExt = resolved + ext;
-      if (this.nodes.has(withExt)) {
+      if (this.nodes.has(withExt) || this.existingFiles.has(withExt)) {
         return withExt;
       }
     }
 
     // Check if it's already a valid path
-    if (this.nodes.has(resolved)) {
+    if (this.nodes.has(resolved) || this.existingFiles.has(resolved)) {
       return resolved;
     }
 
