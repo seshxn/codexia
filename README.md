@@ -185,6 +185,72 @@ codexia mcp-server                # Start stdio server (for Claude)
 codexia mcp-server --port 3000    # Start HTTP server
 ```
 
+### 📊 **Web Dashboard**
+
+Beautiful, real-time visualization of your repository health.
+
+```bash
+codexia dashboard                 # Start dashboard server
+codexia dashboard --port 3200     # Custom port
+codexia dashboard --open          # Auto-open in browser
+```
+
+The dashboard provides:
+- **Repository Health Score** — Overall health with breakdown
+- **Complexity Heatmap** — Visual file complexity overview
+- **Code Signals** — Issues ranked by severity
+- **Hot Paths** — Critical areas needing attention
+- **Team Leaderboard** — Contributor stats and activity
+- **Commit Activity** — GitHub-style contribution heatmap
+- **Code Ownership** — Bus factor and knowledge silo risks
+- **Branch Overview** — Active and stale branches
+
+---
+
+## AI Integration
+
+Codexia includes optional AI-powered features for enhanced analysis:
+
+### Configuration
+
+Set your preferred AI provider via environment variables:
+
+```bash
+# OpenAI
+export OPENAI_API_KEY=sk-...
+
+# Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Ollama (local, free)
+export OLLAMA_HOST=http://localhost:11434
+```
+
+### Features
+
+AI integration enables:
+- **Smart commit message generation**
+- **Enhanced code explanations**
+- **Intelligent refactoring suggestions**
+- **Natural language queries** about your codebase
+
+The system gracefully falls back if no API keys are configured—all core analysis features work without AI.
+
+---
+
+## Multi-Language Support
+
+Codexia supports analysis across multiple programming languages:
+
+| Language | Symbols | Dependencies | Complexity |
+|----------|---------|--------------|------------|
+| TypeScript/JavaScript | ✅ | ✅ | ✅ |
+| Python | ✅ | ✅ | ✅ |
+| Ruby | ✅ | ✅ | ✅ |
+| Java | ✅ | ✅ | ✅ |
+| Go | ✅ | ✅ | ✅ |
+| Rust | ✅ | ✅ | ✅ |
+
 ---
 
 ## Installation
@@ -337,6 +403,7 @@ Commands:
   changelog           Generate semantic changelog
   monorepo            Analyze monorepo structure
   mcp-server          Start MCP server for AI tools
+  dashboard           Start web dashboard
 
 Options:
   --json              Output as JSON
