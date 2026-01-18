@@ -365,7 +365,7 @@ export async function executeCommand(command: string, options: Record<string, un
         const file = (options.file as string) || undefined;
         const spinner = createSpinner('Generating dependency graph...').start();
         await engine.initialize();
-        const rawData = await engine.getGraphData(file);
+        const rawData = await engine.getGraphData({ focus: file });
         
         // Transform engine's format to Visualizer's expected format using utility
         const graphData = transformGraphData(rawData);

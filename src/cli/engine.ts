@@ -368,9 +368,9 @@ export class CodexiaEngine {
   // ============================================
 
   /**
-   * Get graph data for visualization
+   * Get simple graph data for visualization
    */
-  async getGraphData(file?: string): Promise<any> {
+  async getSimpleGraphData(file?: string): Promise<any> {
     await this.initialize();
     
     const files = this.indexer.getFiles();
@@ -753,5 +753,178 @@ export class CodexiaEngine {
     const impact = await this.impactAnalyzer.analyze(diff, files, new Map());
     
     return this.testPrioritizer.prioritize(diff, files, impact);
+  }
+
+  // ============================================
+  // Dashboard Support Methods
+  // ============================================
+
+  /**
+   * Get indexed repository statistics
+   */
+  getStats(): { files: number; symbols: number; exports: number; avgFanOut: number } {
+    return this.indexer.getStats();
+  }
+
+  /**
+   * Get all indexed files
+   */
+  getFiles(): Map<string, import('../core/types.js').FileInfo> {
+    return this.indexer.getFiles();
+  }
+
+  /**
+   * Get signals with filtering options
+   */
+  async getSignals(options: {
+    include?: string[];
+  } = {}): Promise<Signal[]> {
+    await this.initialize();
+    return this.analyzeSignals({
+      checkOrphans: !options.include || options.include.includes('all') || options.include.includes('orphan-code'),
+      checkGodClasses: !options.include || options.include.includes('all') || options.include.includes('god-class'),
+      checkCycles: !options.include || options.include.includes('all') || options.include.includes('circular-dependency'),
+    });
+  }
+
+  /**
+   * Get complexity data for all files
+   */
+  async getComplexity(options: { path?: string }): Promise<Map<string, import('../modules/complexity-engine.js').FileComplexity>> {
+    await this.initialize();
+    
+    const { ComplexityEngine } = await import('../modules/complexity-engine.js');
+    const complexityEngine = new ComplexityEngine();
+    
+    const files = this.indexer.getFiles();
+    const contents = new Map<string, string>();
+    const dependencyInfo = new Map<string, { imports: number; importedBy: number }>();
+    
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    
+    for (const [filePath] of files) {
+      if (options.path && !filePath.includes(options.path)) continue;
+      
+      try {
+        const absolutePath = path.join(this.repoRoot, filePath);
+        const content = await fs.readFile(absolutePath, 'utf-8');
+        contents.set(filePath, content);
+        
+        // Get dependency info from graph
+        const node = this.depGraph.getNodes().get(filePath);
+        if (node) {
+          dependencyInfo.set(filePath, {
+            imports: node.imports.length,
+            importedBy: node.importedBy.length,
+          });
+        }
+      } catch {
+        // Skip files that can't be read
+      }
+    }
+    
+    return complexityEngine.analyzeAll(files, contents, dependencyInfo);
+  }
+
+  /**
+   * Get graph data for visualization (extended version)
+   */
+  async getGraphData(options: {
+    depth?: number;
+    focus?: string;
+  } = {}): Promise<{ nodes: import('../core/types.js').DependencyNode[]; edges: import('../core/types.js').DependencyEdge[] }> {
+    await this.initialize();
+    
+    const graphObj = this.depGraph.toObject();
+    
+    if (options.focus) {
+      // Filter to show only nodes within depth of focus node
+      const maxDepth = options.depth || 3;
+      const focusNode = graphObj.nodes.find(n => n.path === options.focus || n.path.endsWith(options.focus!));
+      
+      if (focusNode) {
+        const connectedPaths = new Set<string>([focusNode.path]);
+        
+        // BFS to find connected nodes up to depth
+        const queue: Array<{ path: string; depth: number }> = [{ path: focusNode.path, depth: 0 }];
+        const visited = new Set<string>();
+        
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          if (visited.has(current.path) || current.depth > maxDepth) continue;
+          visited.add(current.path);
+          
+          const node = graphObj.nodes.find(n => n.path === current.path);
+          if (node) {
+            for (const imp of node.imports) {
+              connectedPaths.add(imp);
+              queue.push({ path: imp, depth: current.depth + 1 });
+            }
+            for (const by of node.importedBy) {
+              connectedPaths.add(by);
+              queue.push({ path: by, depth: current.depth + 1 });
+            }
+          }
+        }
+        
+        return {
+          nodes: graphObj.nodes.filter(n => connectedPaths.has(n.path)),
+          edges: graphObj.edges.filter(e => connectedPaths.has(e.from) && connectedPaths.has(e.to)),
+        };
+      }
+    }
+    
+    return graphObj;
+  }
+
+  /**
+   * Get hot paths analysis
+   */
+  async getHotPaths(): Promise<{
+    paths: Array<{ path: string[]; risk: string; category?: string }>;
+    entryPoints: string[];
+  }> {
+    const result = await this.analyzeHotPaths({ autoDetect: true });
+    
+    return {
+      paths: result.paths.map((p: any) => ({
+        path: p.nodes || p.path || [],
+        risk: p.criticality || 'medium',
+        category: p.category,
+      })),
+      entryPoints: result.paths
+        .filter((p: any) => p.nodes?.[0] || p.path?.[0])
+        .map((p: any) => p.nodes?.[0] || p.path?.[0])
+        .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i),
+    };
+  }
+
+  /**
+   * Get temporal analysis data
+   */
+  async getTemporal(): Promise<{
+    hotspots: Array<{ file: string; churn: number }>;
+    ownership: Record<string, string[]>;
+    churnRates: Array<{ file: string; rate: number }>;
+    avgStability: number;
+    busFactor: number;
+    activeContributors: number;
+  }> {
+    const result = await this.analyzeHistory({
+      includeChurn: true,
+      includeOwnership: true,
+    });
+    
+    return {
+      hotspots: result.hotspots || [],
+      ownership: result.files ? Object.fromEntries(
+        Object.entries(result.files).map(([file, data]: [string, any]) => [file, data.authors || []])
+      ) : {},
+      churnRates: result.hotspots?.map((h: any) => ({ file: h.file, rate: h.churn })) || [],
+      avgStability: result.summary?.avgStability || 0,
+      busFactor: result.summary?.busFactor || 0,
+      activeContributors: result.summary?.activeContributors || 0,
+    };
   }
 }

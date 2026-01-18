@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import type { FileInfo, ImportInfo, ExportInfo, Symbol, SymbolKind } from './types.js';
+import { getLanguageRegistry, type LanguageProviderRegistry } from './language-providers/index.js';
 
 interface CacheMetadata {
   version: string;
@@ -28,9 +29,11 @@ export class RepoIndexer {
   private repoRoot: string;
   private files: Map<string, FileInfo> = new Map();
   private indexed: boolean = false;
+  private languageRegistry: LanguageProviderRegistry;
 
   constructor(repoRoot: string) {
     this.repoRoot = repoRoot;
+    this.languageRegistry = getLanguageRegistry();
   }
 
   /**
@@ -83,22 +86,11 @@ export class RepoIndexer {
   private async performIndex(): Promise<void> {
     this.files.clear();
     
-    const patterns = [
-      '**/*.ts',
-      '**/*.tsx',
-      '**/*.js',
-      '**/*.jsx',
-      '**/*.mjs',
-      '**/*.cjs',
-    ];
+    // Get patterns from all registered language providers
+    const patterns = this.languageRegistry.getAllPatterns();
 
-    const ignorePatterns = [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/build/**',
-      '**/.git/**',
-      '**/coverage/**',
-    ];
+    // Get common ignore patterns
+    const ignorePatterns = this.languageRegistry.getIgnorePatterns();
 
     const filePaths = await glob(patterns, {
       cwd: this.repoRoot,
@@ -254,10 +246,13 @@ export class RepoIndexer {
 
   private analyzeFile(relativePath: string, content: string): FileInfo {
     const lines = content.split('\n');
-    const language = this.getLanguage(relativePath);
-    const imports = this.extractImports(content);
-    const exports = this.extractExports(content);
-    const symbols = this.extractSymbols(content, relativePath);
+    const provider = this.languageRegistry.getForFile(relativePath);
+    
+    // Use language provider if available, otherwise use legacy extraction
+    const language = provider ? provider.getLanguageName(path.extname(relativePath)) : this.getLanguageLegacy(relativePath);
+    const imports = provider ? provider.extractImports(content, relativePath) : this.extractImportsLegacy(content);
+    const exports = provider ? provider.extractExports(content, relativePath) : this.extractExportsLegacy(content);
+    const symbols = provider ? provider.extractSymbols(content, relativePath) : this.extractSymbolsLegacy(content, relativePath);
 
     return {
       path: path.join(this.repoRoot, relativePath),
@@ -271,7 +266,15 @@ export class RepoIndexer {
     };
   }
 
-  private getLanguage(filePath: string): string {
+  /**
+   * Get the language registry for external use
+   */
+  getLanguageRegistry(): LanguageProviderRegistry {
+    return this.languageRegistry;
+  }
+
+  // Legacy methods for backward compatibility with unsupported languages
+  private getLanguageLegacy(filePath: string): string {
     const ext = path.extname(filePath);
     const langMap: Record<string, string> = {
       '.ts': 'typescript',
@@ -284,7 +287,7 @@ export class RepoIndexer {
     return langMap[ext] || 'unknown';
   }
 
-  private extractImports(content: string): ImportInfo[] {
+  private extractImportsLegacy(content: string): ImportInfo[] {
     const imports: ImportInfo[] = [];
     const lines = content.split('\n');
 
@@ -301,17 +304,14 @@ export class RepoIndexer {
         let isNamespace = false;
 
         if (match[1]) {
-          // Named imports: { a, b, c }
           const named = match[1].replace(/[{}]/g, '').split(',').map(s => s.trim());
           specifiers.push(...named);
         }
         if (match[2]) {
-          // Namespace import: * as name
           isNamespace = true;
           specifiers.push(match[2].replace('* as ', '').trim());
         }
         if (match[3]) {
-          // Default import
           isDefault = true;
           specifiers.push(match[3]);
         }
@@ -341,7 +341,7 @@ export class RepoIndexer {
     return imports;
   }
 
-  private extractExports(content: string): ExportInfo[] {
+  private extractExportsLegacy(content: string): ExportInfo[] {
     const exports: ExportInfo[] = [];
     const lines = content.split('\n');
 
@@ -377,7 +377,7 @@ export class RepoIndexer {
     return exports;
   }
 
-  private extractSymbols(content: string, filePath: string): Symbol[] {
+  private extractSymbolsLegacy(content: string, filePath: string): Symbol[] {
     const symbols: Symbol[] = [];
     const lines = content.split('\n');
 

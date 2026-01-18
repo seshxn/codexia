@@ -25,5 +25,14 @@ export {
 // MCP Server for AI integration
 export * from './mcp/index.js';
 
+// AI Integration
+export * from './ai/index.js';
+
+// Dashboard
+export * from './dashboard/index.js';
+
+// Language Providers
+export * from './core/language-providers/index.js';
+
 // CLI Engine
 export { CodexiaEngine, type EngineOptions } from './cli/engine.js';

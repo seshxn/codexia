@@ -1,6 +1,6 @@
 {
   "name": "codexia",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Engineering intelligence layer for repositories - analyze impact, complexity, history, and enforce architectural invariants",
   "type": "module",
   "main": "dist/index.js",
@@ -9,13 +9,16 @@
     "codexia": "dist/cli/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:dashboard",
+    "build:cli": "tsc",
+    "build:dashboard": "cd src/dashboard/client && npm install && npm run build",
     "start": "node dist/cli/index.js",
     "dev": "tsc --watch",
     "test": "vitest",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
-    "mcp": "node dist/mcp/server.js"
+    "mcp": "node dist/mcp/server.js",
+    "dashboard": "node dist/cli/index.js dashboard --open"
   },
   "keywords": [
     "code-analysis",
@@ -53,6 +56,7 @@
   },
   "files": [
     "dist",
+    "src/dashboard/dist",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

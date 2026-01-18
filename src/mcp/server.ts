@@ -439,7 +439,7 @@ export class CodexiaMCPServer {
 
   private async handleDependencies(params: Record<string, unknown>): Promise<MCPToolResult> {
     // Use the graph data method to get dependency information
-    const graphData = await this.engine.getGraphData(params.file as string);
+    const graphData = await this.engine.getGraphData({ focus: params.file as string });
 
     return {
       content: [{
