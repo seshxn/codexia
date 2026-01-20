@@ -5,6 +5,7 @@ import chalk from 'chalk';
 export const mcpServerCommand = new Command('mcp-server')
   .description('Start MCP server for AI integration')
   .option('-p, --port <port>', 'HTTP port (uses stdio if not specified)')
+  .option('--host <host>', 'Host to bind the HTTP server', '127.0.0.1')
   .option('--stdio', 'Use stdio transport (for direct MCP integration)')
   .option('--tools <tools>', 'Comma-separated list of tools to enable')
   .option('--verbose', 'Enable verbose logging')
@@ -50,13 +51,14 @@ Available MCP Tools:
 
       // Start MCP server with appropriate transport
       const transport = options.port ? 'http' : 'stdio';
-      await startMCPServer(transport, options.port);
+      const host = options.host as string;
+      await startMCPServer(transport, options.port, host);
 
       // Keep process alive
       if (options.port) {
-        console.error(chalk.green('✓ MCP Server running'));
+          console.error(chalk.green('✓ MCP Server running'));
         console.error(chalk.dim(`\nExample request:
-  curl -X POST http://localhost:${options.port}/mcp \\
+        curl -X POST http://localhost:${options.port}/mcp \\
     -H "Content-Type: application/json" \\
     -d '{"method": "tools/call", "params": {"name": "codexia_scan"}}'
 `));

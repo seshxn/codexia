@@ -16,6 +16,32 @@ import type {
 } from './types';
 
 const API_BASE = '/api';
+const TOKEN_STORAGE_KEY = 'codexia_dashboard_token';
+function syncTokenFromUrl(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  if (token) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    return token;
+  }
+
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+function getAuthHeaders(): HeadersInit {
+  const token = syncTokenFromUrl();
+  if (!token) {
+    return {};
+  }
+
+  return {
+    Authorization: `Bearer ${token}`,
+  };
+}
 
 interface PaginationParams {
   limit?: number;
@@ -38,7 +64,9 @@ async function fetchJson<T>(endpoint: string, params?: PaginationParams): Promis
     }
   }
   
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: getAuthHeaders(),
+  });
   if (!response.ok) {
     throw new Error(`API error: ${response.statusText}`);
   }

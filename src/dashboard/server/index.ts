@@ -7,6 +7,7 @@ import { CodexiaEngine } from '../../cli/engine.js';
 
 export interface DashboardServerOptions {
   port: number;
+  host?: string;
   open?: boolean;
 }
 
@@ -41,6 +42,13 @@ export class DashboardServer {
   private engine: CodexiaEngine;
   private staticDir: string;
   private git: SimpleGit;
+  private host: string = '127.0.0.1';
+  private port: number = 0;
+  private authToken: string | null = null;
+  private allowedOrigins: Set<string> = new Set();
+  private rateLimitWindowMs: number = Number(process.env.CODEXIA_DASHBOARD_RATE_LIMIT_WINDOW_MS || 60000);
+  private rateLimitMax: number = Number(process.env.CODEXIA_DASHBOARD_RATE_LIMIT_MAX || 120);
+  private rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
   constructor(engine: CodexiaEngine) {
     this.engine = engine;
@@ -54,7 +62,11 @@ export class DashboardServer {
    * Start the dashboard server
    */
   async start(options: DashboardServerOptions): Promise<void> {
-    const { port, open = false } = options;
+    const { port, open = false, host } = options;
+    this.host = host || process.env.CODEXIA_DASHBOARD_HOST || '127.0.0.1';
+    this.port = port;
+    this.authToken = process.env.CODEXIA_DASHBOARD_TOKEN || null;
+    this.allowedOrigins = this.buildAllowedOrigins(this.host, this.port);
 
     // Initialize engine if not already done
     await this.engine.initialize();
@@ -70,13 +82,14 @@ export class DashboardServer {
     });
 
     return new Promise((resolve) => {
-      this.server!.listen(port, () => {
-        console.log(`\n🚀 Codexia Dashboard running at http://localhost:${port}\n`);
-        
+      this.server!.listen(port, this.host, () => {
+        const displayHost = this.host === '0.0.0.0' ? 'localhost' : this.host;
+        console.log(`\n🚀 Codexia Dashboard running at http://${displayHost}:${port}\n`);
+
         if (open) {
-          this.openBrowser(`http://localhost:${port}`);
+          this.openBrowser(`http://${displayHost}:${port}`);
         }
-        
+
         resolve();
       });
     });
@@ -99,10 +112,8 @@ export class DashboardServer {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     const pathname = url.pathname;
 
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    this.applySecurityHeaders(res);
+    this.applyCors(req, res);
 
     if (req.method === 'OPTIONS') {
       res.writeHead(200);
@@ -112,6 +123,23 @@ export class DashboardServer {
 
     // API routes
     if (pathname.startsWith('/api/')) {
+      if (req.method !== 'GET') {
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        return;
+      }
+      if (this.isRateLimited(req)) {
+        this.logSecurityEvent('dashboard.rate_limit', req, { path: pathname });
+        res.writeHead(429, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Too Many Requests' }));
+        return;
+      }
+      if (!this.isAuthorized(req)) {
+        this.logSecurityEvent('dashboard.unauthorized', req, { path: pathname });
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
       await this.handleApiRoute(pathname, url, res);
       return;
     }
@@ -267,8 +295,8 @@ export class DashboardServer {
    * Get dependency graph data
    */
   private async getGraph(url: URL): Promise<object> {
-    const depth = parseInt(url.searchParams.get('depth') || '3', 10);
-    const focus = url.searchParams.get('focus') || undefined;
+    const depth = this.normalizeDepth(url.searchParams.get('depth'));
+    const focus = this.normalizeFocus(url.searchParams.get('focus'));
 
     const graphData = await this.engine.getGraphData({ depth, focus });
     
@@ -1097,7 +1125,7 @@ export class DashboardServer {
   private async serveStatic(pathname: string, res: http.ServerResponse): Promise<void> {
     // Default to index.html
     let filePath = pathname === '/' ? '/index.html' : pathname;
-    filePath = path.join(this.staticDir, filePath);
+    filePath = path.resolve(this.staticDir, `.${filePath}`);
 
     // Security: prevent directory traversal
     if (!filePath.startsWith(this.staticDir)) {
@@ -1167,13 +1195,142 @@ export class DashboardServer {
       }
     });
   }
+
+  private buildAllowedOrigins(host: string, port: number): Set<string> {
+    const origins = new Set<string>();
+    const envOrigins = process.env.CODEXIA_DASHBOARD_ALLOWED_ORIGINS;
+    if (envOrigins) {
+      for (const origin of envOrigins.split(',').map(o => o.trim()).filter(Boolean)) {
+        origins.add(origin);
+      }
+      return origins;
+    }
+
+    const hostLabel = host === '0.0.0.0' ? 'localhost' : host;
+    origins.add(`http://${hostLabel}:${port}`);
+    origins.add(`http://localhost:${port}`);
+    origins.add(`http://127.0.0.1:${port}`);
+    return origins;
+  }
+
+  private applySecurityHeaders(res: http.ServerResponse): void {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'"
+    );
+  }
+
+  private applyCors(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const origin = req.headers.origin;
+    if (!origin) {
+      return;
+    }
+
+    if (this.allowedOrigins.has('*')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    } else if (this.allowedOrigins.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    } else {
+      return;
+    }
+
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Codexia-Token');
+  }
+
+  private isAuthorized(req: http.IncomingMessage): boolean {
+    if (!this.authToken) {
+      return true;
+    }
+
+    const authHeader = req.headers.authorization;
+    const tokenHeader = req.headers['x-codexia-token'];
+    const token = typeof tokenHeader === 'string' ? tokenHeader : null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.slice('Bearer '.length) === this.authToken;
+    }
+
+    if (token) {
+      return token === this.authToken;
+    }
+
+    return false;
+  }
+
+  private isRateLimited(req: http.IncomingMessage): boolean {
+    const key = this.getClientKey(req);
+    const now = Date.now();
+    const bucket = this.rateLimitBuckets.get(key);
+
+    if (!bucket || now > bucket.resetAt) {
+      this.rateLimitBuckets.set(key, { count: 1, resetAt: now + this.rateLimitWindowMs });
+      return false;
+    }
+
+    bucket.count += 1;
+    return bucket.count > this.rateLimitMax;
+  }
+
+  private getClientKey(req: http.IncomingMessage): string {
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket.remoteAddress;
+    return ip || 'unknown';
+  }
+
+  private logSecurityEvent(event: string, req: http.IncomingMessage, context?: Record<string, unknown>): void {
+    const entry = {
+      event,
+      time: new Date().toISOString(),
+      ip: this.getClientKey(req),
+      method: req.method,
+      path: req.url,
+      ...context,
+    };
+    console.warn(`[security] ${JSON.stringify(entry)}`);
+  }
+
+  private normalizeDepth(value: string | null): number {
+    const parsed = Number.parseInt(value || '3', 10);
+    if (Number.isNaN(parsed)) {
+      return 3;
+    }
+    return Math.max(1, Math.min(10, parsed));
+  }
+
+  private normalizeFocus(value: string | null): string | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > 500) {
+      return undefined;
+    }
+
+    if (path.isAbsolute(trimmed) || trimmed.includes('..') || trimmed.includes('\0')) {
+      return undefined;
+    }
+
+    return trimmed;
+  }
 }
 
 /**
  * Start the dashboard server
  */
-export async function startDashboard(engine: CodexiaEngine, port: number, open = false): Promise<DashboardServer> {
+export async function startDashboard(
+  engine: CodexiaEngine,
+  port: number,
+  open = false,
+  host?: string
+): Promise<DashboardServer> {
   const server = new DashboardServer(engine);
-  await server.start({ port, open });
+  await server.start({ port, open, host });
   return server;
 }

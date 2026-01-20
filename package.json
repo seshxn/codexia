@@ -14,8 +14,10 @@
     "build:dashboard": "cd src/dashboard/client && npm install && npm run build",
     "start": "node dist/cli/index.js",
     "dev": "tsc --watch",
-    "test": "vitest",
+    "test": "vitest run",
     "lint": "eslint src --ext .ts",
+    "security:deps": "npm audit --audit-level=high",
+    "security:check": "npm run lint && npm test && npm run security:deps",
     "clean": "rm -rf dist",
     "mcp": "node dist/mcp/server.js",
     "dashboard": "node dist/cli/index.js dashboard --open"
@@ -51,8 +53,11 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^8.53.1",
+    "@typescript-eslint/parser": "^8.53.1",
+    "eslint": "^9.39.2",
     "typescript": "^5.3.3",
-    "vitest": "^1.2.0"
+    "vitest": "^4.0.17"
   },
   "files": [
     "dist",

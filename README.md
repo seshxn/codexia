@@ -198,6 +198,36 @@ codexia dashboard --open          # Auto-open in browser
 The dashboard provides:
 - **Repository Health Score** — Overall health with breakdown
 - **Complexity Heatmap** — Visual file complexity overview
+
+---
+
+## Security & Compliance
+
+### Security Controls
+
+Codexia ships with secure-by-default settings for local use and supports optional hardening for enterprise deployments. See:
+
+- [SECURITY.md](SECURITY.md)
+
+### SOC 2 Alignment (Control Mapping)
+
+Codexia provides technical controls that map to SOC 2 Common Criteria:
+
+- **CC6 (Logical Access)**: Optional bearer-token auth for HTTP services, localhost binding by default.
+- **CC7 (System Operations & Monitoring)**: Structured security logging for auth failures and invalid requests.
+- **CC8 (Change Management)**: `npm run security:check` (lint, tests, dependency audit) for release gating.
+- **CC9 (Risk Mitigation)**: Rate limiting and request size caps for public-facing endpoints.
+
+Operational SOC 2 requirements (policies, access reviews, incident response, vendor risk) must be implemented by the deploying organization.
+
+### GDPR Considerations
+
+- Codexia processes **repository source code and git metadata** locally by default.
+- If you enable AI providers, content may be sent to third parties; treat this as data export.
+- Use data minimization: avoid sending sensitive files; set internal policy for secrets scanning.
+- Define retention for logs and caches, and document a data processing policy.
+
+Codexia does not ship with a built-in DPA. Enterprises should execute their own DPA with AI providers if used.
 - **Code Signals** — Issues ranked by severity
 - **Hot Paths** — Critical areas needing attention
 - **Team Leaderboard** — Contributor stats and activity
