@@ -1,4 +1,5 @@
-import { AlertTriangle, Shield, Users, FileWarning } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, Shield, Users, FileWarning, ChevronDown, ChevronUp } from 'lucide-react';
 import type { OwnershipData } from '../types';
 
 interface OwnershipPanelProps {
@@ -7,6 +8,10 @@ interface OwnershipPanelProps {
 }
 
 export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
+  const [showAllHighRisk, setShowAllHighRisk] = useState(false);
+  const [showAllOwners, setShowAllOwners] = useState(false);
+  const [showAllFiles, setShowAllFiles] = useState(false);
+
   if (!data || !data.files) {
     return (
       <div className="flex items-center justify-center h-48 text-neutral-600">
@@ -23,6 +28,10 @@ export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
     if (busFactor <= 2) return 'text-amber-400 bg-amber-400/20';
     return 'text-green-400 bg-green-400/20';
   };
+
+  const displayedHighRisk = showAllHighRisk ? data.highRiskFiles : data.highRiskFiles.slice(0, 5);
+  const displayedOwners = showAllOwners ? data.ownersByFiles : data.ownersByFiles.slice(0, 5);
+  const displayedFiles = showAllFiles ? data.files : data.files.slice(0, 15);
 
   return (
     <div className="space-y-6">
@@ -53,8 +62,8 @@ export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
             <FileWarning className="w-4 h-4 text-red-400" />
             <span className="text-sm font-medium text-red-400">Bus Factor Risk</span>
           </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-            {data.highRiskFiles.map((file) => (
+          <div className={`space-y-2 ${showAllHighRisk ? 'max-h-64 overflow-y-auto' : ''} pr-2`}>
+            {displayedHighRisk.map((file) => (
               <div
                 key={file.file}
                 className={`flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 ${onFileClick ? 'cursor-pointer hover:bg-red-500/20' : ''}`}
@@ -70,6 +79,24 @@ export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
               </div>
             ))}
           </div>
+          {data.highRiskFiles.length > 5 && (
+            <button
+              onClick={() => setShowAllHighRisk(!showAllHighRisk)}
+              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+            >
+              {showAllHighRisk ? (
+                <>
+                  <ChevronUp className="w-4 h-4" />
+                  Show Less
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4" />
+                  Show All ({data.highRiskFiles.length} files)
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
 
@@ -79,8 +106,8 @@ export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
           <Users className="w-4 h-4 text-neutral-500" />
           <span className="text-sm text-neutral-300">Code Owners by Files</span>
         </div>
-        <div className="space-y-2">
-          {data.ownersByFiles.slice(0, 5).map((owner, index) => (
+        <div className={`space-y-2 ${showAllOwners ? 'max-h-64 overflow-y-auto' : ''} pr-2`}>
+          {displayedOwners.map((owner, index) => (
             <div
               key={owner.email}
               className="flex items-center gap-3 p-3 rounded-lg bg-neutral-900/50 border border-neutral-800"
@@ -97,6 +124,24 @@ export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
             </div>
           ))}
         </div>
+        {data.ownersByFiles.length > 5 && (
+          <button
+            onClick={() => setShowAllOwners(!showAllOwners)}
+            className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+          >
+            {showAllOwners ? (
+              <>
+                <ChevronUp className="w-4 h-4" />
+                Show Less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-4 h-4" />
+                Show All ({data.ownersByFiles.length} owners)
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* File Ownership Table */}
@@ -104,9 +149,10 @@ export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
         <div className="flex items-center gap-2 mb-3">
           <Shield className="w-4 h-4 text-neutral-500" />
           <span className="text-sm text-neutral-300">File Ownership</span>
+          <span className="text-xs text-neutral-600">({data.files.length} files)</span>
         </div>
-        <div className="space-y-1 max-h-48 overflow-y-auto pr-2">
-          {data.files.slice(0, 15).map((file) => (
+        <div className={`space-y-1 ${showAllFiles ? 'max-h-72 overflow-y-auto' : ''} pr-2`}>
+          {displayedFiles.map((file) => (
             <div
               key={file.file}
               className={`flex items-center gap-2 p-2 rounded bg-slate-900/30 text-xs ${onFileClick ? 'cursor-pointer hover:bg-neutral-900/50' : ''}`}
@@ -121,6 +167,24 @@ export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
             </div>
           ))}
         </div>
+        {data.files.length > 15 && (
+          <button
+            onClick={() => setShowAllFiles(!showAllFiles)}
+            className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+          >
+            {showAllFiles ? (
+              <>
+                <ChevronUp className="w-4 h-4" />
+                Show Less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-4 h-4" />
+                Show All ({data.files.length} files)
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

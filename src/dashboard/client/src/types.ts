@@ -175,4 +175,70 @@ export interface OwnershipData {
     avgOwnership: number;
   }>;
   averageBusFactor: string;
+  totalFiles?: number;
+  totalHighRiskFiles?: number;
+}
+
+// Code Health Types
+export interface CodeHealthData {
+  maintainability: {
+    average: number;
+    grade: string;
+  };
+  complexity: {
+    distribution: {
+      low: number;
+      moderate: number;
+      high: number;
+      critical: number;
+    };
+    averageScore: string;
+  };
+  technicalDebt: {
+    score: number;
+    grade: string;
+    indicators: {
+      highComplexity: number;
+      lowCohesion: number;
+      highCoupling: number;
+      errors: number;
+      warnings: number;
+    };
+  };
+  codebase: {
+    totalFiles: number;
+    totalLines: number;
+    avgLinesPerFile: number;
+  };
+  filesNeedingAttention: Array<{
+    file: string;
+    score: number;
+    maintainability: number;
+    lines: number;
+    reason: string;
+  }>;
+}
+
+// Velocity Types
+export interface VelocityData {
+  summary: {
+    totalCommits30d: number;
+    avgCommitsPerWeek: number;
+    velocityTrend: string;
+    activeContributors: number;
+    totalContributors: number;
+  };
+  weeklyTrend: Array<{
+    week: string;
+    commits: number;
+  }>;
+  dailyActivity: Array<{
+    date: string;
+    count: number;
+  }>;
+  topContributors: Array<{
+    email: string;
+    commits: number;
+    lastWeek: number;
+  }>;
 }

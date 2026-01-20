@@ -11,12 +11,34 @@ import type {
   BranchesData,
   ActivityData,
   OwnershipData,
+  CodeHealthData,
+  VelocityData,
 } from './types';
 
 const API_BASE = '/api';
 
-async function fetchJson<T>(endpoint: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`);
+interface PaginationParams {
+  limit?: number;
+  offset?: number;
+  all?: boolean;
+}
+
+async function fetchJson<T>(endpoint: string, params?: PaginationParams): Promise<T> {
+  let url = `${API_BASE}${endpoint}`;
+  
+  if (params) {
+    const queryParams = new URLSearchParams();
+    if (params.limit !== undefined) queryParams.set('limit', params.limit.toString());
+    if (params.offset !== undefined) queryParams.set('offset', params.offset.toString());
+    if (params.all !== undefined) queryParams.set('all', params.all.toString());
+    
+    const queryString = queryParams.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+  }
+  
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`API error: ${response.statusText}`);
   }
@@ -69,4 +91,12 @@ export async function fetchActivity(): Promise<ActivityData> {
 
 export async function fetchOwnership(): Promise<OwnershipData> {
   return fetchJson<OwnershipData>('/ownership');
+}
+
+export async function fetchCodeHealth(params?: PaginationParams): Promise<CodeHealthData> {
+  return fetchJson<CodeHealthData>('/code-health', params);
+}
+
+export async function fetchVelocity(params?: PaginationParams): Promise<VelocityData> {
+  return fetchJson<VelocityData>('/velocity', params);
 }

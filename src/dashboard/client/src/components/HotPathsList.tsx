@@ -1,4 +1,5 @@
-import { Flame } from 'lucide-react';
+import { useState } from 'react';
+import { Flame, ChevronDown, ChevronUp } from 'lucide-react';
 import type { HotPath } from '../types';
 
 interface HotPathsListProps {
@@ -19,9 +20,11 @@ function getHeatLevel(score: number): {
 }
 
 export function HotPathsList({ hotPaths, limit = 10, onHotPathClick }: HotPathsListProps) {
-  const displayedPaths = hotPaths.slice(0, limit);
+  const [showAll, setShowAll] = useState(false);
+  const displayedPaths = showAll ? hotPaths : hotPaths.slice(0, limit);
+  const hasMore = hotPaths.length > limit;
 
-  if (displayedPaths.length === 0) {
+  if (hotPaths.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-neutral-600">
         <div className="text-center">
@@ -34,53 +37,73 @@ export function HotPathsList({ hotPaths, limit = 10, onHotPathClick }: HotPathsL
 
   return (
     <div className="space-y-2">
-      {displayedPaths.map((hotPath, index) => {
-        const heat = getHeatLevel(hotPath.score);
+      <div className={`space-y-2 ${showAll ? 'max-h-96 overflow-y-auto pr-2' : ''}`}>
+        {displayedPaths.map((hotPath, index) => {
+          const heat = getHeatLevel(hotPath.score);
 
-        return (
-          <div
-            key={index}
-            className={`p-4 rounded-xl bg-neutral-900/30 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/30 transition-all duration-200 ${onHotPathClick ? 'cursor-pointer' : ''}`}
-            onClick={() => onHotPathClick?.(hotPath)}
-          >
-            <div className="flex items-start gap-3">
-              <div className={`p-2 rounded-lg bg-neutral-800/50 ${heat.color}`}>
-                <div className="flex gap-0.5">
-                  {Array.from({ length: heat.intensity }).map((_, i) => (
-                    <Flame key={i} className="w-3 h-3" />
-                  ))}
+          return (
+            <div
+              key={index}
+              className={`p-4 rounded-xl bg-neutral-900/30 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/30 transition-all duration-200 ${onHotPathClick ? 'cursor-pointer' : ''}`}
+              onClick={() => onHotPathClick?.(hotPath)}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`p-2 rounded-lg bg-neutral-800/50 ${heat.color}`}>
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: heat.intensity }).map((_, i) => (
+                      <Flame key={i} className="w-3 h-3" />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate font-mono">{hotPath.path}</p>
+                  <div className="flex items-center gap-4 mt-2 text-xs text-neutral-500">
+                    <span>
+                      Changes: <span className="text-neutral-300">{hotPath.metrics.changeFrequency}</span>
+                    </span>
+                    <span>
+                      Complexity: <span className="text-neutral-300">{hotPath.metrics.complexity.toFixed(1)}</span>
+                    </span>
+                    <span>
+                      Coupling: <span className="text-neutral-300">{(hotPath.metrics.couplingFactor * 100).toFixed(0)}%</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={`text-lg font-semibold ${heat.color}`}>
+                    {(hotPath.score * 100).toFixed(0)}
+                  </span>
+                  <p className="text-xs text-neutral-600">score</p>
                 </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate font-mono">{hotPath.path}</p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-neutral-500">
-                  <span>
-                    Changes: <span className="text-neutral-300">{hotPath.metrics.changeFrequency}</span>
-                  </span>
-                  <span>
-                    Complexity: <span className="text-neutral-300">{hotPath.metrics.complexity.toFixed(1)}</span>
-                  </span>
-                  <span>
-                    Coupling: <span className="text-neutral-300">{(hotPath.metrics.couplingFactor * 100).toFixed(0)}%</span>
-                  </span>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className={`text-lg font-semibold ${heat.color}`}>
-                  {(hotPath.score * 100).toFixed(0)}
-                </span>
-                <p className="text-xs text-neutral-600">score</p>
+              <div className="mt-3 h-1 bg-neutral-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${heat.bg} rounded-full transition-all duration-700 ease-out`}
+                  style={{ width: `${hotPath.score * 100}%` }}
+                />
               </div>
             </div>
-            <div className="mt-3 h-1 bg-neutral-800 rounded-full overflow-hidden">
-              <div
-                className={`h-full ${heat.bg} rounded-full transition-all duration-700 ease-out`}
-                style={{ width: `${hotPath.score * 100}%` }}
-              />
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {hasMore && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+        >
+          {showAll ? (
+            <>
+              <ChevronUp className="w-4 h-4" />
+              Show Less
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-4 h-4" />
+              Show All ({hotPaths.length} total)
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }
