@@ -36,18 +36,18 @@ const SCORING_GUIDE = {
       { level: 'Low', range: '1-20', color: 'emerald', meaning: 'Simple, easy to test and maintain' },
       { level: 'Moderate', range: '21-50', color: 'lime', meaning: 'Acceptable complexity, consider splitting' },
       { level: 'High', range: '51-80', color: 'amber', meaning: 'Complex, harder to test, refactor recommended' },
-      { level: 'Critical', range: '80+', color: 'red', meaning: 'Very complex, high risk, needs immediate attention' },
+      { level: 'Critical', range: '81+', color: 'red', meaning: 'Very complex, high risk, needs immediate attention' },
     ]
   },
   techDebt: {
     title: 'Technical Debt Score',
     description: 'Aggregated score based on code smells, coupling, cohesion, and static analysis signals.',
     grades: [
-      { grade: 'A', range: '0-20 pts', meaning: 'Minimal debt, well-maintained codebase' },
-      { grade: 'B', range: '21-50 pts', meaning: 'Low debt, manageable with regular maintenance' },
-      { grade: 'C', range: '51-100 pts', meaning: 'Moderate debt, schedule refactoring sprints' },
-      { grade: 'D', range: '101-200 pts', meaning: 'High debt, prioritize debt reduction' },
-      { grade: 'F', range: '200+ pts', meaning: 'Critical debt, blocking velocity' },
+      { grade: 'A', range: '0-10 pts', meaning: 'Minimal debt, well-maintained codebase' },
+      { grade: 'B', range: '11-25 pts', meaning: 'Low debt, manageable with regular maintenance' },
+      { grade: 'C', range: '26-50 pts', meaning: 'Moderate debt, schedule refactoring sprints' },
+      { grade: 'D', range: '51-75 pts', meaning: 'High debt, prioritize debt reduction' },
+      { grade: 'F', range: '76+ pts', meaning: 'Critical debt, blocking velocity' },
     ]
   }
 };
@@ -111,14 +111,21 @@ function ScoringGuideModal({ onClose }: { onClose: () => void }) {
             <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.complexity.title}</h3>
             <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.complexity.description}</p>
             <div className="grid gap-2">
-              {SCORING_GUIDE.complexity.thresholds.map(t => (
-                <div key={t.level} className="flex items-center gap-3 text-xs">
-                  <span className={`w-3 h-3 rounded-full bg-${t.color}-500`} />
-                  <span className="text-neutral-300 w-20">{t.level}</span>
-                  <span className="text-neutral-500 w-12">{t.range}</span>
-                  <span className="text-neutral-400">{t.meaning}</span>
-                </div>
-              ))}
+              {SCORING_GUIDE.complexity.thresholds.map(t => {
+                let colorClasses = 'bg-emerald-500';
+                if (t.color === 'lime') colorClasses = 'bg-lime-500';
+                else if (t.color === 'amber') colorClasses = 'bg-amber-500';
+                else if (t.color === 'red') colorClasses = 'bg-red-500';
+                
+                return (
+                  <div key={t.level} className="flex items-center gap-3 text-xs">
+                    <span className={`w-3 h-3 rounded-full ${colorClasses}`} />
+                    <span className="text-neutral-300 w-20">{t.level}</span>
+                    <span className="text-neutral-500 w-12">{t.range}</span>
+                    <span className="text-neutral-400">{t.meaning}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

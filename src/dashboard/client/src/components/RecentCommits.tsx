@@ -26,7 +26,7 @@ export function RecentCommits({ commits, limit = 20, onCommitClick }: RecentComm
 
   return (
     <div className="space-y-3">
-      <div className={`space-y-3 ${showAll ? 'max-h-96' : 'max-h-96'} overflow-y-auto pr-2`}>
+      <div className={`space-y-3 ${showAll ? 'max-h-96 overflow-y-auto' : ''} pr-2`}>
         {displayedCommits.map((commit) => (
           <div
             key={commit.fullHash}

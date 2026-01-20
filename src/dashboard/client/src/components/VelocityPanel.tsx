@@ -7,12 +7,13 @@ interface VelocityPanelProps {
 }
 
 export function VelocityPanel({ data }: VelocityPanelProps) {
-  const trendValue = parseInt(data.summary.velocityTrend);
-  const isPositive = trendValue >= 0;
+  const isNewTrend = data.summary.velocityTrend === 'New';
+  const trendValue = isNewTrend ? 0 : parseInt(data.summary.velocityTrend, 10);
+  const isPositive = !isNewTrend && trendValue >= 0;
 
   // Get trend interpretation
   const getTrendInterpretation = () => {
-    if (data.summary.velocityTrend === 'New') return 'New activity period';
+    if (isNewTrend) return 'New activity period';
     const val = Math.abs(trendValue);
     if (val <= 10) return 'Stable velocity';
     if (val <= 30) return isPositive ? 'Accelerating slightly' : 'Slowing slightly';
@@ -54,16 +55,18 @@ export function VelocityPanel({ data }: VelocityPanelProps) {
         </div>
 
         {/* Velocity Trend */}
-        <div className={`p-3 rounded-xl border ${isPositive ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-red-500/30 bg-red-500/10'}`}>
+        <div className={`p-3 rounded-xl border ${isNewTrend ? 'border-neutral-800 bg-neutral-900/30' : isPositive ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-red-500/30 bg-red-500/10'}`}>
           <div className="flex items-center gap-2 mb-1">
-            {isPositive ? (
+            {isNewTrend ? (
+              <Activity className="w-4 h-4 text-neutral-400" />
+            ) : isPositive ? (
               <TrendingUp className="w-4 h-4 text-emerald-400" />
             ) : (
               <TrendingDown className="w-4 h-4 text-red-400" />
             )}
             <span className="text-xs text-neutral-400">Trend</span>
           </div>
-          <p className={`text-xl font-bold truncate ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-xl font-bold truncate ${isNewTrend ? 'text-neutral-300' : isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
             {data.summary.velocityTrend}
           </p>
           <p className="text-[10px] text-neutral-500 mt-1">{getTrendInterpretation()}</p>

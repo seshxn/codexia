@@ -14,6 +14,29 @@ export interface DashboardServerOptions {
  * Dashboard REST API server
  */
 export class DashboardServer {
+  // Technical debt calculation weights
+  private static readonly DEBT_WEIGHT_HIGH_COMPLEXITY = 30;
+  private static readonly DEBT_WEIGHT_LOW_COHESION = 20;
+  private static readonly DEBT_WEIGHT_HIGH_COUPLING = 20;
+  private static readonly DEBT_WEIGHT_ERROR_SIGNAL = 3;
+  private static readonly DEBT_WEIGHT_WARNING_SIGNAL = 1;
+  
+  // Technical debt component upper bounds (for clamping)
+  private static readonly MAX_ERROR_COMPONENT_SCORE = 20;
+  private static readonly MAX_WARNING_COMPONENT_SCORE = 10;
+  
+  // File attention thresholds
+  private static readonly ATTENTION_COMPLEXITY_VERY_HIGH = 25;
+  private static readonly ATTENTION_COMPLEXITY_HIGH = 20;
+  private static readonly ATTENTION_COHESION_LOW = 0.3;
+  private static readonly ATTENTION_COUPLING_HIGH = 50;
+  private static readonly ATTENTION_LARGE_FILE_LINES = 500;
+  
+  // Analysis thresholds
+  private static readonly COMPLEXITY_THRESHOLD_HIGH = 60;
+  private static readonly COHESION_THRESHOLD_LOW = 0.3;
+  private static readonly COUPLING_THRESHOLD_HIGH = 50;
+  
   private server: http.Server | null = null;
   private engine: CodexiaEngine;
   private staticDir: string;
@@ -787,21 +810,24 @@ export class DashboardServer {
       };
       
       // Technical debt indicators (adjusted thresholds)
-      const highComplexityFiles = allFiles.filter(f => (f.score?.overall || 0) > 60);
-      const lowCohesionFiles = allFiles.filter(f => (f.score?.cohesion || 0) < 0.3);
-      const highCouplingFiles = allFiles.filter(f => (f.score?.coupling || 0) > 50);
+      const highComplexityFiles = allFiles.filter(f => (f.score?.overall || 0) > DashboardServer.COMPLEXITY_THRESHOLD_HIGH);
+      const lowCohesionFiles = allFiles.filter(f => (f.score?.cohesion || 0) < DashboardServer.COHESION_THRESHOLD_LOW);
+      const highCouplingFiles = allFiles.filter(f => (f.score?.coupling || 0) > DashboardServer.COUPLING_THRESHOLD_HIGH);
       
       // Signal-based debt
       const errorSignals = signals.filter(s => s.severity === 'error');
       const warningSignals = signals.filter(s => s.severity === 'warning');
       
       // Calculate technical debt score (0-100, lower is better)
+      // Bound individual components so the overall score remains meaningful on a 0-100 scale
+      const errorComponent = Math.min(DashboardServer.MAX_ERROR_COMPONENT_SCORE, errorSignals.length * DashboardServer.DEBT_WEIGHT_ERROR_SIGNAL);
+      const warningComponent = Math.min(DashboardServer.MAX_WARNING_COMPONENT_SCORE, warningSignals.length * DashboardServer.DEBT_WEIGHT_WARNING_SIGNAL);
       const debtScore = Math.min(100, 
-        (highComplexityFiles.length / Math.max(1, totalFiles)) * 30 +
-        (lowCohesionFiles.length / Math.max(1, totalFiles)) * 20 +
-        (highCouplingFiles.length / Math.max(1, totalFiles)) * 20 +
-        (errorSignals.length * 3) +
-        (warningSignals.length * 1)
+        (highComplexityFiles.length / Math.max(1, totalFiles)) * DashboardServer.DEBT_WEIGHT_HIGH_COMPLEXITY +
+        (lowCohesionFiles.length / Math.max(1, totalFiles)) * DashboardServer.DEBT_WEIGHT_LOW_COHESION +
+        (highCouplingFiles.length / Math.max(1, totalFiles)) * DashboardServer.DEBT_WEIGHT_HIGH_COUPLING +
+        errorComponent +
+        warningComponent
       );
       
       // Calculate lines of code
@@ -810,13 +836,21 @@ export class DashboardServer {
       
       // Get top files needing attention
       const filesNeedingAttention = allFiles
-        .map(f => ({
-          file: f.path,
-          score: f.score?.overall || 0,
-          maintainability: f.score?.maintainabilityIndex || 0,
-          lines: f.metrics?.linesOfCode || 0,
-          reason: this.getAttentionReason(f),
-        }))
+        .map(f => {
+          const file =
+            (f as any).path ??
+            (f as any).file ??
+            (f as any).filePath ??
+            'unknown';
+          const reason = this.getAttentionReason(f);
+          return {
+            file,
+            score: f.score?.overall || 0,
+            maintainability: f.score?.maintainabilityIndex || 0,
+            lines: f.metrics?.linesOfCode || 0,
+            reason,
+          };
+        })
         .filter(f => f.reason)
         .sort((a, b) => b.score - a.score)
         .slice(0, 10);
@@ -869,7 +903,7 @@ export class DashboardServer {
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const log = await this.git.log({ '--since': thirtyDaysAgo.toISOString(), maxCount: 1000 });
+      const log = await this.git.log({ since: thirtyDaysAgo.toISOString(), maxCount: 1000 });
       
       // Calculate commits per week
       const weeklyCommits: Record<string, number> = {};
@@ -948,25 +982,62 @@ export class DashboardServer {
   }
 
   /**
+   * Helper to compute ISO week year and week number for a given date.
+   * Uses ISO-8601 definition: weeks start on Monday and week 1 is the week
+   * with the year's first Thursday.
+   */
+  private getISOWeekYearAndWeek(date: Date): { year: number; week: number } {
+    // Work in UTC to avoid timezone-related off-by-one errors
+    const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+
+    // ISO weekday (1 = Monday, 7 = Sunday)
+    const dayOfWeek = utcDate.getUTCDay() || 7;
+
+    // Shift to Thursday of this week to determine the ISO week year
+    utcDate.setUTCDate(utcDate.getUTCDate() + 4 - dayOfWeek);
+    const isoYear = utcDate.getUTCFullYear();
+
+    // First day of the ISO year (Jan 1st)
+    const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+
+    // Calculate ISO week number: count weeks starting from Jan 1
+    const diffInDays = Math.floor((utcDate.getTime() - yearStart.getTime()) / 86400000);
+    const isoWeek = Math.floor(diffInDays / 7) + 1;
+
+    return { year: isoYear, week: isoWeek };
+  }
+
+  /**
    * Helper to get week key (YYYY-WW format)
    */
   private getWeekKey(date: Date): string {
-    const year = date.getFullYear();
-    const onejan = new Date(year, 0, 1);
-    const week = Math.ceil((((date.getTime() - onejan.getTime()) / 86400000) + onejan.getDay() + 1) / 7);
+    const { year, week } = this.getISOWeekYearAndWeek(date);
     return `${year}-W${week.toString().padStart(2, '0')}`;
   }
 
   /**
-   * Get reason why file needs attention
+   * Get reason why file needs attention.
+   *
+   * These thresholds are tuned for the dashboard "needs attention" summary
+   * and intentionally differ from analysis thresholds used elsewhere. They
+   * should be kept in sync with any other dashboard-specific heuristics.
    */
   private getAttentionReason(file: any): string | null {
     const reasons: string[] = [];
-    if ((file.score?.overall || 0) > 25) reasons.push('Very high complexity');
-    else if ((file.score?.overall || 0) > 20) reasons.push('High complexity');
-    if ((file.score?.cohesion || 1) < 0.3) reasons.push('Low cohesion');
-    if ((file.score?.coupling || 0) > 50) reasons.push('High coupling');
-    if ((file.metrics?.linesOfCode || 0) > 500) reasons.push('Large file');
+    if ((file.score?.overall || 0) > DashboardServer.ATTENTION_COMPLEXITY_VERY_HIGH) {
+      reasons.push('Very high complexity');
+    } else if ((file.score?.overall || 0) > DashboardServer.ATTENTION_COMPLEXITY_HIGH) {
+      reasons.push('High complexity');
+    }
+    if ((file.score?.cohesion || 1) < DashboardServer.ATTENTION_COHESION_LOW) {
+      reasons.push('Low cohesion');
+    }
+    if ((file.score?.coupling || 0) > DashboardServer.ATTENTION_COUPLING_HIGH) {
+      reasons.push('High coupling');
+    }
+    if ((file.metrics?.linesOfCode || 0) > DashboardServer.ATTENTION_LARGE_FILE_LINES) {
+      reasons.push('Large file');
+    }
     return reasons.length > 0 ? reasons.join(', ') : null;
   }
 
