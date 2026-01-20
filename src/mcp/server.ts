@@ -643,9 +643,11 @@ export class CodexiaMCPServer {
       }
 
       let body = '';
+      let bodyTooLarge = false;
       req.on('data', chunk => {
         body += chunk;
         if (body.length > this.maxBodyBytes) {
+          bodyTooLarge = true;
           this.logSecurityEvent('mcp.request_too_large', req, { size: body.length });
           res.writeHead(413, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
@@ -657,6 +659,9 @@ export class CodexiaMCPServer {
         }
       });
       req.on('end', async () => {
+        if (bodyTooLarge) {
+          return;
+        }
         try {
           const request = JSON.parse(body) as MCPRequest;
           const response = await this.handleRequest(request);
