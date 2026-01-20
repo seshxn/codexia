@@ -262,8 +262,12 @@ describe('Interactive Wizard', () => {
         formatError: vi.fn().mockReturnValue('formatted error'),
       };
 
-      vi.mocked(CodexiaEngine).mockImplementation(() => mockEngine);
-      vi.mocked(Formatter).mockImplementation(() => mockFormatter);
+      vi.mocked(CodexiaEngine).mockImplementation(function () {
+        return mockEngine;
+      });
+      vi.mocked(Formatter).mockImplementation(function () {
+        return mockFormatter;
+      });
     });
 
     it('should execute scan command', async () => {
@@ -424,8 +428,12 @@ describe('Interactive Wizard', () => {
       mockFormatter = {
         formatScan: vi.fn().mockReturnValue('formatted'),
       };
-      vi.mocked(CodexiaEngine).mockImplementation(() => mockEngine);
-      vi.mocked(Formatter).mockImplementation(() => mockFormatter);
+      vi.mocked(CodexiaEngine).mockImplementation(function () {
+        return mockEngine;
+      });
+      vi.mocked(Formatter).mockImplementation(function () {
+        return mockFormatter;
+      });
     });
 
     it('should run the full wizard flow', async () => {
@@ -508,8 +516,12 @@ describe('Interactive Wizard', () => {
       mockFormatter = {
         formatScan: vi.fn().mockReturnValue('formatted'),
       };
-      vi.mocked(CodexiaEngine).mockImplementation(() => mockEngine);
-      vi.mocked(Formatter).mockImplementation(() => mockFormatter);
+      vi.mocked(CodexiaEngine).mockImplementation(function () {
+        return mockEngine;
+      });
+      vi.mocked(Formatter).mockImplementation(function () {
+        return mockFormatter;
+      });
     });
 
     it('should display all commands and execute selected one', async () => {
