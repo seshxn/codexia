@@ -11,6 +11,8 @@ import type {
   BranchesData,
   ActivityData,
   OwnershipData,
+  CodeHealthData,
+  VelocityData,
 } from './types';
 
 const API_BASE = '/api';
@@ -69,4 +71,12 @@ export async function fetchActivity(): Promise<ActivityData> {
 
 export async function fetchOwnership(): Promise<OwnershipData> {
   return fetchJson<OwnershipData>('/ownership');
+}
+
+export async function fetchCodeHealth(): Promise<CodeHealthData> {
+  return fetchJson<CodeHealthData>('/code-health');
+}
+
+export async function fetchVelocity(): Promise<VelocityData> {
+  return fetchJson<VelocityData>('/velocity');
 }

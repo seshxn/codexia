@@ -1,14 +1,20 @@
-import { Trophy, GitCommit, TrendingUp, User } from 'lucide-react';
+import { useState } from 'react';
+import { Trophy, GitCommit, TrendingUp, User, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Contributor } from '../types';
 
 interface ContributorsListProps {
   contributors: Contributor[];
   totalContributors: number;
   activeContributors: number;
+  limit?: number;
   onContributorClick?: (contributor: Contributor) => void;
 }
 
-export function ContributorsList({ contributors, totalContributors, activeContributors, onContributorClick }: ContributorsListProps) {
+export function ContributorsList({ contributors, totalContributors, activeContributors, limit = 10, onContributorClick }: ContributorsListProps) {
+  const [showAll, setShowAll] = useState(false);
+  const displayedContributors = showAll ? contributors : contributors.slice(0, limit);
+  const hasMore = contributors.length > limit;
+
   if (!contributors || contributors.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-neutral-600">
@@ -43,8 +49,8 @@ export function ContributorsList({ contributors, totalContributors, activeContri
       </div>
 
       {/* Leaderboard */}
-      <div className="space-y-2">
-        {contributors.slice(0, 10).map((contributor) => {
+      <div className={`space-y-2 ${showAll ? 'max-h-96 overflow-y-auto pr-2' : ''}`}>
+        {displayedContributors.map((contributor) => {
           const badge = getRankBadge(contributor.rank);
           return (
             <div
@@ -97,6 +103,25 @@ export function ContributorsList({ contributors, totalContributors, activeContri
           );
         })}
       </div>
+      
+      {hasMore && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+        >
+          {showAll ? (
+            <>
+              <ChevronUp className="w-4 h-4" />
+              Show Less
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-4 h-4" />
+              Show All ({contributors.length} contributors)
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }

@@ -98,6 +98,16 @@ export class DashboardServer {
   }
 
   /**
+   * Parse pagination query params (limit and offset)
+   */
+  private getPaginationParams(url: URL, defaultLimit = 50): { limit: number; offset: number; showAll: boolean } {
+    const showAll = url.searchParams.get('all') === 'true';
+    const limit = showAll ? Infinity : parseInt(url.searchParams.get('limit') || String(defaultLimit), 10);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    return { limit, offset, showAll };
+  }
+
+  /**
    * Handle API routes
    */
   private async handleApiRoute(pathname: string, url: URL, res: http.ServerResponse): Promise<void> {
@@ -111,28 +121,28 @@ export class DashboardServer {
           data = await this.getOverview();
           break;
         case '/api/complexity':
-          data = await this.getComplexity();
+          data = await this.getComplexity(url);
           break;
         case '/api/graph':
           data = await this.getGraph(url);
           break;
         case '/api/signals':
-          data = await this.getSignals();
+          data = await this.getSignals(url);
           break;
         case '/api/hotpaths':
-          data = await this.getHotPaths();
+          data = await this.getHotPaths(url);
           break;
         case '/api/temporal':
-          data = await this.getTemporal();
+          data = await this.getTemporal(url);
           break;
         case '/api/languages':
           data = await this.getLanguageStats();
           break;
         case '/api/contributors':
-          data = await this.getContributors();
+          data = await this.getContributors(url);
           break;
         case '/api/commits':
-          data = await this.getRecentCommits();
+          data = await this.getRecentCommits(url);
           break;
         case '/api/branches':
           data = await this.getBranches();
@@ -141,7 +151,13 @@ export class DashboardServer {
           data = await this.getCommitActivity();
           break;
         case '/api/ownership':
-          data = await this.getFileOwnership();
+          data = await this.getFileOwnership(url);
+          break;
+        case '/api/code-health':
+          data = await this.getCodeHealth();
+          break;
+        case '/api/velocity':
+          data = await this.getVelocityMetrics();
           break;
         default:
           res.writeHead(404);
@@ -193,12 +209,13 @@ export class DashboardServer {
   /**
    * Get complexity metrics for all files
    */
-  private async getComplexity(): Promise<object> {
+  private async getComplexity(url?: URL): Promise<object> {
+    const { limit, offset } = url ? this.getPaginationParams(url, 100) : { limit: 100, offset: 0 };
     const complexityData = await this.engine.getComplexity({});
     
     // Convert to expected format
     // DetailedMetrics has: linesOfCode, logicalLines, commentLines, blankLines, etc.
-    const files = Array.from(complexityData.entries())
+    const allFiles = Array.from(complexityData.entries())
       .map(([filePath, data]) => ({
         file: filePath,
         metrics: {
@@ -212,12 +229,14 @@ export class DashboardServer {
       }))
       .sort((a, b) => b.score - a.score);
 
-    const totalScore = files.reduce((sum, f) => sum + f.score, 0);
+    const totalScore = allFiles.reduce((sum, f) => sum + f.score, 0);
+    const files = limit === Infinity ? allFiles : allFiles.slice(offset, offset + limit);
     
     return {
       files,
-      averageScore: files.length > 0 ? totalScore / files.length : 0,
-      highComplexityCount: files.filter(f => f.score > 15).length,
+      totalFiles: allFiles.length,
+      averageScore: allFiles.length > 0 ? totalScore / allFiles.length : 0,
+      highComplexityCount: allFiles.filter(f => f.score > 15).length,
     };
   }
 
@@ -251,12 +270,13 @@ export class DashboardServer {
   /**
    * Get code quality signals
    */
-  private async getSignals(): Promise<object> {
+  private async getSignals(url?: URL): Promise<object> {
+    const { limit, offset } = url ? this.getPaginationParams(url, 100) : { limit: 100, offset: 0 };
     const rawSignals = await this.engine.getSignals({ include: ['all'] });
     
     // Map to expected format
     // Signal type has: type (SignalType), severity ('info'|'warning'|'error'), message, evidence[], filePath?, line?
-    const signals = rawSignals.map(s => ({
+    const allSignals = rawSignals.map(s => ({
       type: s.type || 'unknown',
       severity: this.mapSeverity(s.severity),
       file: s.filePath || '',
@@ -269,12 +289,14 @@ export class DashboardServer {
     const byType: Record<string, number> = {};
     const bySeverity: Record<string, number> = {};
     
-    for (const signal of signals) {
+    for (const signal of allSignals) {
       byType[signal.type] = (byType[signal.type] || 0) + 1;
       bySeverity[signal.severity] = (bySeverity[signal.severity] || 0) + 1;
     }
 
-    return { signals, byType, bySeverity };
+    const signals = limit === Infinity ? allSignals : allSignals.slice(offset, offset + limit);
+
+    return { signals, totalSignals: allSignals.length, byType, bySeverity };
   }
 
   /**
@@ -298,11 +320,12 @@ export class DashboardServer {
   /**
    * Get hot paths data
    */
-  private async getHotPaths(): Promise<object> {
+  private async getHotPaths(url?: URL): Promise<object> {
+    const { limit, offset } = url ? this.getPaginationParams(url, 50) : { limit: 50, offset: 0 };
     const hotPathsData = await this.engine.getHotPaths();
     
     // Map to expected format
-    const hotPaths = (hotPathsData.paths || []).slice(0, 20).map((p: any) => ({
+    const allPaths = (hotPathsData.paths || []).map((p: any) => ({
       path: p.path || p.file || '',
       score: p.score || p.risk === 'high' ? 0.8 : p.risk === 'medium' ? 0.5 : 0.3,
       metrics: {
@@ -312,8 +335,11 @@ export class DashboardServer {
       },
     }));
 
+    const hotPaths = limit === Infinity ? allPaths : allPaths.slice(offset, offset + limit);
+
     return {
       hotPaths,
+      totalPaths: allPaths.length,
       threshold: 0.5,
     };
   }
@@ -321,21 +347,26 @@ export class DashboardServer {
   /**
    * Get temporal analysis data
    */
-  private async getTemporal(): Promise<object> {
+  private async getTemporal(url?: URL): Promise<object> {
+    const { limit } = url ? this.getPaginationParams(url, 50) : { limit: 50 };
     const temporal = await this.engine.getTemporal();
     
     // Map to expected format
-    const recentChanges = (temporal.hotspots || []).slice(0, 20).map((h: any) => ({
+    const allChanges = (temporal.hotspots || []).map((h: any) => ({
       file: h.file || h.path || '',
       changeCount: h.changes || h.commits || 0,
       lastModified: h.lastModified || new Date().toISOString(),
     }));
+    
+    const recentChanges = limit === Infinity ? allChanges : allChanges.slice(0, limit);
 
-    const authorStats = Object.entries(temporal.ownership || {}).map(([author, data]: [string, any]) => ({
+    const allAuthorStats = Object.entries(temporal.ownership || {}).map(([author, data]: [string, any]) => ({
       author,
       commits: data.commits || 0,
       filesChanged: data.files || data.filesOwned || 0,
-    })).slice(0, 10);
+    }));
+    
+    const authorStats = limit === Infinity ? allAuthorStats : allAuthorStats.slice(0, limit);
 
     // Generate activity by day from churn rates or create mock data
     const activityByDay: Record<string, number> = {};
@@ -351,6 +382,8 @@ export class DashboardServer {
       recentChanges,
       authorStats,
       activityByDay,
+      totalChanges: allChanges.length,
+      totalAuthors: allAuthorStats.length,
     };
   }
 
@@ -378,10 +411,11 @@ export class DashboardServer {
   /**
    * Get contributors/authors with their stats
    */
-  private async getContributors(): Promise<object> {
+  private async getContributors(url?: URL): Promise<object> {
+    const { limit } = url ? this.getPaginationParams(url, 50) : { limit: 50 };
     try {
       // Get all commits with author info
-      const log = await this.git.log({ maxCount: 500 });
+      const log = await this.git.log({ maxCount: 1000 });
       
       const contributorMap = new Map<string, {
         name: string;
@@ -421,10 +455,9 @@ export class DashboardServer {
         }
       }
 
-      // Get stats for top contributors
-      const contributors = Array.from(contributorMap.values())
+      // Get stats for contributors
+      const allContributors = Array.from(contributorMap.values())
         .sort((a, b) => b.commits - a.commits)
-        .slice(0, 20)
         .map((c, index) => ({
           rank: index + 1,
           name: c.name,
@@ -438,11 +471,13 @@ export class DashboardServer {
           recentCommits: c.recentCommits,
           isActive: c.recentCommits > 0,
         }));
+      
+      const contributors = limit === Infinity ? allContributors : allContributors.slice(0, limit);
 
       return {
         contributors,
         totalContributors: contributorMap.size,
-        activeContributors: contributors.filter(c => c.isActive).length,
+        activeContributors: allContributors.filter(c => c.isActive).length,
       };
     } catch (error) {
       console.error('Error getting contributors:', error);
@@ -453,9 +488,11 @@ export class DashboardServer {
   /**
    * Get recent commits
    */
-  private async getRecentCommits(): Promise<object> {
+  private async getRecentCommits(url?: URL): Promise<object> {
+    const { limit } = url ? this.getPaginationParams(url, 100) : { limit: 100 };
     try {
-      const log = await this.git.log({ maxCount: 50 });
+      const maxCount = limit === Infinity ? 500 : Math.min(limit, 500);
+      const log = await this.git.log({ maxCount });
       
       const commits = log.all.map(commit => ({
         hash: commit.hash.substring(0, 7),
@@ -468,10 +505,10 @@ export class DashboardServer {
         relativeDate: this.getRelativeTime(new Date(commit.date)),
       }));
 
-      return { commits };
+      return { commits, totalCommits: log.total || commits.length };
     } catch (error) {
       console.error('Error getting commits:', error);
-      return { commits: [] };
+      return { commits: [], totalCommits: 0 };
     }
   }
 
@@ -605,7 +642,8 @@ export class DashboardServer {
   /**
    * Get file ownership data (who owns what)
    */
-  private async getFileOwnership(): Promise<object> {
+  private async getFileOwnership(url?: URL): Promise<object> {
+    const { limit } = url ? this.getPaginationParams(url, 200) : { limit: 200 };
     try {
       const files = this.engine.getFiles();
       const ownershipData: Array<{
@@ -618,12 +656,12 @@ export class DashboardServer {
         busFactor: number;
       }> = [];
 
-      // Sample files to analyze (limit for performance)
-      const filePaths = Array.from(files.keys()).slice(0, 100);
+      // Analyze all files (increased from 100)
+      const filePaths = Array.from(files.keys());
 
       for (const filePath of filePaths) {
         try {
-          const log = await this.git.log({ file: filePath, maxCount: 50 });
+          const log = await this.git.log({ file: filePath, maxCount: 100 });
           
           if (log.all.length === 0) continue;
 
@@ -673,7 +711,7 @@ export class DashboardServer {
       }
 
       // Find high-risk files (single owner with 80%+ ownership)
-      const highRiskFiles = ownershipData.filter(f => f.ownership >= 80 && f.busFactor === 1);
+      const allHighRiskFiles = ownershipData.filter(f => f.ownership >= 80 && f.busFactor === 1);
       
       // Aggregate by owner
       const ownerSummary = new Map<string, { name: string; filesOwned: number; totalOwnership: number }>();
@@ -691,28 +729,267 @@ export class DashboardServer {
         }
       }
 
-      const ownersByFiles = Array.from(ownerSummary.entries())
+      const allOwnersByFiles = Array.from(ownerSummary.entries())
         .map(([email, data]) => ({
           name: data.name,
           email,
           filesOwned: data.filesOwned,
           avgOwnership: Math.round(data.totalOwnership / data.filesOwned),
         }))
-        .sort((a, b) => b.filesOwned - a.filesOwned)
-        .slice(0, 10);
+        .sort((a, b) => b.filesOwned - a.filesOwned);
+
+      const filesResult = limit === Infinity ? ownershipData : ownershipData.slice(0, limit);
+      const highRiskFiles = limit === Infinity ? allHighRiskFiles : allHighRiskFiles.slice(0, limit);
+      const ownersByFiles = limit === Infinity ? allOwnersByFiles : allOwnersByFiles.slice(0, Math.min(limit, 20));
 
       return {
-        files: ownershipData.slice(0, 50),
-        highRiskFiles: highRiskFiles.slice(0, 10),
+        files: filesResult,
+        highRiskFiles,
         ownersByFiles,
+        totalFiles: ownershipData.length,
+        totalHighRiskFiles: allHighRiskFiles.length,
         averageBusFactor: ownershipData.length > 0 
           ? (ownershipData.reduce((sum, f) => sum + f.busFactor, 0) / ownershipData.length).toFixed(1)
           : '0',
       };
     } catch (error) {
       console.error('Error getting ownership:', error);
-      return { files: [], highRiskFiles: [], ownersByFiles: [], averageBusFactor: '0' };
+      return { files: [], highRiskFiles: [], ownersByFiles: [], totalFiles: 0, totalHighRiskFiles: 0, averageBusFactor: '0' };
     }
+  }
+
+  /**
+   * Get code health metrics (maintainability, technical debt, etc.)
+   */
+  private async getCodeHealth(): Promise<object> {
+    try {
+      const complexityData = await this.engine.getComplexity({});
+      const signals = await this.engine.getSignals({ include: ['all'] });
+      
+      // Calculate aggregate metrics
+      const allFiles = Array.from(complexityData.values());
+      const totalFiles = allFiles.length;
+      
+      // Maintainability metrics
+      const maintainabilityScores = allFiles
+        .filter(f => f.score?.maintainabilityIndex !== undefined)
+        .map(f => f.score.maintainabilityIndex);
+      const avgMaintainability = maintainabilityScores.length > 0
+        ? maintainabilityScores.reduce((a, b) => a + b, 0) / maintainabilityScores.length
+        : 0;
+      
+      // Complexity distribution (adjusted thresholds for real-world codebases)
+      const complexityBuckets = {
+        low: allFiles.filter(f => (f.score?.overall || 0) <= 20).length,
+        moderate: allFiles.filter(f => (f.score?.overall || 0) > 20 && (f.score?.overall || 0) <= 50).length,
+        high: allFiles.filter(f => (f.score?.overall || 0) > 50 && (f.score?.overall || 0) <= 80).length,
+        critical: allFiles.filter(f => (f.score?.overall || 0) > 80).length,
+      };
+      
+      // Technical debt indicators (adjusted thresholds)
+      const highComplexityFiles = allFiles.filter(f => (f.score?.overall || 0) > 60);
+      const lowCohesionFiles = allFiles.filter(f => (f.score?.cohesion || 0) < 0.3);
+      const highCouplingFiles = allFiles.filter(f => (f.score?.coupling || 0) > 50);
+      
+      // Signal-based debt
+      const errorSignals = signals.filter(s => s.severity === 'error');
+      const warningSignals = signals.filter(s => s.severity === 'warning');
+      
+      // Calculate technical debt score (0-100, lower is better)
+      const debtScore = Math.min(100, 
+        (highComplexityFiles.length / Math.max(1, totalFiles)) * 30 +
+        (lowCohesionFiles.length / Math.max(1, totalFiles)) * 20 +
+        (highCouplingFiles.length / Math.max(1, totalFiles)) * 20 +
+        (errorSignals.length * 3) +
+        (warningSignals.length * 1)
+      );
+      
+      // Calculate lines of code
+      const totalLines = allFiles.reduce((sum, f) => sum + (f.metrics?.linesOfCode || 0), 0);
+      const avgLinesPerFile = totalFiles > 0 ? Math.round(totalLines / totalFiles) : 0;
+      
+      // Get top files needing attention
+      const filesNeedingAttention = allFiles
+        .map(f => ({
+          file: f.path,
+          score: f.score?.overall || 0,
+          maintainability: f.score?.maintainabilityIndex || 0,
+          lines: f.metrics?.linesOfCode || 0,
+          reason: this.getAttentionReason(f),
+        }))
+        .filter(f => f.reason)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10);
+      
+      return {
+        maintainability: {
+          average: Math.round(avgMaintainability),
+          grade: this.getMaintainabilityGrade(avgMaintainability),
+        },
+        complexity: {
+          distribution: complexityBuckets,
+          averageScore: totalFiles > 0 
+            ? (allFiles.reduce((sum, f) => sum + (f.score?.overall || 0), 0) / totalFiles).toFixed(1)
+            : '0',
+        },
+        technicalDebt: {
+          score: Math.round(debtScore),
+          grade: this.getDebtGrade(debtScore),
+          indicators: {
+            highComplexity: highComplexityFiles.length,
+            lowCohesion: lowCohesionFiles.length,
+            highCoupling: highCouplingFiles.length,
+            errors: errorSignals.length,
+            warnings: warningSignals.length,
+          },
+        },
+        codebase: {
+          totalFiles,
+          totalLines,
+          avgLinesPerFile,
+        },
+        filesNeedingAttention,
+      };
+    } catch (error) {
+      console.error('Error getting code health:', error);
+      return {
+        maintainability: { average: 0, grade: 'N/A' },
+        complexity: { distribution: { low: 0, moderate: 0, high: 0, critical: 0 }, averageScore: '0' },
+        technicalDebt: { score: 0, grade: 'N/A', indicators: {} },
+        codebase: { totalFiles: 0, totalLines: 0, avgLinesPerFile: 0 },
+        filesNeedingAttention: [],
+      };
+    }
+  }
+
+  /**
+   * Get velocity metrics from git history
+   */
+  private async getVelocityMetrics(): Promise<object> {
+    try {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const log = await this.git.log({ '--since': thirtyDaysAgo.toISOString(), maxCount: 1000 });
+      
+      // Calculate commits per week
+      const weeklyCommits: Record<string, number> = {};
+      const dailyCommits: Record<string, number> = {};
+      const authorActivity: Record<string, { commits: number; lastWeek: number }> = {};
+      
+      for (const commit of log.all) {
+        const date = new Date(commit.date);
+        const weekKey = this.getWeekKey(date);
+        const dayKey = date.toISOString().split('T')[0];
+        
+        weeklyCommits[weekKey] = (weeklyCommits[weekKey] || 0) + 1;
+        dailyCommits[dayKey] = (dailyCommits[dayKey] || 0) + 1;
+        
+        const isLastWeek = date > sevenDaysAgo;
+        const author = commit.author_email;
+        if (!authorActivity[author]) {
+          authorActivity[author] = { commits: 0, lastWeek: 0 };
+        }
+        authorActivity[author].commits++;
+        if (isLastWeek) authorActivity[author].lastWeek++;
+      }
+      
+      // Calculate trends
+      const weeks = Object.keys(weeklyCommits).sort();
+      const recentWeeks = weeks.slice(-4);
+      const avgCommitsPerWeek = recentWeeks.length > 0
+        ? recentWeeks.reduce((sum, w) => sum + weeklyCommits[w], 0) / recentWeeks.length
+        : 0;
+      
+      // Velocity trend (comparing last 2 weeks to previous 2 weeks)
+      const lastTwoWeeks = weeks.slice(-2).reduce((sum, w) => sum + weeklyCommits[w], 0);
+      const prevTwoWeeks = weeks.slice(-4, -2).reduce((sum, w) => sum + weeklyCommits[w], 0);
+      let velocityTrend = '0';
+      if (prevTwoWeeks > 0) {
+        const rawTrend = ((lastTwoWeeks - prevTwoWeeks) / prevTwoWeeks * 100);
+        // Cap at ±999% for display purposes
+        const cappedTrend = Math.max(-999, Math.min(999, rawTrend));
+        velocityTrend = cappedTrend.toFixed(0);
+      } else if (lastTwoWeeks > 0) {
+        velocityTrend = 'new';
+      }
+      
+      // Active contributors
+      const activeContributors = Object.values(authorActivity).filter(a => a.lastWeek > 0).length;
+      const totalContributors = Object.keys(authorActivity).length;
+      
+      // Commit frequency by day
+      const days = Object.keys(dailyCommits).sort().slice(-14);
+      const commitsByDay = days.map(d => ({ date: d, count: dailyCommits[d] || 0 }));
+      
+      return {
+        summary: {
+          totalCommits30d: log.all.length,
+          avgCommitsPerWeek: Math.round(avgCommitsPerWeek),
+          velocityTrend: velocityTrend === 'new' ? 'New' : `${Number(velocityTrend) >= 0 ? '+' : ''}${velocityTrend}%`,
+          activeContributors,
+          totalContributors,
+        },
+        weeklyTrend: recentWeeks.map(w => ({ week: w, commits: weeklyCommits[w] })),
+        dailyActivity: commitsByDay,
+        topContributors: Object.entries(authorActivity)
+          .sort((a, b) => b[1].commits - a[1].commits)
+          .slice(0, 5)
+          .map(([email, data]) => ({ email, ...data })),
+      };
+    } catch (error) {
+      console.error('Error getting velocity metrics:', error);
+      return {
+        summary: { totalCommits30d: 0, avgCommitsPerWeek: 0, velocityTrend: '0%', activeContributors: 0, totalContributors: 0 },
+        weeklyTrend: [],
+        dailyActivity: [],
+        topContributors: [],
+      };
+    }
+  }
+
+  /**
+   * Helper to get week key (YYYY-WW format)
+   */
+  private getWeekKey(date: Date): string {
+    const year = date.getFullYear();
+    const onejan = new Date(year, 0, 1);
+    const week = Math.ceil((((date.getTime() - onejan.getTime()) / 86400000) + onejan.getDay() + 1) / 7);
+    return `${year}-W${week.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Get reason why file needs attention
+   */
+  private getAttentionReason(file: any): string | null {
+    const reasons: string[] = [];
+    if ((file.score?.overall || 0) > 25) reasons.push('Very high complexity');
+    else if ((file.score?.overall || 0) > 20) reasons.push('High complexity');
+    if ((file.score?.cohesion || 1) < 0.3) reasons.push('Low cohesion');
+    if ((file.score?.coupling || 0) > 50) reasons.push('High coupling');
+    if ((file.metrics?.linesOfCode || 0) > 500) reasons.push('Large file');
+    return reasons.length > 0 ? reasons.join(', ') : null;
+  }
+
+  /**
+   * Get maintainability grade
+   */
+  private getMaintainabilityGrade(score: number): string {
+    if (score >= 80) return 'A';
+    if (score >= 60) return 'B';
+    if (score >= 40) return 'C';
+    if (score >= 20) return 'D';
+    return 'F';
+  }
+
+  /**
+   * Get technical debt grade
+   */
+  private getDebtGrade(score: number): string {
+    if (score <= 10) return 'A';
+    if (score <= 25) return 'B';
+    if (score <= 50) return 'C';
+    if (score <= 75) return 'D';
+    return 'F';
   }
 
   /**

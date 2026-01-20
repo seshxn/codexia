@@ -12,6 +12,8 @@ import {
   GitCommit,
   Calendar,
   Shield,
+  Heart,
+  Zap,
 } from 'lucide-react';
 import { useApi } from './hooks/useApi';
 import {
@@ -25,6 +27,8 @@ import {
   fetchBranches,
   fetchActivity,
   fetchOwnership,
+  fetchCodeHealth,
+  fetchVelocity,
 } from './api';
 import { Card, StatCard } from './components/Card';
 import { HealthScore } from './components/HealthScore';
@@ -41,6 +45,8 @@ import { BranchList } from './components/BranchList';
 import { CommitActivity } from './components/CommitActivity';
 import { CommitHeatmap } from './components/CommitHeatmap';
 import { OwnershipPanel } from './components/OwnershipPanel';
+import { CodeHealthPanel } from './components/CodeHealthPanel';
+import { VelocityPanel } from './components/VelocityPanel';
 import {
   FileDetailsModal,
   ContributorDetailsModal,
@@ -78,6 +84,8 @@ function App() {
   const branches = useApi(useCallback(() => fetchBranches(), [refreshKey]));
   const activity = useApi(useCallback(() => fetchActivity(), [refreshKey]));
   const ownership = useApi(useCallback(() => fetchOwnership(), [refreshKey]));
+  const codeHealth = useApi(useCallback(() => fetchCodeHealth(), [refreshKey]));
+  const velocity = useApi(useCallback(() => fetchVelocity(), [refreshKey]));
 
   // Show loading page if overview is still loading
   if (overview.loading && !overview.data) {
@@ -193,6 +201,37 @@ function App() {
                 data={complexity.data!} 
                 onFileClick={setSelectedFile}
               />
+            )}
+          </Card>
+        </div>
+
+        {/* Code Health & Velocity Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card
+            title="Code Health"
+            subtitle="Maintainability & technical debt analysis"
+            action={<Heart className="w-5 h-5 text-rose-400" />}
+          >
+            {codeHealth.loading && !codeHealth.data ? (
+              <LoadingCard />
+            ) : codeHealth.error ? (
+              <ErrorDisplay message="Failed to load code health data" onRetry={codeHealth.refetch} />
+            ) : (
+              <CodeHealthPanel data={codeHealth.data!} />
+            )}
+          </Card>
+
+          <Card
+            title="Development Velocity"
+            subtitle="Team productivity & commit trends"
+            action={<Zap className="w-5 h-5 text-amber-400" />}
+          >
+            {velocity.loading && !velocity.data ? (
+              <LoadingCard />
+            ) : velocity.error ? (
+              <ErrorDisplay message="Failed to load velocity data" onRetry={velocity.refetch} />
+            ) : (
+              <VelocityPanel data={velocity.data!} />
             )}
           </Card>
         </div>
