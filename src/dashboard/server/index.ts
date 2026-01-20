@@ -21,6 +21,10 @@ export class DashboardServer {
   private static readonly DEBT_WEIGHT_ERROR_SIGNAL = 3;
   private static readonly DEBT_WEIGHT_WARNING_SIGNAL = 1;
   
+  // Technical debt component upper bounds (for clamping)
+  private static readonly MAX_ERROR_COMPONENT_SCORE = 20;
+  private static readonly MAX_WARNING_COMPONENT_SCORE = 10;
+  
   // File attention thresholds
   private static readonly ATTENTION_COMPLEXITY_VERY_HIGH = 25;
   private static readonly ATTENTION_COMPLEXITY_HIGH = 20;
@@ -816,8 +820,8 @@ export class DashboardServer {
       
       // Calculate technical debt score (0-100, lower is better)
       // Bound individual components so the overall score remains meaningful on a 0-100 scale
-      const errorComponent = Math.min(20, errorSignals.length * DashboardServer.DEBT_WEIGHT_ERROR_SIGNAL);
-      const warningComponent = Math.min(10, warningSignals.length * DashboardServer.DEBT_WEIGHT_WARNING_SIGNAL);
+      const errorComponent = Math.min(DashboardServer.MAX_ERROR_COMPONENT_SCORE, errorSignals.length * DashboardServer.DEBT_WEIGHT_ERROR_SIGNAL);
+      const warningComponent = Math.min(DashboardServer.MAX_WARNING_COMPONENT_SCORE, warningSignals.length * DashboardServer.DEBT_WEIGHT_WARNING_SIGNAL);
       const debtScore = Math.min(100, 
         (highComplexityFiles.length / Math.max(1, totalFiles)) * DashboardServer.DEBT_WEIGHT_HIGH_COMPLEXITY +
         (lowCohesionFiles.length / Math.max(1, totalFiles)) * DashboardServer.DEBT_WEIGHT_LOW_COHESION +
