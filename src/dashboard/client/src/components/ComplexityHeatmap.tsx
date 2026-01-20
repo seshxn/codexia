@@ -48,11 +48,11 @@ export function ComplexityHeatmap({ data, limit = 15, onFileClick }: ComplexityH
     }
   };
 
-  const chartHeight = Math.max(280, displayLimit * 28);
+  const chartHeight = showAll ? Math.max(280, displayLimit * 28) : 320;
 
   return (
     <div className="space-y-2">
-      <div className={`${showAll ? 'max-h-[500px] overflow-y-auto' : ''}`} style={{ height: showAll ? 'auto' : 320 }}>
+      <div className={`${showAll ? 'max-h-[500px] overflow-y-auto' : ''}`}>
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 120 }}>
             <XAxis type="number" domain={[0, 'auto']} stroke="#64748b" />
