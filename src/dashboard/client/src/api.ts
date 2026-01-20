@@ -17,7 +17,6 @@ import type {
 
 const API_BASE = '/api';
 const TOKEN_STORAGE_KEY = 'codexia_dashboard_token';
-
 function syncTokenFromUrl(): string | null {
   if (typeof window === 'undefined') {
     return null;
@@ -43,6 +42,7 @@ function getAuthHeaders(): HeadersInit {
     Authorization: `Bearer ${token}`,
   };
 }
+
 interface PaginationParams {
   limit?: number;
   offset?: number;
