@@ -487,3 +487,9 @@ codexia mcp-server
 ## License
 
 AGPL-3.0
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, workflow, and PR guidelines.
