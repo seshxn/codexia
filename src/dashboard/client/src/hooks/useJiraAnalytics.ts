@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchJiraBoardReport, fetchJiraBoards, fetchJiraConfig, fetchJiraSprintReport, fetchJiraSprints } from '../api';
+import {
+  fetchJiraAiInsights,
+  fetchJiraBoardReport,
+  fetchJiraBoards,
+  fetchJiraConfig,
+  fetchJiraSprintReport,
+  fetchJiraSprints,
+} from '../api';
 import type {
+  JiraAiInsightsData,
   JiraBoard,
   JiraBoardHistoryReportData,
   JiraConfigData,
@@ -36,11 +44,16 @@ export interface UseJiraAnalyticsResult {
   analysisError: string | null;
   sprintReport: JiraSprintReportData | null;
   boardReport: JiraBoardHistoryReportData | null;
+  aiInsights: JiraAiInsightsData | null;
+  aiInsightsLoading: boolean;
+  aiInsightsError: string | null;
   selectedBoard: JiraBoard | null;
   loadBoards: () => Promise<void>;
   applyBoardId: () => void;
   runSprintAnalysis: () => Promise<void>;
   runBoardAnalysis: () => Promise<void>;
+  runSprintAiInsights: () => Promise<void>;
+  runBoardAiInsights: () => Promise<void>;
 }
 
 export const useJiraAnalytics = ({ refreshKey = 0 }: UseJiraAnalyticsOptions = {}): UseJiraAnalyticsResult => {
@@ -50,7 +63,7 @@ export const useJiraAnalytics = ({ refreshKey = 0 }: UseJiraAnalyticsOptions = {
 
   const [projectKey, setProjectKeyState] = useState('');
   const [boardIdInput, setBoardIdInput] = useState('');
-  const [maxSprintsInput, setMaxSprintsInput] = useState('12');
+  const [maxSprintsInput, setMaxSprintsInput] = useState('8');
 
   const [boards, setBoards] = useState<JiraBoard[]>([]);
   const [boardsLoading, setBoardsLoading] = useState(false);
@@ -66,6 +79,9 @@ export const useJiraAnalytics = ({ refreshKey = 0 }: UseJiraAnalyticsOptions = {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [sprintReport, setSprintReport] = useState<JiraSprintReportData | null>(null);
   const [boardReport, setBoardReport] = useState<JiraBoardHistoryReportData | null>(null);
+  const [aiInsights, setAiInsights] = useState<JiraAiInsightsData | null>(null);
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+  const [aiInsightsError, setAiInsightsError] = useState<string | null>(null);
 
   const setProjectKey = useCallback((value: string) => {
     setProjectKeyState(value.toUpperCase());
@@ -191,7 +207,7 @@ export const useJiraAnalytics = ({ refreshKey = 0 }: UseJiraAnalyticsOptions = {
     }
 
     const parsedLimit = Number.parseInt(maxSprintsInput.trim(), 10);
-    const maxSprints = Number.isFinite(parsedLimit) ? Math.min(50, Math.max(1, parsedLimit)) : 12;
+    const maxSprints = Number.isFinite(parsedLimit) ? Math.min(50, Math.max(1, parsedLimit)) : 8;
 
     setAnalysisLoading(true);
     setAnalysisError(null);
@@ -203,6 +219,55 @@ export const useJiraAnalytics = ({ refreshKey = 0 }: UseJiraAnalyticsOptions = {
       setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze board history.');
     } finally {
       setAnalysisLoading(false);
+    }
+  }, [maxSprintsInput, selectedBoardId]);
+
+  const runSprintAiInsights = useCallback(async () => {
+    if (!selectedBoardId || !selectedSprintId) {
+      setAiInsightsError('Select both a board and sprint before generating AI sprint insights.');
+      return;
+    }
+
+    setAiInsightsLoading(true);
+    setAiInsightsError(null);
+
+    try {
+      const response = await fetchJiraAiInsights({
+        boardId: selectedBoardId,
+        sprintId: selectedSprintId,
+        scope: 'sprint',
+      });
+      setAiInsights(response);
+    } catch (error) {
+      setAiInsightsError(error instanceof Error ? error.message : 'Failed to generate AI sprint insights.');
+    } finally {
+      setAiInsightsLoading(false);
+    }
+  }, [selectedBoardId, selectedSprintId]);
+
+  const runBoardAiInsights = useCallback(async () => {
+    if (!selectedBoardId) {
+      setAiInsightsError('Select a board before generating AI board insights.');
+      return;
+    }
+
+    const parsedLimit = Number.parseInt(maxSprintsInput.trim(), 10);
+    const maxSprints = Number.isFinite(parsedLimit) ? Math.min(50, Math.max(1, parsedLimit)) : 8;
+
+    setAiInsightsLoading(true);
+    setAiInsightsError(null);
+
+    try {
+      const response = await fetchJiraAiInsights({
+        boardId: selectedBoardId,
+        scope: 'board',
+        maxSprints,
+      });
+      setAiInsights(response);
+    } catch (error) {
+      setAiInsightsError(error instanceof Error ? error.message : 'Failed to generate AI board insights.');
+    } finally {
+      setAiInsightsLoading(false);
     }
   }, [maxSprintsInput, selectedBoardId]);
 
@@ -230,10 +295,15 @@ export const useJiraAnalytics = ({ refreshKey = 0 }: UseJiraAnalyticsOptions = {
     analysisError,
     sprintReport,
     boardReport,
+    aiInsights,
+    aiInsightsLoading,
+    aiInsightsError,
     selectedBoard,
     loadBoards,
     applyBoardId,
     runSprintAnalysis,
     runBoardAnalysis,
+    runSprintAiInsights,
+    runBoardAiInsights,
   };
 };

@@ -4,7 +4,8 @@ import * as path from 'node:path';
 import { exec, execFile } from 'node:child_process';
 import { simpleGit, SimpleGit } from 'simple-git';
 import { CodexiaEngine } from '../../cli/engine.js';
-import { JiraAnalyticsService } from './jira.js';
+import { getAIProvider } from '../../ai/index.js';
+import { JiraAnalyticsService, type JiraBoardHistoryReport, type JiraSprintReport } from './jira.js';
 
 export interface DashboardServerOptions {
   port: number;
@@ -245,6 +246,9 @@ export class DashboardServer {
         case '/api/jira/board-report':
           data = await this.getJiraBoardReport(url);
           break;
+        case '/api/ai/jira-insights':
+          data = await this.getJiraInsights(url);
+          break;
         default:
           res.writeHead(404);
           res.end(JSON.stringify({ error: 'Not found' }));
@@ -256,7 +260,9 @@ export class DashboardServer {
     } catch (error) {
       console.error('API error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const statusCode = errorMessage.startsWith('BadRequest:') || errorMessage.includes('not configured')
+      const statusCode = errorMessage.includes('(429)')
+        ? 429
+        : errorMessage.startsWith('BadRequest:') || errorMessage.includes('not configured')
         ? 400
         : 500;
       res.writeHead(statusCode);
@@ -1400,6 +1406,180 @@ export class DashboardServer {
 
     const maxSprints = this.parsePositiveInt(url.searchParams.get('maxSprints')) || 12;
     return this.jira.getBoardHistoryReport(boardId, maxSprints);
+  }
+
+  private async getJiraInsights(url: URL): Promise<object> {
+    const boardId = this.parsePositiveInt(url.searchParams.get('boardId'));
+    if (!boardId) {
+      throw new Error('BadRequest: Missing or invalid boardId query parameter.');
+    }
+
+    const scopeParam = (url.searchParams.get('scope') || 'sprint').toLowerCase();
+    const scope: 'sprint' | 'board' = scopeParam === 'board' ? 'board' : 'sprint';
+    const maxSprints = this.parsePositiveInt(url.searchParams.get('maxSprints')) || 12;
+    const sprintId = this.parsePositiveInt(url.searchParams.get('sprintId'));
+
+    if (scope === 'sprint' && !sprintId) {
+      throw new Error('BadRequest: Missing or invalid sprintId query parameter for sprint scope.');
+    }
+
+    const provider = getAIProvider();
+    if (!provider) {
+      throw new Error('BadRequest: AI is not configured. Set CODEXIA_AI_PROVIDER and provider credentials.');
+    }
+
+    const prompt = scope === 'board'
+      ? this.buildBoardInsightPrompt(await this.jira.getBoardHistoryReport(boardId, maxSprints))
+      : this.buildSprintInsightPrompt(await this.jira.getSprintReport(boardId, sprintId!));
+
+    const raw = await provider.complete(prompt, {
+      temperature: 0.2,
+      maxTokens: 1400,
+    });
+
+    const parsed = this.parseJiraInsightResponse(raw);
+
+    return {
+      scope,
+      provider: provider.name,
+      model: process.env.CODEXIA_AI_MODEL || 'default',
+      generatedAt: new Date().toISOString(),
+      ...parsed,
+      raw,
+    };
+  }
+
+  private buildSprintInsightPrompt(report: JiraSprintReport): string {
+    const reportJson = JSON.stringify(report, null, 2);
+
+    return `You are a senior agile delivery analyst.
+
+Analyze this Jira sprint report and produce practical insights.
+
+Focus on:
+1) Delivery confidence and whether the sprint is truly on track
+2) Scope manipulation or estimate gaming signals
+3) The highest-risk integrity findings
+4) Concrete next actions for the team and scrum master
+
+Return strict JSON only with this schema:
+{
+  "overview": "string",
+  "positives": ["string"],
+  "risks": ["string"],
+  "integrityFindings": ["string"],
+  "recommendations": ["string"],
+  "questions": ["string"]
+}
+
+Rules:
+- Keep each array between 2 and 6 bullets.
+- Be evidence-based and reference metrics implicitly.
+- Do not include markdown, headings, or code fences.
+
+Sprint report:
+${reportJson}`;
+  }
+
+  private buildBoardInsightPrompt(report: JiraBoardHistoryReport): string {
+    const reportJson = JSON.stringify(report, null, 2);
+
+    return `You are a senior agile governance analyst.
+
+Analyze this Jira board history report across multiple sprints.
+
+Focus on:
+1) Repeating delivery patterns
+2) Whether scope creep/churn indicates planning issues or gaming
+3) Integrity trends and risk concentration
+4) What leadership should do next sprint
+
+Return strict JSON only with this schema:
+{
+  "overview": "string",
+  "positives": ["string"],
+  "risks": ["string"],
+  "integrityFindings": ["string"],
+  "recommendations": ["string"],
+  "questions": ["string"]
+}
+
+Rules:
+- Keep each array between 2 and 6 bullets.
+- Be specific and data-driven.
+- Do not include markdown, headings, or code fences.
+
+Board report:
+${reportJson}`;
+  }
+
+  private parseJiraInsightResponse(raw: string): {
+    overview: string;
+    positives: string[];
+    risks: string[];
+    integrityFindings: string[];
+    recommendations: string[];
+    questions: string[];
+  } {
+    const defaultResult = {
+      overview: raw.trim() || 'AI response was empty.',
+      positives: [] as string[],
+      risks: [] as string[],
+      integrityFindings: [] as string[],
+      recommendations: [] as string[],
+      questions: [] as string[],
+    };
+
+    const normalized = raw.trim();
+    if (!normalized) {
+      return defaultResult;
+    }
+
+    const jsonText = this.extractJsonFromText(normalized);
+    if (!jsonText) {
+      return defaultResult;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonText) as Record<string, unknown>;
+      return {
+        overview: typeof parsed.overview === 'string' && parsed.overview.trim() ? parsed.overview.trim() : defaultResult.overview,
+        positives: this.normalizeInsightItems(parsed.positives),
+        risks: this.normalizeInsightItems(parsed.risks),
+        integrityFindings: this.normalizeInsightItems(parsed.integrityFindings),
+        recommendations: this.normalizeInsightItems(parsed.recommendations),
+        questions: this.normalizeInsightItems(parsed.questions),
+      };
+    } catch {
+      return defaultResult;
+    }
+  }
+
+  private extractJsonFromText(text: string): string | null {
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (fenced && fenced[1]) {
+      return fenced[1].trim();
+    }
+
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) {
+      return null;
+    }
+
+    return text.slice(start, end + 1).trim();
+  }
+
+  private normalizeInsightItems(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .slice(0, 6);
   }
 
   private parsePositiveInt(value: string | null): number | null {

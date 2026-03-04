@@ -22,6 +22,7 @@ import type {
   JiraSprintsData,
   JiraSprintReportData,
   JiraBoardHistoryReportData,
+  JiraAiInsightsData,
 } from './types';
 
 const API_BASE = '/api';
@@ -190,4 +191,13 @@ export const fetchJiraSprintReport = async (boardId: number, sprintId: number): 
 
 export const fetchJiraBoardReport = async (boardId: number, maxSprints = 12): Promise<JiraBoardHistoryReportData> => {
   return fetchJson<JiraBoardHistoryReportData>('/jira/board-report', { boardId, maxSprints });
+};
+
+export const fetchJiraAiInsights = async (params: {
+  boardId: number;
+  sprintId?: number;
+  scope?: 'sprint' | 'board';
+  maxSprints?: number;
+}): Promise<JiraAiInsightsData> => {
+  return fetchJson<JiraAiInsightsData>('/ai/jira-insights', params);
 };

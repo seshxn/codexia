@@ -1,4 +1,4 @@
-import type { JiraSprintReportData } from '../types';
+import type { JiraAiInsightsData, JiraSprintReportData } from '../types';
 import { useJiraAnalytics } from '../hooks/useJiraAnalytics';
 
 const formatPercent = (value: number): string => `${value.toFixed(1)}%`;
@@ -41,6 +41,29 @@ const healthBadgeClass = (status: JiraSprintReportData['health']['status']): str
 
 const statusLabel = (status: JiraSprintReportData['health']['status']): string => status.replace('_', ' ');
 
+interface InsightListProps {
+  title: string;
+  items: string[];
+  emptyLabel: string;
+}
+
+const InsightList = ({ title, items, emptyLabel }: InsightListProps) => {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wide text-neutral-500">{title}</p>
+      {items.length === 0 ? (
+        <p className="mt-2 text-sm text-neutral-500">{emptyLabel}</p>
+      ) : (
+        <ul className="mt-2 space-y-1 text-sm text-neutral-200">
+          {items.map((item) => (
+            <li key={item}>- {item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 interface MetricTileProps {
   label: string;
   value: string;
@@ -60,6 +83,10 @@ const MetricTile = ({ label, value, helper }: MetricTileProps) => {
 interface JiraSprintAnalysisProps {
   refreshKey?: number;
 }
+
+const insightScopeLabel = (scope: JiraAiInsightsData['scope']): string => {
+  return scope === 'board' ? 'Board History' : 'Sprint';
+};
 
 export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) => {
   const {
@@ -86,11 +113,16 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
     analysisError,
     sprintReport,
     boardReport,
+    aiInsights,
+    aiInsightsLoading,
+    aiInsightsError,
     selectedBoard,
     loadBoards,
     applyBoardId,
     runSprintAnalysis,
     runBoardAnalysis,
+    runSprintAiInsights,
+    runBoardAiInsights,
   } = useJiraAnalytics({ refreshKey });
 
   if (configLoading) {
@@ -135,7 +167,7 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
             value={maxSprintsInput}
             onChange={(event) => setMaxSprintsInput(event.target.value)}
             className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
-            placeholder="12"
+            placeholder="8"
             inputMode="numeric"
           />
           <p className="mt-2 text-xs text-neutral-500">Used for board-wide sprint trend analysis.</p>
@@ -250,6 +282,74 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
           {analysisError && <p className="mt-2 text-xs text-red-300">{analysisError}</p>}
         </div>
       </div>
+
+      <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
+        <p className="text-xs uppercase tracking-wide text-violet-200">AI Insights</p>
+        <p className="mt-2 text-sm text-neutral-300">
+          Generate narrative analysis from sprint metrics to explain delivery confidence, integrity risk, and next actions.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={runSprintAiInsights}
+            disabled={aiInsightsLoading || !selectedBoardId || !selectedSprintId}
+            className="rounded-lg bg-violet-400 px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {aiInsightsLoading ? 'Generating...' : 'AI Sprint Insights'}
+          </button>
+          <button
+            onClick={runBoardAiInsights}
+            disabled={aiInsightsLoading || !selectedBoardId}
+            className="rounded-lg border border-violet-400/40 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {aiInsightsLoading ? 'Generating...' : 'AI Board Insights'}
+          </button>
+        </div>
+        {aiInsightsError && <p className="mt-2 text-xs text-red-300">{aiInsightsError}</p>}
+      </div>
+
+      {aiInsights && (
+        <div className="space-y-4 rounded-2xl border border-violet-500/30 bg-neutral-900/60 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-base font-semibold text-white tracking-tight">
+                AI {insightScopeLabel(aiInsights.scope)} Insights
+              </h4>
+              <p className="text-xs text-neutral-500">
+                Generated via {aiInsights.provider} at {new Date(aiInsights.generatedAt).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
+            <p className="text-xs uppercase tracking-wide text-neutral-500">Overview</p>
+            <p className="mt-2 text-sm text-neutral-200">{aiInsights.overview}</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InsightList title="Positives" items={aiInsights.positives} emptyLabel="No notable positives returned." />
+            <InsightList title="Risks" items={aiInsights.risks} emptyLabel="No explicit risks returned." />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InsightList
+              title="Integrity Findings"
+              items={aiInsights.integrityFindings}
+              emptyLabel="No integrity findings returned."
+            />
+            <InsightList
+              title="Recommendations"
+              items={aiInsights.recommendations}
+              emptyLabel="No recommendations returned."
+            />
+          </div>
+
+          <InsightList
+            title="Follow-up Questions"
+            items={aiInsights.questions}
+            emptyLabel="No follow-up questions suggested."
+          />
+        </div>
+      )}
 
       {sprintReport && (
         <div className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5">

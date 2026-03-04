@@ -3,10 +3,14 @@
 // ============================================================================
 
 export interface AIConfig {
-  provider: 'openai' | 'anthropic' | 'ollama';
+  provider: 'openai' | 'anthropic' | 'ollama' | 'gemini' | 'bedrock';
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  awsRegion?: string;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
 }
 
 export interface AIMessage {
