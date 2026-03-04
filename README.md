@@ -193,11 +193,26 @@ Beautiful, real-time visualization of your repository health.
 codexia dashboard                 # Start dashboard server
 codexia dashboard --port 3200     # Custom port
 codexia dashboard --open          # Auto-open in browser
+codexia dashboard --repo ~/work/my-service  # Start on a specific local repo
+```
+
+From the cloned Codexia repo, run the dashboard against the repo itself:
+
+```bash
+npm run dev:dashboard
 ```
 
 The dashboard provides:
 - **Repository Health Score** — Overall health with breakdown
 - **Complexity Heatmap** — Visual file complexity overview
+- **Repository Context Switcher** — Change analyzed local Git repo at runtime (manual path or Browse folder picker)
+- **Jira Sprint Intelligence** — Sprint health, scope churn, and board integrity trends
+- **Code Signals** — Issues ranked by severity
+- **Hot Paths** — Critical areas needing attention
+- **Team Leaderboard** — Contributor stats and activity
+- **Commit Activity** — GitHub-style contribution heatmap
+- **Code Ownership** — Bus factor and knowledge silo risks
+- **Branch Overview** — Active and stale branches
 
 ---
 
@@ -228,12 +243,6 @@ Operational SOC 2 requirements (policies, access reviews, incident response, ven
 - Define retention for logs and caches, and document a data processing policy.
 
 Codexia does not ship with a built-in DPA. Enterprises should execute their own DPA with AI providers if used.
-- **Code Signals** — Issues ranked by severity
-- **Hot Paths** — Critical areas needing attention
-- **Team Leaderboard** — Contributor stats and activity
-- **Commit Activity** — GitHub-style contribution heatmap
-- **Code Ownership** — Bus factor and knowledge silo risks
-- **Branch Overview** — Active and stale branches
 
 ---
 
@@ -293,6 +302,16 @@ Or use directly with npx:
 
 ```bash
 npx codexia scan
+```
+
+Run as a standalone local app from source:
+
+```bash
+git clone https://github.com/seshxn/codexia.git
+cd codexia
+npm install
+npm run build
+node dist/cli/index.js dashboard --repo /absolute/path/to/your/repo --open
 ```
 
 ---

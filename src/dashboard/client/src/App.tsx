@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   RefreshCw,
   FileCode,
@@ -47,6 +47,8 @@ import { CommitHeatmap } from './components/CommitHeatmap';
 import { OwnershipPanel } from './components/OwnershipPanel';
 import { CodeHealthPanel } from './components/CodeHealthPanel';
 import { VelocityPanel } from './components/VelocityPanel';
+import { JiraSprintAnalysis } from './components/JiraSprintAnalysis';
+import { RepoSelector } from './components/RepoSelector';
 import {
   FileDetailsModal,
   ContributorDetailsModal,
@@ -58,8 +60,15 @@ import {
 } from './components/DetailModals';
 import type { ComplexityData, Signal, HotPath, Contributor, Commit, OwnershipData } from './types';
 
-function App() {
+type DashboardTab = 'repository' | 'jira';
+
+const TAB_TRANSITION_MS = 180;
+
+const App = () => {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('repository');
+  const [visibleTab, setVisibleTab] = useState<DashboardTab>('repository');
+  const [isTabTransitioning, setIsTabTransitioning] = useState(false);
   
   // Modal states
   const [selectedFile, setSelectedFile] = useState<ComplexityData['files'][0] | null>(null);
@@ -73,6 +82,22 @@ function App() {
   const refreshAll = useCallback(() => {
     setRefreshKey((k) => k + 1);
   }, []);
+
+  useEffect(() => {
+    if (activeTab === visibleTab) {
+      return;
+    }
+
+    setIsTabTransitioning(true);
+    const switchTimer = window.setTimeout(() => {
+      setVisibleTab(activeTab);
+      window.requestAnimationFrame(() => setIsTabTransitioning(false));
+    }, TAB_TRANSITION_MS);
+
+    return () => {
+      window.clearTimeout(switchTimer);
+    };
+  }, [activeTab, visibleTab]);
 
   const overview = useApi(useCallback(() => fetchOverview(), [refreshKey]));
   const complexity = useApi(useCallback(() => fetchComplexity(), [refreshKey]));
@@ -105,6 +130,14 @@ function App() {
   }
 
   const data = overview.data!;
+  const getTabButtonClass = (tab: DashboardTab): string => (
+    `rounded-md px-4 py-2 text-sm font-medium transition-all duration-200 ${
+      activeTab === tab
+        ? 'bg-white text-black shadow-sm'
+        : 'text-neutral-300 hover:text-white hover:bg-neutral-800/60'
+    }`
+  );
+  const tabPanelClassName = `tab-panel ${isTabTransitioning ? 'tab-panel-exit' : 'tab-panel-enter'}`;
 
   return (
     <div className="min-h-screen bg-black">
@@ -142,6 +175,34 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 animate-fade-in">
+        <Card
+          title="Repository Context"
+          subtitle="Run Codexia as a standalone app and switch local Git repos"
+          className="mb-8"
+        >
+          <RepoSelector onRepoSwitched={refreshAll} />
+        </Card>
+
+        <div className="mb-8">
+          <div className="inline-flex rounded-lg border border-neutral-800 bg-neutral-900/60 p-1">
+            <button
+              onClick={() => setActiveTab('repository')}
+              className={getTabButtonClass('repository')}
+            >
+              Repository
+            </button>
+            <button
+              onClick={() => setActiveTab('jira')}
+              className={getTabButtonClass('jira')}
+            >
+              Jira
+            </button>
+          </div>
+        </div>
+
+        <section className={tabPanelClassName}>
+          {visibleTab === 'repository' ? (
+            <>
         {/* Health Score & Stats Row */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           {/* Health Score */}
@@ -417,6 +478,16 @@ function App() {
             />
           )}
         </Card>
+            </>
+          ) : (
+            <Card
+              title="Jira Sprint Intelligence"
+              subtitle="Sprint health, scope changes, and board-level delivery integrity"
+            >
+              <JiraSprintAnalysis />
+            </Card>
+          )}
+        </section>
       </main>
 
       {/* Footer */}
@@ -482,6 +553,6 @@ function App() {
       />
     </div>
   );
-}
+};
 
 export default App;

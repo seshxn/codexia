@@ -173,3 +173,25 @@ body {
 .pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
 }
+
+/* Tab panel transitions */
+.tab-panel {
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 220ms ease;
+  will-change: opacity, transform, filter;
+}
+
+.tab-panel-enter {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.tab-panel-exit {
+  opacity: 0;
+  transform: translateY(10px) scale(0.995);
+  filter: blur(2px);
+  pointer-events: none;
+}

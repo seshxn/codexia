@@ -14,6 +14,7 @@
     "build:dashboard": "cd src/dashboard/client && npm install && npm run build",
     "start": "node dist/cli/index.js",
     "dev": "tsc --watch",
+    "dev:dashboard": "npm run build:cli && node dist/cli/index.js dashboard --repo . --open",
     "test": "vitest run",
     "lint": "eslint src --ext .ts",
     "security:deps": "npm audit --audit-level=high",
