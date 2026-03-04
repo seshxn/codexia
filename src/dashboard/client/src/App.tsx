@@ -48,6 +48,7 @@ import { OwnershipPanel } from './components/OwnershipPanel';
 import { CodeHealthPanel } from './components/CodeHealthPanel';
 import { VelocityPanel } from './components/VelocityPanel';
 import { JiraSprintAnalysis } from './components/JiraSprintAnalysis';
+import { RepoSelector } from './components/RepoSelector';
 import {
   FileDetailsModal,
   ContributorDetailsModal,
@@ -61,6 +62,7 @@ import type { ComplexityData, Signal, HotPath, Contributor, Commit, OwnershipDat
 
 function App() {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<'repository' | 'jira'>('repository');
   
   // Modal states
   const [selectedFile, setSelectedFile] = useState<ComplexityData['files'][0] | null>(null);
@@ -143,6 +145,41 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 animate-fade-in">
+        <Card
+          title="Repository Context"
+          subtitle="Run Codexia as a standalone app and switch local Git repos"
+          className="mb-8"
+        >
+          <RepoSelector onRepoSwitched={refreshAll} />
+        </Card>
+
+        <div className="mb-8">
+          <div className="inline-flex rounded-lg border border-neutral-800 bg-neutral-900/60 p-1">
+            <button
+              onClick={() => setActiveTab('repository')}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'repository'
+                  ? 'bg-white text-black'
+                  : 'text-neutral-300 hover:text-white'
+              }`}
+            >
+              Repository
+            </button>
+            <button
+              onClick={() => setActiveTab('jira')}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'jira'
+                  ? 'bg-white text-black'
+                  : 'text-neutral-300 hover:text-white'
+              }`}
+            >
+              Jira
+            </button>
+          </div>
+        </div>
+
+        {activeTab === 'repository' && (
+          <>
         {/* Health Score & Stats Row */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           {/* Health Score */}
@@ -418,14 +455,17 @@ function App() {
             />
           )}
         </Card>
+          </>
+        )}
 
-        <Card
-          title="Jira Sprint Intelligence"
-          subtitle="Sprint health, scope changes, and board-level delivery integrity"
-          className="mt-8"
-        >
-          <JiraSprintAnalysis />
-        </Card>
+        {activeTab === 'jira' && (
+          <Card
+            title="Jira Sprint Intelligence"
+            subtitle="Sprint health, scope changes, and board-level delivery integrity"
+          >
+            <JiraSprintAnalysis />
+          </Card>
+        )}
       </main>
 
       {/* Footer */}

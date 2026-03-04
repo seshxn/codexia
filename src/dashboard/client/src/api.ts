@@ -1,5 +1,9 @@
 import type {
   OverviewData,
+  RepoContextData,
+  RepoRecentData,
+  RepoSwitchData,
+  RepoPickData,
   ComplexityData,
   GraphData,
   SignalsData,
@@ -94,6 +98,22 @@ async function fetchJson<T>(endpoint: string, params?: Record<string, QueryValue
 
 export async function fetchOverview(): Promise<OverviewData> {
   return fetchJson<OverviewData>('/overview');
+}
+
+export async function fetchRepoContext(): Promise<RepoContextData> {
+  return fetchJson<RepoContextData>('/repo/context');
+}
+
+export async function fetchRecentRepos(): Promise<RepoRecentData> {
+  return fetchJson<RepoRecentData>('/repo/recent');
+}
+
+export async function selectRepository(repoPath: string): Promise<RepoSwitchData> {
+  return fetchJson<RepoSwitchData>('/repo/select', { repoPath });
+}
+
+export async function pickRepositoryPath(): Promise<RepoPickData> {
+  return fetchJson<RepoPickData>('/repo/pick');
 }
 
 export async function fetchComplexity(): Promise<ComplexityData> {

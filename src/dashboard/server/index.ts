@@ -1,7 +1,7 @@
 import * as http from 'node:http';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { simpleGit, SimpleGit } from 'simple-git';
 import { CodexiaEngine } from '../../cli/engine.js';
 import { JiraAnalyticsService } from './jira.js';
@@ -51,14 +51,19 @@ export class DashboardServer {
   private rateLimitMax: number = Number(process.env.CODEXIA_DASHBOARD_RATE_LIMIT_MAX || 120);
   private rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
   private jira: JiraAnalyticsService;
+  private currentRepoRoot: string;
+  private recentRepoRoots: string[] = [];
+  private static readonly MAX_RECENT_REPOS = 10;
 
-  constructor(engine: CodexiaEngine) {
+  constructor(engine: CodexiaEngine, repoRoot?: string) {
     this.engine = engine;
     // Static files are built by Vite to src/dashboard/dist
     // Navigate from dist/dashboard/server -> project root -> src/dashboard/dist
     this.staticDir = path.join(import.meta.dirname, '../../../src/dashboard/dist');
-    this.git = simpleGit(process.cwd());
+    this.currentRepoRoot = path.resolve(repoRoot || process.cwd());
+    this.git = simpleGit(this.currentRepoRoot);
     this.jira = new JiraAnalyticsService();
+    this.addRecentRepo(this.currentRepoRoot);
   }
 
   /**
@@ -213,6 +218,18 @@ export class DashboardServer {
         case '/api/velocity':
           data = await this.getVelocityMetrics();
           break;
+        case '/api/repo/context':
+          data = this.getRepoContext();
+          break;
+        case '/api/repo/recent':
+          data = this.getRecentRepos();
+          break;
+        case '/api/repo/select':
+          data = await this.selectRepo(url);
+          break;
+        case '/api/repo/pick':
+          data = await this.pickRepoPath();
+          break;
         case '/api/jira/config':
           data = this.getJiraConfig();
           break;
@@ -269,7 +286,8 @@ export class DashboardServer {
     const healthScore = Math.max(0, Math.min(100, 100 - (errorCount * 15) - (warningCount * 5)));
 
     return {
-      name: path.basename(process.cwd()),
+      name: path.basename(this.currentRepoRoot),
+      repoRoot: this.currentRepoRoot,
       totalFiles: stats.files || files.size,
       totalSymbols: stats.symbols || 0,
       totalDependencies: stats.exports || 0,
@@ -953,7 +971,7 @@ export class DashboardServer {
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const log = await this.git.log({ since: thirtyDaysAgo.toISOString(), maxCount: 1000 });
+      const log = await this.git.log({ '--since': thirtyDaysAgo.toISOString(), maxCount: 1000 });
       
       // Calculate commits per week
       const weeklyCommits: Record<string, number> = {};
@@ -1242,7 +1260,7 @@ export class DashboardServer {
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'"
+      "default-src 'self'; img-src 'self' data: https://www.gravatar.com https://secure.gravatar.com https://*.gravatar.com; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'"
     );
   }
 
@@ -1409,6 +1427,240 @@ export class DashboardServer {
 
     return cleaned;
   }
+
+  private getRepoContext(): object {
+    return {
+      repoRoot: this.currentRepoRoot,
+      repoName: path.basename(this.currentRepoRoot),
+    };
+  }
+
+  private getRecentRepos(): object {
+    return {
+      repos: this.recentRepoRoots.map((repoPath) => ({
+        path: repoPath,
+        name: path.basename(repoPath),
+        current: repoPath === this.currentRepoRoot,
+      })),
+    };
+  }
+
+  private async selectRepo(url: URL): Promise<object> {
+    const repoPath = url.searchParams.get('repoPath');
+    if (!repoPath) {
+      throw new Error('BadRequest: Missing repoPath query parameter.');
+    }
+
+    const context = await this.switchRepository(repoPath);
+    return {
+      ...context,
+      message: `Switched repository to ${context.repoRoot}`,
+    };
+  }
+
+  private async pickRepoPath(): Promise<object> {
+    const pickedPath = await this.openDirectoryPicker();
+    if (!pickedPath) {
+      return { cancelled: true };
+    }
+
+    return {
+      cancelled: false,
+      repoPath: pickedPath,
+      repoName: path.basename(pickedPath),
+    };
+  }
+
+  private async switchRepository(repoPathInput: string): Promise<{ repoRoot: string; repoName: string }> {
+    const sanitizedInput = repoPathInput.trim();
+    if (!sanitizedInput || sanitizedInput.length > 2000) {
+      throw new Error('BadRequest: Invalid repository path.');
+    }
+
+    const resolved = path.resolve(sanitizedInput);
+    if (resolved === this.currentRepoRoot) {
+      return {
+        repoRoot: this.currentRepoRoot,
+        repoName: path.basename(this.currentRepoRoot),
+      };
+    }
+
+    let stat: import('node:fs').Stats;
+    try {
+      stat = await fs.stat(resolved);
+    } catch {
+      throw new Error('BadRequest: Repository path does not exist.');
+    }
+
+    if (!stat.isDirectory()) {
+      throw new Error('BadRequest: Repository path must be a directory.');
+    }
+
+    const gitDir = path.join(resolved, '.git');
+    let hasGitMarker = false;
+    try {
+      await fs.access(gitDir);
+      hasGitMarker = true;
+    } catch {
+      hasGitMarker = false;
+    }
+
+    const newGit = simpleGit(resolved);
+    let isRepo = false;
+    try {
+      isRepo = await newGit.checkIsRepo();
+    } catch {
+      isRepo = false;
+    }
+
+    if (!hasGitMarker && !isRepo) {
+      throw new Error('BadRequest: Selected path is not a Git repository.');
+    }
+
+    const newEngine = new CodexiaEngine({ repoRoot: resolved });
+    await newEngine.initialize();
+
+    this.engine = newEngine;
+    this.git = newGit;
+    this.currentRepoRoot = resolved;
+    this.addRecentRepo(resolved);
+
+    return {
+      repoRoot: this.currentRepoRoot,
+      repoName: path.basename(this.currentRepoRoot),
+    };
+  }
+
+  private addRecentRepo(repoPath: string): void {
+    this.recentRepoRoots = [
+      repoPath,
+      ...this.recentRepoRoots.filter((existing) => existing !== repoPath),
+    ].slice(0, DashboardServer.MAX_RECENT_REPOS);
+  }
+
+  private async openDirectoryPicker(): Promise<string | null> {
+    if (process.platform === 'darwin') {
+      return this.openDirectoryPickerMac();
+    }
+
+    if (process.platform === 'win32') {
+      return this.openDirectoryPickerWindows();
+    }
+
+    return this.openDirectoryPickerLinux();
+  }
+
+  private async openDirectoryPickerMac(): Promise<string | null> {
+    try {
+      const output = await this.execFileText('osascript', [
+        '-e',
+        'set chosenFolder to choose folder with prompt "Select a Git repository folder"',
+        '-e',
+        'POSIX path of chosenFolder',
+      ]);
+      const selected = output.trim();
+      return selected || null;
+    } catch (error) {
+      if (this.isPickerCancelError(error)) {
+        return null;
+      }
+      throw new Error(`BadRequest: Failed to open macOS folder picker (${this.getExecErrorMessage(error)}).`);
+    }
+  }
+
+  private async openDirectoryPickerWindows(): Promise<string | null> {
+    const script = [
+      'Add-Type -AssemblyName System.Windows.Forms',
+      '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog',
+      '$dialog.Description = "Select a Git repository folder"',
+      '$result = $dialog.ShowDialog()',
+      'if ($result -eq [System.Windows.Forms.DialogResult]::OK) {',
+      '  Write-Output $dialog.SelectedPath',
+      '}',
+    ].join('; ');
+
+    try {
+      const output = await this.execFileText('powershell', [
+        '-NoProfile',
+        '-Command',
+        script,
+      ]);
+      const selected = output.trim();
+      return selected || null;
+    } catch (error) {
+      if (this.isPickerCancelError(error)) {
+        return null;
+      }
+      throw new Error(`BadRequest: Failed to open Windows folder picker (${this.getExecErrorMessage(error)}).`);
+    }
+  }
+
+  private async openDirectoryPickerLinux(): Promise<string | null> {
+    const home = process.env.HOME || '/';
+    const pickers: Array<{ cmd: string; args: string[] }> = [
+      { cmd: 'zenity', args: ['--file-selection', '--directory', '--title=Select a Git repository folder'] },
+      { cmd: 'kdialog', args: ['--getexistingdirectory', home, '--title', 'Select a Git repository folder'] },
+    ];
+
+    let missingTools = 0;
+    for (const picker of pickers) {
+      try {
+        const output = await this.execFileText(picker.cmd, picker.args);
+        const selected = output.trim();
+        return selected || null;
+      } catch (error) {
+        const message = this.getExecErrorMessage(error);
+        if (message.includes('ENOENT')) {
+          missingTools += 1;
+          continue;
+        }
+        if (this.isPickerCancelError(error)) {
+          return null;
+        }
+        throw new Error(`BadRequest: Failed to open Linux folder picker (${message}).`);
+      }
+    }
+
+    if (missingTools === pickers.length) {
+      throw new Error('BadRequest: No native folder picker found. Install zenity or kdialog, or enter the path manually.');
+    }
+
+    return null;
+  }
+
+  private execFileText(file: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      execFile(file, args, { encoding: 'utf8' }, (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(stdout || '');
+      });
+    });
+  }
+
+  private isPickerCancelError(error: unknown): boolean {
+    const anyError = error as { code?: number | string; message?: string; stderr?: string };
+    const code = anyError?.code;
+    const message = (anyError?.message || '').toLowerCase();
+    const stderr = (anyError?.stderr || '').toLowerCase();
+
+    if (message.includes('user canceled') || message.includes('user cancelled')) {
+      return true;
+    }
+
+    if (stderr.includes('user canceled') || stderr.includes('user cancelled')) {
+      return true;
+    }
+
+    return code === 1;
+  }
+
+  private getExecErrorMessage(error: unknown): string {
+    const anyError = error as { message?: string; stderr?: string };
+    return (anyError?.stderr || anyError?.message || 'Unknown error').trim();
+  }
 }
 
 /**
@@ -1418,9 +1670,10 @@ export async function startDashboard(
   engine: CodexiaEngine,
   port: number,
   open = false,
-  host?: string
+  host?: string,
+  repoRoot?: string
 ): Promise<DashboardServer> {
-  const server = new DashboardServer(engine);
+  const server = new DashboardServer(engine, repoRoot);
   await server.start({ port, open, host });
   return server;
 }

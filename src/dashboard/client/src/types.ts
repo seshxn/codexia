@@ -1,12 +1,36 @@
 // API response types
 export interface OverviewData {
   name: string;
+  repoRoot?: string;
   totalFiles: number;
   totalSymbols: number;
   totalDependencies: number;
   languages: Record<string, number>;
   healthScore: number;
   lastIndexed: string;
+}
+
+export interface RepoContextData {
+  repoRoot: string;
+  repoName: string;
+}
+
+export interface RepoRecentData {
+  repos: Array<{
+    path: string;
+    name: string;
+    current: boolean;
+  }>;
+}
+
+export interface RepoSwitchData extends RepoContextData {
+  message: string;
+}
+
+export interface RepoPickData {
+  cancelled: boolean;
+  repoPath?: string;
+  repoName?: string;
 }
 
 export interface ComplexityData {
