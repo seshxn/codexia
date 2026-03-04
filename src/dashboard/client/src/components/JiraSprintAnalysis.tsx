@@ -8,11 +8,9 @@ import type {
   JiraSprintReportData,
 } from '../types';
 
-function formatPercent(value: number): string {
-  return `${value.toFixed(1)}%`;
-}
+const formatPercent = (value: number): string => `${value.toFixed(1)}%`;
 
-function formatDate(value?: string): string {
+const formatDate = (value?: string): string => {
   if (!value) {
     return 'N/A';
   }
@@ -23,9 +21,9 @@ function formatDate(value?: string): string {
   }
 
   return parsed.toLocaleDateString();
-}
+};
 
-function riskBadgeClass(risk: 'low' | 'medium' | 'high'): string {
+const riskBadgeClass = (risk: 'low' | 'medium' | 'high'): string => {
   if (risk === 'low') {
     return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
   }
@@ -33,9 +31,9 @@ function riskBadgeClass(risk: 'low' | 'medium' | 'high'): string {
     return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
   }
   return 'bg-red-500/20 text-red-300 border-red-500/30';
-}
+};
 
-function healthBadgeClass(status: JiraSprintReportData['health']['status']): string {
+const healthBadgeClass = (status: JiraSprintReportData['health']['status']): string => {
   if (status === 'completed' || status === 'on_track') {
     return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
   }
@@ -46,11 +44,9 @@ function healthBadgeClass(status: JiraSprintReportData['health']['status']): str
     return 'bg-red-500/20 text-red-300 border-red-500/30';
   }
   return 'bg-neutral-700/40 text-neutral-300 border-neutral-600';
-}
+};
 
-function statusLabel(status: JiraSprintReportData['health']['status']): string {
-  return status.replace('_', ' ');
-}
+const statusLabel = (status: JiraSprintReportData['health']['status']): string => status.replace('_', ' ');
 
 interface MetricTileProps {
   label: string;
@@ -58,7 +54,7 @@ interface MetricTileProps {
   helper?: string;
 }
 
-function MetricTile({ label, value, helper }: MetricTileProps) {
+const MetricTile = ({ label, value, helper }: MetricTileProps) => {
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
       <p className="text-xs uppercase tracking-wide text-neutral-500">{label}</p>
@@ -66,9 +62,9 @@ function MetricTile({ label, value, helper }: MetricTileProps) {
       {helper && <p className="mt-1 text-xs text-neutral-500">{helper}</p>}
     </div>
   );
-}
+};
 
-export function JiraSprintAnalysis() {
+export const JiraSprintAnalysis = () => {
   const [config, setConfig] = useState<JiraConfigData | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -524,4 +520,4 @@ export function JiraSprintAnalysis() {
       )}
     </div>
   );
-}
+};

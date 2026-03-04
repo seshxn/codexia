@@ -6,7 +6,7 @@ interface RepoSelectorProps {
   onRepoSwitched: () => void;
 }
 
-export function RepoSelector({ onRepoSwitched }: RepoSelectorProps) {
+export const RepoSelector = ({ onRepoSwitched }: RepoSelectorProps) => {
   const [context, setContext] = useState<RepoContextData | null>(null);
   const [recent, setRecent] = useState<RepoRecentData['repos']>([]);
   const [repoInput, setRepoInput] = useState('');
@@ -149,4 +149,4 @@ export function RepoSelector({ onRepoSwitched }: RepoSelectorProps) {
       )}
     </div>
   );
-}
+};
