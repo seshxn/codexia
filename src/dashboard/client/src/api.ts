@@ -13,6 +13,11 @@ import type {
   OwnershipData,
   CodeHealthData,
   VelocityData,
+  JiraConfigData,
+  JiraBoardsData,
+  JiraSprintsData,
+  JiraSprintReportData,
+  JiraBoardHistoryReportData,
 } from './types';
 
 const API_BASE = '/api';
@@ -43,20 +48,26 @@ function getAuthHeaders(): HeadersInit {
   };
 }
 
+type QueryValue = string | number | boolean | undefined;
+
 interface PaginationParams {
+  [key: string]: QueryValue;
   limit?: number;
   offset?: number;
   all?: boolean;
 }
 
-async function fetchJson<T>(endpoint: string, params?: PaginationParams): Promise<T> {
+async function fetchJson<T>(endpoint: string, params?: Record<string, QueryValue>): Promise<T> {
   let url = `${API_BASE}${endpoint}`;
   
   if (params) {
     const queryParams = new URLSearchParams();
-    if (params.limit !== undefined) queryParams.set('limit', params.limit.toString());
-    if (params.offset !== undefined) queryParams.set('offset', params.offset.toString());
-    if (params.all !== undefined) queryParams.set('all', params.all.toString());
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null || value === '') {
+        continue;
+      }
+      queryParams.set(key, String(value));
+    }
     
     const queryString = queryParams.toString();
     if (queryString) {
@@ -68,7 +79,15 @@ async function fetchJson<T>(endpoint: string, params?: PaginationParams): Promis
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
-    throw new Error(`API error: ${response.statusText}`);
+    const fallback = `API error: ${response.status} ${response.statusText}`;
+    let message = fallback;
+    try {
+      const errorPayload = await response.json() as { error?: string };
+      message = errorPayload.error || fallback;
+    } catch {
+      message = fallback;
+    }
+    throw new Error(message);
   }
   return response.json();
 }
@@ -127,4 +146,28 @@ export async function fetchCodeHealth(params?: PaginationParams): Promise<CodeHe
 
 export async function fetchVelocity(params?: PaginationParams): Promise<VelocityData> {
   return fetchJson<VelocityData>('/velocity', params);
+}
+
+export async function fetchJiraConfig(): Promise<JiraConfigData> {
+  return fetchJson<JiraConfigData>('/jira/config');
+}
+
+export async function fetchJiraBoards(params?: { projectKey?: string; limit?: number }): Promise<JiraBoardsData> {
+  return fetchJson<JiraBoardsData>('/jira/boards', params);
+}
+
+export async function fetchJiraSprints(boardId: number, params?: { state?: string; limit?: number }): Promise<JiraSprintsData> {
+  return fetchJson<JiraSprintsData>('/jira/sprints', {
+    boardId,
+    state: params?.state,
+    limit: params?.limit,
+  });
+}
+
+export async function fetchJiraSprintReport(boardId: number, sprintId: number): Promise<JiraSprintReportData> {
+  return fetchJson<JiraSprintReportData>('/jira/sprint-report', { boardId, sprintId });
+}
+
+export async function fetchJiraBoardReport(boardId: number, maxSprints = 12): Promise<JiraBoardHistoryReportData> {
+  return fetchJson<JiraBoardHistoryReportData>('/jira/board-report', { boardId, maxSprints });
 }

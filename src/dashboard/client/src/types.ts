@@ -242,3 +242,132 @@ export interface VelocityData {
     lastWeek: number;
   }>;
 }
+
+// Jira analytics types
+export interface JiraConfigData {
+  enabled: boolean;
+  baseUrl: string | null;
+  authMode: 'none' | 'basic' | 'bearer';
+  message: string;
+}
+
+export interface JiraBoard {
+  id: number;
+  name: string;
+  type: string;
+  projectKey: string | null;
+  projectName: string | null;
+}
+
+export interface JiraBoardsData {
+  boards: JiraBoard[];
+  total: number;
+}
+
+export interface JiraSprint {
+  id: number;
+  name: string;
+  state: string;
+  goal?: string;
+  startDate?: string;
+  endDate?: string;
+  completeDate?: string;
+}
+
+export interface JiraSprintsData {
+  boardId: number;
+  sprints: JiraSprint[];
+  total: number;
+}
+
+export interface JiraSprintReportData {
+  board: {
+    id: number;
+    name: string;
+  };
+  sprint: JiraSprint;
+  metrics: {
+    issues: {
+      total: number;
+      committed: number;
+      completedByEnd: number;
+      completionRate: number;
+      addedAfterStart: number;
+      removedDuringSprint: number;
+      carryover: number;
+    };
+    points: {
+      committed: number;
+      completedByEnd: number;
+      completionRate: number;
+      addedAfterStart: number;
+      removedDuringSprint: number;
+      absoluteChangeDuringSprint: number;
+      netChangeDuringSprint: number;
+      changedIssueCount: number;
+      changeEventCount: number;
+      currentScope: number;
+      remaining: number;
+    };
+  };
+  health: {
+    status: 'on_track' | 'at_risk' | 'off_track' | 'completed' | 'unknown';
+    score: number;
+    elapsedPct: number;
+    completionPct: number;
+    paceDelta: number;
+    remainingDays: number;
+    requiredPointsPerDay: number;
+    summary: string;
+  };
+  integrity: {
+    risk: 'low' | 'medium' | 'high';
+    score: number;
+    flags: string[];
+    indicators: {
+      scopeCreepPct: number;
+      pointChurnPct: number;
+      carryoverPct: number;
+      removedPct: number;
+    };
+  };
+}
+
+export interface JiraBoardHistoryReportData {
+  board: {
+    id: number;
+    name: string;
+  };
+  summary: {
+    sprintsAnalyzed: number;
+    averageCompletionRate: number;
+    averageScopeCreepPct: number;
+    averagePointChurnPct: number;
+    averageIntegrityScore: number;
+    onTrackLikeSprints: number;
+    riskDistribution: {
+      low: number;
+      medium: number;
+      high: number;
+    };
+  };
+  sprints: Array<{
+    id: number;
+    name: string;
+    state: string;
+    startDate?: string;
+    endDate?: string;
+    completeDate?: string;
+    goal?: string;
+    completionRate: number;
+    committedPoints: number;
+    completedPoints: number;
+    scopeCreepPct: number;
+    pointChurnPct: number;
+    carryoverPct: number;
+    integrityRisk: 'low' | 'medium' | 'high';
+    integrityScore: number;
+    healthStatus: 'on_track' | 'at_risk' | 'off_track' | 'completed' | 'unknown';
+    flags: string[];
+  }>;
+}

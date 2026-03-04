@@ -47,6 +47,7 @@ import { CommitHeatmap } from './components/CommitHeatmap';
 import { OwnershipPanel } from './components/OwnershipPanel';
 import { CodeHealthPanel } from './components/CodeHealthPanel';
 import { VelocityPanel } from './components/VelocityPanel';
+import { JiraSprintAnalysis } from './components/JiraSprintAnalysis';
 import {
   FileDetailsModal,
   ContributorDetailsModal,
@@ -416,6 +417,14 @@ function App() {
               onFileClick={setSelectedOwnershipFile}
             />
           )}
+        </Card>
+
+        <Card
+          title="Jira Sprint Intelligence"
+          subtitle="Sprint health, scope changes, and board-level delivery integrity"
+          className="mt-8"
+        >
+          <JiraSprintAnalysis />
         </Card>
       </main>
 

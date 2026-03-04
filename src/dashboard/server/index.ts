@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { exec } from 'node:child_process';
 import { simpleGit, SimpleGit } from 'simple-git';
 import { CodexiaEngine } from '../../cli/engine.js';
+import { JiraAnalyticsService } from './jira.js';
 
 export interface DashboardServerOptions {
   port: number;
@@ -49,6 +50,7 @@ export class DashboardServer {
   private rateLimitWindowMs: number = Number(process.env.CODEXIA_DASHBOARD_RATE_LIMIT_WINDOW_MS || 60000);
   private rateLimitMax: number = Number(process.env.CODEXIA_DASHBOARD_RATE_LIMIT_MAX || 120);
   private rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+  private jira: JiraAnalyticsService;
 
   constructor(engine: CodexiaEngine) {
     this.engine = engine;
@@ -56,6 +58,7 @@ export class DashboardServer {
     // Navigate from dist/dashboard/server -> project root -> src/dashboard/dist
     this.staticDir = path.join(import.meta.dirname, '../../../src/dashboard/dist');
     this.git = simpleGit(process.cwd());
+    this.jira = new JiraAnalyticsService();
   }
 
   /**
@@ -210,6 +213,21 @@ export class DashboardServer {
         case '/api/velocity':
           data = await this.getVelocityMetrics();
           break;
+        case '/api/jira/config':
+          data = this.getJiraConfig();
+          break;
+        case '/api/jira/boards':
+          data = await this.getJiraBoards(url);
+          break;
+        case '/api/jira/sprints':
+          data = await this.getJiraSprints(url);
+          break;
+        case '/api/jira/sprint-report':
+          data = await this.getJiraSprintReport(url);
+          break;
+        case '/api/jira/board-report':
+          data = await this.getJiraBoardReport(url);
+          break;
         default:
           res.writeHead(404);
           res.end(JSON.stringify({ error: 'Not found' }));
@@ -220,8 +238,12 @@ export class DashboardServer {
       res.end(JSON.stringify(data));
     } catch (error) {
       console.error('API error:', error);
-      res.writeHead(500);
-      res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }));
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const statusCode = errorMessage.startsWith('BadRequest:') || errorMessage.includes('not configured')
+        ? 400
+        : 500;
+      res.writeHead(statusCode);
+      res.end(JSON.stringify({ error: errorMessage }));
     }
   }
 
@@ -1318,6 +1340,74 @@ export class DashboardServer {
     }
 
     return trimmed;
+  }
+
+  private getJiraConfig(): object {
+    return this.jira.getConfig();
+  }
+
+  private async getJiraBoards(url: URL): Promise<object> {
+    const projectKey = this.normalizeProjectKey(url.searchParams.get('projectKey'));
+    const limit = this.parsePositiveInt(url.searchParams.get('limit')) || 50;
+    return this.jira.getBoards(projectKey, limit);
+  }
+
+  private async getJiraSprints(url: URL): Promise<object> {
+    const boardId = this.parsePositiveInt(url.searchParams.get('boardId'));
+    if (!boardId) {
+      throw new Error('BadRequest: Missing or invalid boardId query parameter.');
+    }
+
+    const state = url.searchParams.get('state') || 'active,closed,future';
+    const limit = this.parsePositiveInt(url.searchParams.get('limit')) || 50;
+    return this.jira.getSprints(boardId, state, limit);
+  }
+
+  private async getJiraSprintReport(url: URL): Promise<object> {
+    const boardId = this.parsePositiveInt(url.searchParams.get('boardId'));
+    const sprintId = this.parsePositiveInt(url.searchParams.get('sprintId'));
+
+    if (!boardId || !sprintId) {
+      throw new Error('BadRequest: Missing or invalid boardId/sprintId query parameters.');
+    }
+
+    return this.jira.getSprintReport(boardId, sprintId);
+  }
+
+  private async getJiraBoardReport(url: URL): Promise<object> {
+    const boardId = this.parsePositiveInt(url.searchParams.get('boardId'));
+    if (!boardId) {
+      throw new Error('BadRequest: Missing or invalid boardId query parameter.');
+    }
+
+    const maxSprints = this.parsePositiveInt(url.searchParams.get('maxSprints')) || 12;
+    return this.jira.getBoardHistoryReport(boardId, maxSprints);
+  }
+
+  private parsePositiveInt(value: string | null): number | null {
+    if (!value) {
+      return null;
+    }
+
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed) || parsed <= 0) {
+      return null;
+    }
+
+    return parsed;
+  }
+
+  private normalizeProjectKey(value: string | null): string | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    const cleaned = value.trim();
+    if (!cleaned || cleaned.length > 50 || /[^A-Za-z0-9_-]/.test(cleaned)) {
+      return undefined;
+    }
+
+    return cleaned;
   }
 }
 
