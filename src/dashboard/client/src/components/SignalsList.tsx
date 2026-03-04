@@ -35,7 +35,7 @@ const severityConfig = {
   },
 };
 
-export function SignalsList({ signals, limit = 10, onSignalClick }: SignalsListProps) {
+export const SignalsList = ({ signals, limit = 10, onSignalClick }: SignalsListProps) => {
   const [showAll, setShowAll] = useState(false);
   const displayedSignals = showAll ? signals : signals.slice(0, limit);
   const hasMore = signals.length > limit;
@@ -110,4 +110,4 @@ export function SignalsList({ signals, limit = 10, onSignalClick }: SignalsListP
       )}
     </div>
   );
-}
+};

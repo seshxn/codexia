@@ -1,12 +1,13 @@
 import { TrendingUp, TrendingDown, Users, GitCommit, Activity, Info, Zap } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import type { VelocityData } from '../types';
+import { CHART_TOOLTIP_PROPS } from './chartTheme';
 
 interface VelocityPanelProps {
   data: VelocityData;
 }
 
-export function VelocityPanel({ data }: VelocityPanelProps) {
+export const VelocityPanel = ({ data }: VelocityPanelProps) => {
   const isNewTrend = data.summary.velocityTrend === 'New';
   const trendValue = isNewTrend ? 0 : parseInt(data.summary.velocityTrend, 10);
   const isPositive = !isNewTrend && trendValue >= 0;
@@ -106,12 +107,7 @@ export function VelocityPanel({ data }: VelocityPanelProps) {
               />
               <YAxis stroke="#64748b" fontSize={11} />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #475569',
-                  borderRadius: '8px',
-                }}
-                labelStyle={{ color: '#f8fafc' }}
+                {...CHART_TOOLTIP_PROPS}
                 formatter={(value: number) => [value, 'Commits']}
                 labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
               />
@@ -141,12 +137,7 @@ export function VelocityPanel({ data }: VelocityPanelProps) {
               />
               <YAxis stroke="#64748b" fontSize={11} hide />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #475569',
-                  borderRadius: '8px',
-                }}
-                labelStyle={{ color: '#f8fafc' }}
+                {...CHART_TOOLTIP_PROPS}
                 formatter={(value: number) => [value, 'Commits']}
               />
               <Bar dataKey="commits" radius={[4, 4, 0, 0]}>
@@ -194,4 +185,4 @@ export function VelocityPanel({ data }: VelocityPanelProps) {
       </div>
     </div>
   );
-}
+};

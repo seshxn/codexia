@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { scanCommand } from './commands/scan.js';
 import { impactCommand } from './commands/impact.js';
 import { checkCommand } from './commands/check.js';
@@ -22,6 +24,33 @@ import { dashboardCommand } from './commands/dashboard.js';
 
 // Interactive wizard
 import { runInteractiveWizard } from './interactive.js';
+
+const loadEnvFiles = (): void => {
+  if (process.env.CODEXIA_SKIP_ENV_FILE === 'true') {
+    return;
+  }
+
+  if (typeof process.loadEnvFile !== 'function') {
+    return;
+  }
+
+  const cwd = process.cwd();
+  for (const fileName of ['.env.local', '.env']) {
+    const filePath = path.join(cwd, fileName);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+
+    try {
+      process.loadEnvFile(filePath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[codexia] Failed to load ${fileName}: ${message}`);
+    }
+  }
+};
+
+loadEnvFiles();
 
 const program = new Command();
 

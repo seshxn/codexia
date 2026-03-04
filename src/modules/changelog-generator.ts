@@ -462,13 +462,7 @@ export class ChangelogGenerator {
   }
 }
 
-/**
- * Generate changelog between two refs
- */
-export async function generateChangelog(
-  repoPath: string,
-  options: ChangelogOptions
-): Promise<string> {
+export const generateChangelog = async (repoPath: string, options: ChangelogOptions): Promise<string> => {
   const generator = new ChangelogGenerator(repoPath);
   const changelog = await generator.generate(options);
 
@@ -481,4 +475,4 @@ export async function generateChangelog(
     default:
       return generator.formatMarkdown(changelog);
   }
-}
+};

@@ -13,10 +13,7 @@ export interface PrReportData {
   riskScore: number;
 }
 
-/**
- * Build a prompt for generating AI-powered PR review summary
- */
-export function buildPrReviewPrompt(data: PrReportData): string {
+export const buildPrReviewPrompt = (data: PrReportData): string => {
   const changedFiles = data.summary.filesChanged;
   const additions = data.summary.additions;
   const deletions = data.summary.deletions;
@@ -78,4 +75,4 @@ Write a professional code review summary (4-6 sentences) that:
 5. Recommends specific team members to review based on affected areas (if applicable)
 
 Be constructive and actionable. Avoid generic statements.`;
-}
+};

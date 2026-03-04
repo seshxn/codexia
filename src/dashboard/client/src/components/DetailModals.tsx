@@ -1,6 +1,7 @@
 import { FileCode, GitCommit, Users, TrendingUp, AlertTriangle, Calendar, Shield, Flame } from 'lucide-react';
 import { Modal, DetailRow, MetricCard, ProgressBar } from './Modal';
 import type { Contributor, Commit, Signal, FileOwnership, HotPath, ComplexityData, SignalsData } from '../types';
+import { AvatarImage } from './AvatarImage';
 
 // File Details Modal
 interface FileDetailsModalProps {
@@ -19,7 +20,7 @@ interface FileDetailsModalProps {
   } | null;
 }
 
-export function FileDetailsModal({ isOpen, onClose, file }: FileDetailsModalProps) {
+export const FileDetailsModal = ({ isOpen, onClose, file }: FileDetailsModalProps) => {
   if (!file) return null;
 
   const getScoreColor = (score: number) => {
@@ -84,7 +85,7 @@ export function FileDetailsModal({ isOpen, onClose, file }: FileDetailsModalProp
       </div>
     </Modal>
   );
-}
+};
 
 // Contributor Details Modal
 interface ContributorDetailsModalProps {
@@ -93,7 +94,7 @@ interface ContributorDetailsModalProps {
   contributor: Contributor | null;
 }
 
-export function ContributorDetailsModal({ isOpen, onClose, contributor }: ContributorDetailsModalProps) {
+export const ContributorDetailsModal = ({ isOpen, onClose, contributor }: ContributorDetailsModalProps) => {
   if (!contributor) return null;
 
   const daysSinceFirst = Math.floor((Date.now() - new Date(contributor.firstCommit).getTime()) / (1000 * 60 * 60 * 24));
@@ -104,13 +105,13 @@ export function ContributorDetailsModal({ isOpen, onClose, contributor }: Contri
       <div className="space-y-6">
         {/* Profile Header */}
         <div className="flex items-center gap-4 p-4 rounded-lg bg-neutral-900/50">
-          <img
+          <AvatarImage
             src={contributor.avatar}
-            alt={contributor.name}
+            name={contributor.name}
             className="w-16 h-16 rounded-full bg-neutral-800"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(contributor.name)}&background=334155&color=f8fafc&size=64`;
-            }}
+            size={64}
+            background="334155"
+            color="f8fafc"
           />
           <div>
             <h3 className="text-xl font-semibold text-white">{contributor.name}</h3>
@@ -150,7 +151,7 @@ export function ContributorDetailsModal({ isOpen, onClose, contributor }: Contri
       </div>
     </Modal>
   );
-}
+};
 
 // Commit Details Modal
 interface CommitDetailsModalProps {
@@ -159,7 +160,7 @@ interface CommitDetailsModalProps {
   commit: Commit | null;
 }
 
-export function CommitDetailsModal({ isOpen, onClose, commit }: CommitDetailsModalProps) {
+export const CommitDetailsModal = ({ isOpen, onClose, commit }: CommitDetailsModalProps) => {
   if (!commit) return null;
 
   return (
@@ -172,10 +173,13 @@ export function CommitDetailsModal({ isOpen, onClose, commit }: CommitDetailsMod
 
         {/* Author */}
         <div className="flex items-center gap-3 p-4 rounded-lg bg-neutral-900/50">
-          <img
+          <AvatarImage
             src={commit.avatar}
-            alt={commit.author}
+            name={commit.author}
             className="w-10 h-10 rounded-full bg-neutral-800"
+            size={40}
+            background="334155"
+            color="f8fafc"
           />
           <div>
             <p className="text-white font-medium">{commit.author}</p>
@@ -197,7 +201,7 @@ export function CommitDetailsModal({ isOpen, onClose, commit }: CommitDetailsMod
       </div>
     </Modal>
   );
-}
+};
 
 // Signal Details Modal
 interface SignalDetailsModalProps {
@@ -206,7 +210,7 @@ interface SignalDetailsModalProps {
   signal: Signal | null;
 }
 
-export function SignalDetailsModal({ isOpen, onClose, signal }: SignalDetailsModalProps) {
+export const SignalDetailsModal = ({ isOpen, onClose, signal }: SignalDetailsModalProps) => {
   if (!signal) return null;
 
   const severityConfig = {
@@ -251,7 +255,7 @@ export function SignalDetailsModal({ isOpen, onClose, signal }: SignalDetailsMod
       </div>
     </Modal>
   );
-}
+};
 
 // Hot Path Details Modal
 interface HotPathDetailsModalProps {
@@ -260,7 +264,7 @@ interface HotPathDetailsModalProps {
   hotPath: HotPath | null;
 }
 
-export function HotPathDetailsModal({ isOpen, onClose, hotPath }: HotPathDetailsModalProps) {
+export const HotPathDetailsModal = ({ isOpen, onClose, hotPath }: HotPathDetailsModalProps) => {
   if (!hotPath) return null;
 
   const getHeatColor = (score: number) => {
@@ -382,7 +386,7 @@ export function HotPathDetailsModal({ isOpen, onClose, hotPath }: HotPathDetails
       </div>
     </Modal>
   );
-}
+};
 
 // File Ownership Details Modal
 interface OwnershipDetailsModalProps {
@@ -391,7 +395,7 @@ interface OwnershipDetailsModalProps {
   file: FileOwnership | null;
 }
 
-export function OwnershipDetailsModal({ isOpen, onClose, file }: OwnershipDetailsModalProps) {
+export const OwnershipDetailsModal = ({ isOpen, onClose, file }: OwnershipDetailsModalProps) => {
   if (!file) return null;
 
   const getBusFactorColor = (bf: number) => {
@@ -468,7 +472,7 @@ export function OwnershipDetailsModal({ isOpen, onClose, file }: OwnershipDetail
       </div>
     </Modal>
   );
-}
+};
 
 // Health Score Details Modal
 interface HealthScoreModalProps {
@@ -479,7 +483,7 @@ interface HealthScoreModalProps {
   complexityData?: ComplexityData | null;
 }
 
-export function HealthScoreModal({ isOpen, onClose, score, signalsData, complexityData }: HealthScoreModalProps) {
+export const HealthScoreModal = ({ isOpen, onClose, score, signalsData, complexityData }: HealthScoreModalProps) => {
   const getScoreColor = (s: number) => {
     if (s >= 80) return 'text-green-400';
     if (s >= 60) return 'text-yellow-400';
@@ -572,4 +576,4 @@ export function HealthScoreModal({ isOpen, onClose, score, signalsData, complexi
       </div>
     </Modal>
   );
-}
+};

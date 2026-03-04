@@ -8,18 +8,18 @@ interface HotPathsListProps {
   onHotPathClick?: (hotPath: HotPath) => void;
 }
 
-function getHeatLevel(score: number): {
+const getHeatLevel = (score: number): {
   color: string;
   bg: string;
   intensity: number;
-} {
+} => {
   if (score >= 0.8) return { color: 'text-red-400', bg: 'bg-red-500', intensity: 4 };
   if (score >= 0.6) return { color: 'text-orange-400', bg: 'bg-orange-500', intensity: 3 };
   if (score >= 0.4) return { color: 'text-amber-400', bg: 'bg-amber-500', intensity: 2 };
   return { color: 'text-sky-400', bg: 'bg-sky-500', intensity: 1 };
-}
+};
 
-export function HotPathsList({ hotPaths, limit = 10, onHotPathClick }: HotPathsListProps) {
+export const HotPathsList = ({ hotPaths, limit = 10, onHotPathClick }: HotPathsListProps) => {
   const [showAll, setShowAll] = useState(false);
   const displayedPaths = showAll ? hotPaths : hotPaths.slice(0, limit);
   const hasMore = hotPaths.length > limit;
@@ -106,4 +106,4 @@ export function HotPathsList({ hotPaths, limit = 10, onHotPathClick }: HotPathsL
       )}
     </div>
   );
-}
+};

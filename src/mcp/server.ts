@@ -834,14 +834,7 @@ export class CodexiaMCPServer {
   }
 }
 
-/**
- * Start MCP server based on mode
- */
-export async function startMCPServer(
-  mode: 'http' | 'stdio' = 'stdio',
-  port?: number,
-  host?: string
-): Promise<void> {
+export const startMCPServer = async (mode: 'http' | 'stdio' = 'stdio', port?: number, host?: string): Promise<void> => {
   const server = new CodexiaMCPServer();
 
   if (mode === 'http') {
@@ -849,4 +842,4 @@ export async function startMCPServer(
   } else {
     await server.runStdio();
   }
-}
+};

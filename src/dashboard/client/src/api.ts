@@ -22,11 +22,12 @@ import type {
   JiraSprintsData,
   JiraSprintReportData,
   JiraBoardHistoryReportData,
+  JiraAiInsightsData,
 } from './types';
 
 const API_BASE = '/api';
 const TOKEN_STORAGE_KEY = 'codexia_dashboard_token';
-function syncTokenFromUrl(): string | null {
+const syncTokenFromUrl = (): string | null => {
   if (typeof window === 'undefined') {
     return null;
   }
@@ -39,9 +40,9 @@ function syncTokenFromUrl(): string | null {
   }
 
   return localStorage.getItem(TOKEN_STORAGE_KEY);
-}
+};
 
-function getAuthHeaders(): HeadersInit {
+const getAuthHeaders = (): HeadersInit => {
   const token = syncTokenFromUrl();
   if (!token) {
     return {};
@@ -50,7 +51,7 @@ function getAuthHeaders(): HeadersInit {
   return {
     Authorization: `Bearer ${token}`,
   };
-}
+};
 
 type QueryValue = string | number | boolean | undefined;
 
@@ -61,7 +62,7 @@ interface PaginationParams {
   all?: boolean;
 }
 
-async function fetchJson<T>(endpoint: string, params?: Record<string, QueryValue>): Promise<T> {
+const fetchJson = async <T,>(endpoint: string, params?: Record<string, QueryValue>): Promise<T> => {
   let url = `${API_BASE}${endpoint}`;
   
   if (params) {
@@ -94,100 +95,109 @@ async function fetchJson<T>(endpoint: string, params?: Record<string, QueryValue
     throw new Error(message);
   }
   return response.json();
-}
+};
 
-export async function fetchOverview(): Promise<OverviewData> {
+export const fetchOverview = async (): Promise<OverviewData> => {
   return fetchJson<OverviewData>('/overview');
-}
+};
 
-export async function fetchRepoContext(): Promise<RepoContextData> {
+export const fetchRepoContext = async (): Promise<RepoContextData> => {
   return fetchJson<RepoContextData>('/repo/context');
-}
+};
 
-export async function fetchRecentRepos(): Promise<RepoRecentData> {
+export const fetchRecentRepos = async (): Promise<RepoRecentData> => {
   return fetchJson<RepoRecentData>('/repo/recent');
-}
+};
 
-export async function selectRepository(repoPath: string): Promise<RepoSwitchData> {
+export const selectRepository = async (repoPath: string): Promise<RepoSwitchData> => {
   return fetchJson<RepoSwitchData>('/repo/select', { repoPath });
-}
+};
 
-export async function pickRepositoryPath(): Promise<RepoPickData> {
+export const pickRepositoryPath = async (): Promise<RepoPickData> => {
   return fetchJson<RepoPickData>('/repo/pick');
-}
+};
 
-export async function fetchComplexity(): Promise<ComplexityData> {
+export const fetchComplexity = async (): Promise<ComplexityData> => {
   return fetchJson<ComplexityData>('/complexity');
-}
+};
 
-export async function fetchGraph(): Promise<GraphData> {
+export const fetchGraph = async (): Promise<GraphData> => {
   return fetchJson<GraphData>('/graph');
-}
+};
 
-export async function fetchSignals(): Promise<SignalsData> {
+export const fetchSignals = async (): Promise<SignalsData> => {
   return fetchJson<SignalsData>('/signals');
-}
+};
 
-export async function fetchHotPaths(): Promise<HotPathsData> {
+export const fetchHotPaths = async (): Promise<HotPathsData> => {
   return fetchJson<HotPathsData>('/hotpaths');
-}
+};
 
-export async function fetchTemporal(): Promise<TemporalData> {
+export const fetchTemporal = async (): Promise<TemporalData> => {
   return fetchJson<TemporalData>('/temporal');
-}
+};
 
-export async function fetchLanguages(): Promise<LanguagesData> {
+export const fetchLanguages = async (): Promise<LanguagesData> => {
   return fetchJson<LanguagesData>('/languages');
-}
+};
 
-export async function fetchContributors(): Promise<ContributorsData> {
+export const fetchContributors = async (): Promise<ContributorsData> => {
   return fetchJson<ContributorsData>('/contributors');
-}
+};
 
-export async function fetchCommits(): Promise<CommitsData> {
+export const fetchCommits = async (): Promise<CommitsData> => {
   return fetchJson<CommitsData>('/commits');
-}
+};
 
-export async function fetchBranches(): Promise<BranchesData> {
+export const fetchBranches = async (): Promise<BranchesData> => {
   return fetchJson<BranchesData>('/branches');
-}
+};
 
-export async function fetchActivity(): Promise<ActivityData> {
+export const fetchActivity = async (): Promise<ActivityData> => {
   return fetchJson<ActivityData>('/activity');
-}
+};
 
-export async function fetchOwnership(): Promise<OwnershipData> {
+export const fetchOwnership = async (): Promise<OwnershipData> => {
   return fetchJson<OwnershipData>('/ownership');
-}
+};
 
-export async function fetchCodeHealth(params?: PaginationParams): Promise<CodeHealthData> {
+export const fetchCodeHealth = async (params?: PaginationParams): Promise<CodeHealthData> => {
   return fetchJson<CodeHealthData>('/code-health', params);
-}
+};
 
-export async function fetchVelocity(params?: PaginationParams): Promise<VelocityData> {
+export const fetchVelocity = async (params?: PaginationParams): Promise<VelocityData> => {
   return fetchJson<VelocityData>('/velocity', params);
-}
+};
 
-export async function fetchJiraConfig(): Promise<JiraConfigData> {
+export const fetchJiraConfig = async (): Promise<JiraConfigData> => {
   return fetchJson<JiraConfigData>('/jira/config');
-}
+};
 
-export async function fetchJiraBoards(params?: { projectKey?: string; limit?: number }): Promise<JiraBoardsData> {
+export const fetchJiraBoards = async (params?: { projectKey?: string; limit?: number }): Promise<JiraBoardsData> => {
   return fetchJson<JiraBoardsData>('/jira/boards', params);
-}
+};
 
-export async function fetchJiraSprints(boardId: number, params?: { state?: string; limit?: number }): Promise<JiraSprintsData> {
+export const fetchJiraSprints = async (boardId: number, params?: { state?: string; limit?: number }): Promise<JiraSprintsData> => {
   return fetchJson<JiraSprintsData>('/jira/sprints', {
     boardId,
     state: params?.state,
     limit: params?.limit,
   });
-}
+};
 
-export async function fetchJiraSprintReport(boardId: number, sprintId: number): Promise<JiraSprintReportData> {
+export const fetchJiraSprintReport = async (boardId: number, sprintId: number): Promise<JiraSprintReportData> => {
   return fetchJson<JiraSprintReportData>('/jira/sprint-report', { boardId, sprintId });
-}
+};
 
-export async function fetchJiraBoardReport(boardId: number, maxSprints = 12): Promise<JiraBoardHistoryReportData> {
+export const fetchJiraBoardReport = async (boardId: number, maxSprints = 12): Promise<JiraBoardHistoryReportData> => {
   return fetchJson<JiraBoardHistoryReportData>('/jira/board-report', { boardId, maxSprints });
-}
+};
+
+export const fetchJiraAiInsights = async (params: {
+  boardId: number;
+  sprintId?: number;
+  scope?: 'sprint' | 'board';
+  maxSprints?: number;
+}): Promise<JiraAiInsightsData> => {
+  return fetchJson<JiraAiInsightsData>('/ai/jira-insights', params);
+};

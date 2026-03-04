@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useEffect, useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
   isOpen: boolean;
@@ -10,40 +11,50 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export function Modal({ isOpen, onClose, title, subtitle, children, size = 'md' }: ModalProps) {
+export const Modal = ({ isOpen, onClose, title, subtitle, children, size = 'md' }: ModalProps) => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   const handleEscape = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
   }, [onClose]);
 
   useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      // Small delay to trigger animation
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setIsAnimating(true);
-        });
-      });
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    } else {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
       setIsAnimating(false);
-      // Wait for exit animation
-      const timer = setTimeout(() => {
+      const timer = window.setTimeout(() => {
         setShouldRender(false);
       }, 200);
-      return () => clearTimeout(timer);
+      return () => window.clearTimeout(timer);
     }
+
+    setShouldRender(true);
+    let rafOne = 0;
+    let rafTwo = 0;
+    rafOne = window.requestAnimationFrame(() => {
+      rafTwo = window.requestAnimationFrame(() => {
+        setIsAnimating(true);
+      });
+    });
+
+    document.addEventListener('keydown', handleEscape);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     return () => {
+      window.cancelAnimationFrame(rafOne);
+      window.cancelAnimationFrame(rafTwo);
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = previousOverflow;
     };
   }, [isOpen, handleEscape]);
 
-  if (!shouldRender) return null;
+  if (!isMounted || !shouldRender) return null;
 
   const sizeClasses = {
     sm: 'max-w-md',
@@ -52,52 +63,52 @@ export function Modal({ isOpen, onClose, title, subtitle, children, size = 'md' 
     xl: 'max-w-6xl',
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      {/* Backdrop */}
-      <div 
-        className={`fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-200 ease-out ${
+  return createPortal(
+    <div className="fixed inset-0 z-50">
+      <div
+        className={`absolute inset-0 bg-black/88 transition-opacity duration-200 ease-out ${
           isAnimating ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={onClose}
       />
-      
-      {/* Modal */}
-      <div 
-        className={`relative bg-neutral-900 rounded-2xl border border-neutral-800 shadow-elevated w-full ${sizeClasses[size]} max-h-[85vh] flex flex-col transition-all duration-300 ease-out ${
-          isAnimating 
-            ? 'opacity-100 scale-100 translate-y-0' 
-            : 'opacity-0 scale-95 translate-y-4'
-        }`}
-        style={{
-          transitionTimingFunction: isAnimating ? 'cubic-bezier(0.16, 1, 0.3, 1)' : 'ease-in',
-        }}
-      >
-        {/* Subtle gradient border effect */}
-        <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-neutral-700/20 to-transparent pointer-events-none" />
-        
-        {/* Header */}
-        <div className="relative flex items-start justify-between px-6 py-5 border-b border-neutral-800">
-          <div>
-            <h2 className="text-lg font-semibold text-white tracking-tight">{title}</h2>
-            {subtitle && <p className="text-sm text-neutral-500 mt-0.5">{subtitle}</p>}
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 -mr-2 hover:bg-neutral-800 rounded-xl transition-all duration-150 text-neutral-500 hover:text-white group"
-          >
-            <X className="w-5 h-5 transition-transform duration-150 group-hover:rotate-90" />
-          </button>
-        </div>
 
-        {/* Content */}
-        <div className="relative p-6 overflow-y-auto flex-1">
-          {children}
+      <div className="absolute inset-0 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div
+            className={`relative bg-neutral-950/95 rounded-2xl border border-neutral-800 shadow-2xl shadow-black/60 w-full ${sizeClasses[size]} max-h-[85vh] flex flex-col transition-all duration-300 ease-out ${
+              isAnimating
+                ? 'opacity-100 scale-100 translate-y-0'
+                : 'opacity-0 scale-95 translate-y-4'
+            }`}
+            style={{
+              transitionTimingFunction: isAnimating ? 'cubic-bezier(0.16, 1, 0.3, 1)' : 'ease-in',
+            }}
+          >
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-neutral-700/15 to-transparent pointer-events-none" />
+
+            <div className="relative flex items-start justify-between px-6 py-5 border-b border-neutral-800">
+              <div>
+                <h2 className="text-lg font-semibold text-white tracking-tight">{title}</h2>
+                {subtitle && <p className="text-sm text-neutral-500 mt-0.5">{subtitle}</p>}
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 -mr-2 hover:bg-neutral-800 rounded-xl transition-all duration-150 text-neutral-500 hover:text-white group"
+              >
+                <X className="w-5 h-5 transition-transform duration-150 group-hover:rotate-90" />
+              </button>
+            </div>
+
+            <div className="relative p-6 overflow-y-auto flex-1">
+              {children}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
-}
+};
 
 // Detail row component for modal content
 interface DetailRowProps {
@@ -106,14 +117,14 @@ interface DetailRowProps {
   color?: string;
 }
 
-export function DetailRow({ label, value, color }: DetailRowProps) {
+export const DetailRow = ({ label, value, color }: DetailRowProps) => {
   return (
     <div className="flex justify-between items-center py-3 border-b border-neutral-800/50 last:border-0">
       <span className="text-neutral-500 text-sm">{label}</span>
       <span className={`text-sm font-medium ${color || 'text-white'}`}>{value}</span>
     </div>
   );
-}
+};
 
 // Metric card for modal content
 interface MetricCardProps {
@@ -124,7 +135,7 @@ interface MetricCardProps {
   subtitle?: string;
 }
 
-export function MetricCard({ label, value, icon, color = 'blue', subtitle }: MetricCardProps) {
+export const MetricCard = ({ label, value, icon, color = 'blue', subtitle }: MetricCardProps) => {
   const colorClasses = {
     blue: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
     green: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -144,7 +155,7 @@ export function MetricCard({ label, value, icon, color = 'blue', subtitle }: Met
       {subtitle && <p className="text-xs text-neutral-600 mt-1">{subtitle}</p>}
     </div>
   );
-}
+};
 
 // Progress bar component
 interface ProgressBarProps {
@@ -155,7 +166,7 @@ interface ProgressBarProps {
   showValue?: boolean;
 }
 
-export function ProgressBar({ value, max = 100, color = 'bg-sky-500', label, showValue = true }: ProgressBarProps) {
+export const ProgressBar = ({ value, max = 100, color = 'bg-sky-500', label, showValue = true }: ProgressBarProps) => {
   const percentage = Math.min(100, (value / max) * 100);
   
   return (
@@ -174,4 +185,4 @@ export function ProgressBar({ value, max = 100, color = 'bg-sky-500', label, sho
       </div>
     </div>
   );
-}
+};

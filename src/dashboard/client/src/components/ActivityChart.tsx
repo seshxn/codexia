@@ -1,12 +1,13 @@
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { GitCommit, User } from 'lucide-react';
 import type { TemporalData } from '../types';
+import { CHART_TOOLTIP_PROPS } from './chartTheme';
 
 interface ActivityChartProps {
   data: TemporalData;
 }
 
-export function ActivityChart({ data }: ActivityChartProps) {
+export const ActivityChart = ({ data }: ActivityChartProps) => {
   // Convert activity by day to chart format
   const chartData = Object.entries(data.activityByDay)
     .map(([date, count]) => ({
@@ -42,12 +43,7 @@ export function ActivityChart({ data }: ActivityChartProps) {
               width={30}
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: '#1e293b',
-                border: '1px solid #475569',
-                borderRadius: '8px',
-              }}
-              labelStyle={{ color: '#f8fafc' }}
+              {...CHART_TOOLTIP_PROPS}
             />
             <Area
               type="monotone"
@@ -112,4 +108,4 @@ export function ActivityChart({ data }: ActivityChartProps) {
       </div>
     </div>
   );
-}
+};

@@ -131,19 +131,13 @@ export class LanguageProviderRegistry {
 // Singleton instance
 let registryInstance: LanguageProviderRegistry | null = null;
 
-/**
- * Get the singleton language provider registry
- */
-export function getLanguageRegistry(): LanguageProviderRegistry {
+export const getLanguageRegistry = (): LanguageProviderRegistry => {
   if (!registryInstance) {
     registryInstance = new LanguageProviderRegistry();
   }
   return registryInstance;
-}
+};
 
-/**
- * Reset the registry (useful for testing)
- */
-export function resetLanguageRegistry(): void {
+export const resetLanguageRegistry = (): void => {
   registryInstance = null;
-}
+};

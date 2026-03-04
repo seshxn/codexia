@@ -60,6 +60,7 @@ interface JiraSearchResponse {
   maxResults: number;
   total: number;
   issues: JiraIssue[];
+  nextPageToken?: string;
 }
 
 interface SprintMembershipEvent {
@@ -71,6 +72,22 @@ interface SprintPointChanges {
   eventCount: number;
   absoluteDelta: number;
   netDelta: number;
+}
+
+interface SprintIssueSearchResult {
+  issues: JiraIssue[];
+  coverage: 'full' | 'partial';
+  truncated: boolean;
+}
+
+interface JiraSearchIssuesResult {
+  issues: JiraIssue[];
+  truncated: boolean;
+}
+
+interface JiraCacheEntry<T> {
+  value: T;
+  expiresAt: number;
 }
 
 export interface JiraConfig {
@@ -209,6 +226,20 @@ export class JiraAnalyticsService {
   private readonly baseUrl: string | null;
   private readonly basicAuth: string | null;
   private readonly bearerToken: string | null;
+  private readonly requestRetryMax: number;
+  private readonly requestRetryBaseMs: number;
+  private readonly requestRetryMaxMs: number;
+  private readonly requestTimeoutMs: number;
+  private readonly maxIssuesPerSprint: number;
+  private readonly sprintSearchTimeBudgetMs: number;
+  private readonly sprintMembershipMode: 'currentOnly' | 'auto';
+  private readonly cacheTtlMs: number;
+  private readonly boardHistoryTimeBudgetMs: number;
+  private sprintHistoryJqlMode: 'unknown' | 'was' | 'changed' | 'currentOnly' = 'unknown';
+  private readonly sprintReportCache = new Map<string, JiraCacheEntry<JiraSprintReport>>();
+  private readonly boardHistoryCache = new Map<string, JiraCacheEntry<JiraBoardHistoryReport>>();
+  private readonly sprintReportInFlight = new Map<string, Promise<JiraSprintReport>>();
+  private readonly boardHistoryInFlight = new Map<string, Promise<JiraBoardHistoryReport>>();
   private storyPointsFieldId: string | null | undefined;
   private sprintFieldId: string | null | undefined;
 
@@ -224,6 +255,30 @@ export class JiraAnalyticsService {
 
     const bearerToken = (env.CODEXIA_JIRA_BEARER_TOKEN || '').trim();
     this.bearerToken = bearerToken || null;
+
+    const parsedRetryMax = Number.parseInt(env.CODEXIA_JIRA_RETRY_MAX || '1', 10);
+    const parsedRetryBaseMs = Number.parseInt(env.CODEXIA_JIRA_RETRY_BASE_MS || '500', 10);
+    const parsedRetryMaxMs = Number.parseInt(env.CODEXIA_JIRA_RETRY_MAX_MS || '4000', 10);
+    const parsedTimeoutMs = Number.parseInt(env.CODEXIA_JIRA_REQUEST_TIMEOUT_MS || '15000', 10);
+    const parsedMaxIssuesPerSprint = Number.parseInt(env.CODEXIA_JIRA_MAX_ISSUES_PER_SPRINT || '500', 10);
+    const parsedSprintSearchTimeBudgetMs = Number.parseInt(env.CODEXIA_JIRA_SPRINT_SEARCH_TIME_BUDGET_MS || '15000', 10);
+    const membershipMode = (env.CODEXIA_JIRA_SPRINT_MEMBERSHIP_MODE || 'current_only').trim().toLowerCase();
+    const parsedCacheTtlMs = Number.parseInt(env.CODEXIA_JIRA_CACHE_TTL_MS || '90000', 10);
+    const parsedBoardHistoryTimeBudgetMs = Number.parseInt(env.CODEXIA_JIRA_BOARD_TIME_BUDGET_MS || '45000', 10);
+
+    this.requestRetryMax = Number.isFinite(parsedRetryMax) ? Math.min(10, Math.max(0, parsedRetryMax)) : 1;
+    this.requestRetryBaseMs = Number.isFinite(parsedRetryBaseMs) ? Math.min(10000, Math.max(100, parsedRetryBaseMs)) : 500;
+    this.requestRetryMaxMs = Number.isFinite(parsedRetryMaxMs) ? Math.min(120000, Math.max(500, parsedRetryMaxMs)) : 4000;
+    this.requestTimeoutMs = Number.isFinite(parsedTimeoutMs) ? Math.min(180000, Math.max(1000, parsedTimeoutMs)) : 15000;
+    this.maxIssuesPerSprint = Number.isFinite(parsedMaxIssuesPerSprint) ? Math.min(5000, Math.max(50, parsedMaxIssuesPerSprint)) : 500;
+    this.sprintSearchTimeBudgetMs = Number.isFinite(parsedSprintSearchTimeBudgetMs)
+      ? Math.min(180000, Math.max(3000, parsedSprintSearchTimeBudgetMs))
+      : 15000;
+    this.sprintMembershipMode = membershipMode === 'auto' ? 'auto' : 'currentOnly';
+    this.cacheTtlMs = Number.isFinite(parsedCacheTtlMs) ? Math.min(3600000, Math.max(10000, parsedCacheTtlMs)) : 90000;
+    this.boardHistoryTimeBudgetMs = Number.isFinite(parsedBoardHistoryTimeBudgetMs)
+      ? Math.min(600000, Math.max(5000, parsedBoardHistoryTimeBudgetMs))
+      : 45000;
   }
 
   getConfig(): JiraConfig {
@@ -312,58 +367,127 @@ export class JiraAnalyticsService {
   async getSprintReport(boardId: number, sprintId: number): Promise<JiraSprintReport> {
     this.ensureConfigured();
 
-    const board = await this.requestAgile<JiraApiBoard>(`/board/${boardId}`);
-    const sprint = await this.requestAgile<JiraApiSprint>(`/board/${boardId}/sprint/${sprintId}`);
+    const sprintCacheKey = `${boardId}:${sprintId}`;
+    const cached = this.getCacheValue(this.sprintReportCache, sprintCacheKey);
+    if (cached) {
+      return cached;
+    }
 
-    return this.buildSprintReport(board, sprint);
+    const pending = this.sprintReportInFlight.get(sprintCacheKey);
+    if (pending) {
+      return pending;
+    }
+
+    const task = (async (): Promise<JiraSprintReport> => {
+      const board = await this.requestAgile<JiraApiBoard>(`/board/${boardId}`);
+      const sprint = await this.getSprintById(boardId, sprintId);
+      if (sprint.originBoardId && sprint.originBoardId !== boardId) {
+        throw new Error(`BadRequest: Sprint ${sprintId} belongs to board ${sprint.originBoardId}, not board ${boardId}.`);
+      }
+      const report = await this.buildSprintReport(board, sprint);
+      this.setCacheValue(this.sprintReportCache, sprintCacheKey, report);
+      return report;
+    })();
+
+    this.sprintReportInFlight.set(sprintCacheKey, task);
+    try {
+      return await task;
+    } finally {
+      this.sprintReportInFlight.delete(sprintCacheKey);
+    }
   }
 
   async getBoardHistoryReport(boardId: number, maxSprints = 12): Promise<JiraBoardHistoryReport> {
     this.ensureConfigured();
 
-    const board = await this.requestAgile<JiraApiBoard>(`/board/${boardId}`);
-    const sprints = await this.fetchAgilePages<JiraApiSprint>(
-      `/board/${boardId}/sprint`,
-      { state: 'active,closed', maxResults: 50 },
-      this.clamp(maxSprints, 1, 50),
-    );
+    const normalizedMaxSprints = this.clamp(maxSprints, 1, 50);
+    const historyCacheKey = `${boardId}:${normalizedMaxSprints}`;
+    const cached = this.getCacheValue(this.boardHistoryCache, historyCacheKey);
+    if (cached) {
+      return cached;
+    }
 
-    const sorted = sprints
-      .slice()
-      .sort((a, b) => {
-        const aDate = this.dateOrEpoch(a.completeDate || a.endDate || a.startDate);
-        const bDate = this.dateOrEpoch(b.completeDate || b.endDate || b.startDate);
-        return bDate.getTime() - aDate.getTime();
-      })
-      .slice(0, this.clamp(maxSprints, 1, 50));
+    const pending = this.boardHistoryInFlight.get(historyCacheKey);
+    if (pending) {
+      return pending;
+    }
 
-    const reports = await this.mapWithConcurrency(sorted, 3, async (sprint) => this.buildSprintReport(board, sprint));
+    const task = (async (): Promise<JiraBoardHistoryReport> => {
+      const board = await this.requestAgile<JiraApiBoard>(`/board/${boardId}`);
+      const sprints = await this.fetchAgilePages<JiraApiSprint>(
+        `/board/${boardId}/sprint`,
+        { state: 'closed', maxResults: 50 },
+        normalizedMaxSprints,
+      );
 
-    const low = reports.filter(r => r.integrity.risk === 'low').length;
-    const medium = reports.filter(r => r.integrity.risk === 'medium').length;
-    const high = reports.filter(r => r.integrity.risk === 'high').length;
+      const sorted = sprints
+        .slice()
+        .sort((a, b) => {
+          const aDate = this.dateOrEpoch(a.completeDate || a.endDate || a.startDate);
+          const bDate = this.dateOrEpoch(b.completeDate || b.endDate || b.startDate);
+          return bDate.getTime() - aDate.getTime();
+        })
+        .slice(0, normalizedMaxSprints);
 
-    const summary = {
-      sprintsAnalyzed: reports.length,
-      averageCompletionRate: this.round(this.average(reports.map(r => r.metrics.points.completionRate)), 1),
-      averageScopeCreepPct: this.round(this.average(reports.map(r => r.integrity.indicators.scopeCreepPct)), 1),
-      averagePointChurnPct: this.round(this.average(reports.map(r => r.integrity.indicators.pointChurnPct)), 1),
-      averageIntegrityScore: this.round(this.average(reports.map(r => r.integrity.score)), 1),
-      onTrackLikeSprints: reports.filter(r => r.health.status === 'on_track' || r.health.status === 'completed').length,
-      riskDistribution: {
-        low,
-        medium,
-        high,
-      },
-    };
+      const reports: JiraSprintReport[] = [];
+      const warnings: string[] = [];
+      const startedAt = Date.now();
+      const budgetMs = this.boardHistoryTimeBudgetMs;
 
-    return {
-      board: {
-        id: board.id,
-        name: board.name,
-      },
-      summary,
-      sprints: reports.map((report) => ({
+      for (const sprint of sorted) {
+        if ((Date.now() - startedAt) >= budgetMs) {
+          warnings.push(
+            `Board analysis time budget (${Math.floor(budgetMs / 1000)}s) reached. Returning partial history.`,
+          );
+          break;
+        }
+
+        const sprintCacheKey = `${board.id}:${sprint.id}`;
+        const cachedSprint = this.getCacheValue(this.sprintReportCache, sprintCacheKey);
+        if (cachedSprint) {
+          reports.push(cachedSprint);
+          continue;
+        }
+
+        try {
+          const computed = await this.buildSprintReport(board, sprint);
+          this.setCacheValue(this.sprintReportCache, sprintCacheKey, computed);
+          reports.push(computed);
+        } catch (error) {
+          if (!this.isRetryableOperationalError(error)) {
+            throw error;
+          }
+
+          warnings.push('Jira rate limits or request timeouts interrupted board history analysis. Returning partial history.');
+          break;
+        }
+      }
+
+      if (reports.length === 0 && warnings.length > 0) {
+        throw new Error(
+          `${warnings[0]} Try lowering max sprints or tighten CODEXIA_JIRA_MAX_ISSUES_PER_SPRINT.`,
+        );
+      }
+
+      const low = reports.filter(r => r.integrity.risk === 'low').length;
+      const medium = reports.filter(r => r.integrity.risk === 'medium').length;
+      const high = reports.filter(r => r.integrity.risk === 'high').length;
+
+      const summary = {
+        sprintsAnalyzed: reports.length,
+        averageCompletionRate: this.round(this.average(reports.map(r => r.metrics.points.completionRate)), 1),
+        averageScopeCreepPct: this.round(this.average(reports.map(r => r.integrity.indicators.scopeCreepPct)), 1),
+        averagePointChurnPct: this.round(this.average(reports.map(r => r.integrity.indicators.pointChurnPct)), 1),
+        averageIntegrityScore: this.round(this.average(reports.map(r => r.integrity.score)), 1),
+        onTrackLikeSprints: reports.filter(r => r.health.status === 'on_track' || r.health.status === 'completed').length,
+        riskDistribution: {
+          low,
+          medium,
+          high,
+        },
+      };
+
+      const mappedSprints = reports.map((report, index) => ({
         id: report.sprint.id,
         name: report.sprint.name,
         state: report.sprint.state,
@@ -380,9 +504,30 @@ export class JiraAnalyticsService {
         integrityRisk: report.integrity.risk,
         integrityScore: report.integrity.score,
         healthStatus: report.health.status,
-        flags: report.integrity.flags,
-      })),
-    };
+        flags: index === 0 && warnings.length > 0
+          ? [...report.integrity.flags, ...warnings]
+          : report.integrity.flags,
+      }));
+
+      const boardHistoryReport = {
+        board: {
+          id: board.id,
+          name: board.name,
+        },
+        summary,
+        sprints: mappedSprints,
+      };
+
+      this.setCacheValue(this.boardHistoryCache, historyCacheKey, boardHistoryReport);
+      return boardHistoryReport;
+    })();
+
+    this.boardHistoryInFlight.set(historyCacheKey, task);
+    try {
+      return await task;
+    } finally {
+      this.boardHistoryInFlight.delete(historyCacheKey);
+    }
   }
 
   private async buildSprintReport(board: JiraApiBoard, sprint: JiraApiSprint): Promise<JiraSprintReport> {
@@ -397,11 +542,20 @@ export class JiraAnalyticsService {
       fields.push(sprintFieldId);
     }
 
-    const issues = await this.searchIssues(
-      `sprint = ${sprint.id} OR sprint WAS ${sprint.id}`,
-      fields,
-      true,
-    );
+    let sprintIssueSearch: SprintIssueSearchResult;
+    let changelogFallback = false;
+    try {
+      sprintIssueSearch = await this.getSprintIssuesForAnalysis(sprint.id, fields, true);
+    } catch (error) {
+      if (!this.isRetryableOperationalError(error)) {
+        throw error;
+      }
+
+      sprintIssueSearch = await this.getSprintIssuesForAnalysis(sprint.id, fields, false);
+      changelogFallback = true;
+    }
+
+    const issues = sprintIssueSearch.issues;
 
     const now = new Date();
     const sprintStart = this.tryParseDate(sprint.startDate);
@@ -517,6 +671,15 @@ export class JiraAnalyticsService {
     const removedRatio = issues.length > 0 ? removedDuringSprintIssues / issues.length : 0;
 
     const integrity = this.assessIntegrity(scopeCreepRatio, pointChurnRatio, carryoverRatio, removedRatio);
+    if (sprintIssueSearch.coverage === 'partial') {
+      integrity.flags.push('Historical sprint membership is unavailable for this Jira tenant; metrics are based on current sprint scope only.');
+    }
+    if (sprintIssueSearch.truncated) {
+      integrity.flags.push(`Issue sample truncated at ${this.maxIssuesPerSprint} for performance; metrics may be approximate on very large sprints.`);
+    }
+    if (changelogFallback) {
+      integrity.flags.push('Changelog expansion was skipped due Jira load/rate limits; point churn metrics are likely understated.');
+    }
 
     const health = this.assessSprintHealth({
       state: sprint.state,
@@ -1027,14 +1190,168 @@ export class JiraAnalyticsService {
     return results.slice(0, maxItems);
   }
 
-  private async searchIssues(jql: string, fields: string[], includeChangelog: boolean): Promise<JiraIssue[]> {
+  private async searchIssues(jql: string, fields: string[], includeChangelog: boolean): Promise<JiraSearchIssuesResult> {
     const issues: JiraIssue[] = [];
-    const maxResults = 50;
+    const maxResults = 100;
     let startAt = 0;
+    let nextPageToken: string | undefined;
+    const seenPageTokens = new Set<string>();
+    let truncated = false;
+    const startedAt = Date.now();
 
     while (true) {
-      const response = await this.requestCore<JiraSearchResponse>('/search', {
-        jql,
+      if ((Date.now() - startedAt) >= this.sprintSearchTimeBudgetMs) {
+        truncated = true;
+        break;
+      }
+
+      let response: JiraSearchResponse;
+      try {
+        response = await this.requestCore<JiraSearchResponse>('/search/jql', {
+          jql,
+          fields: fields.join(','),
+          expand: includeChangelog ? 'changelog' : undefined,
+          maxResults,
+          startAt: nextPageToken ? undefined : startAt,
+          nextPageToken,
+        });
+      } catch (error) {
+        if (!this.isHttpStatusError(error, 404) && !this.isHttpStatusError(error, 405)) {
+          throw error;
+        }
+
+        // Compatibility fallback for tenants that still expose /search.
+        response = await this.requestCore<JiraSearchResponse>('/search', {
+          jql,
+          fields: fields.join(','),
+          expand: includeChangelog ? 'changelog' : undefined,
+          maxResults,
+          startAt,
+        });
+      }
+
+      issues.push(...(response.issues || []));
+
+      if (issues.length >= this.maxIssuesPerSprint) {
+        truncated = true;
+        issues.length = this.maxIssuesPerSprint;
+        break;
+      }
+
+      if (!response.issues || response.issues.length === 0) {
+        break;
+      }
+
+      if (response.nextPageToken) {
+        if (seenPageTokens.has(response.nextPageToken)) {
+          break;
+        }
+        seenPageTokens.add(response.nextPageToken);
+        nextPageToken = response.nextPageToken;
+        continue;
+      }
+
+      const loaded = startAt + response.issues.length;
+      if (loaded >= response.total) {
+        break;
+      }
+
+      startAt += response.issues.length;
+    }
+
+    return { issues, truncated };
+  }
+
+  private async getSprintIssuesForAnalysis(
+    sprintId: number,
+    fields: string[],
+    includeChangelog: boolean,
+  ): Promise<SprintIssueSearchResult> {
+    if (this.sprintMembershipMode === 'currentOnly') {
+      try {
+        const agileResult = await this.fetchSprintIssuesCurrentScope(sprintId, fields, includeChangelog);
+        this.sprintHistoryJqlMode = 'currentOnly';
+        return {
+          issues: agileResult.issues,
+          coverage: 'partial',
+          truncated: agileResult.truncated,
+        };
+      } catch {
+        // Fall through to JQL strategy if sprint issue endpoint is unavailable.
+      }
+    }
+
+    const modeToStrategy: Record<'was' | 'changed' | 'currentOnly', { jql: string; coverage: 'full' | 'partial' }> = {
+      was: {
+        jql: `sprint = ${sprintId} OR sprint WAS ${sprintId}`,
+        coverage: 'full',
+      },
+      changed: {
+        jql: `sprint = ${sprintId} OR sprint CHANGED TO ${sprintId} OR sprint CHANGED FROM ${sprintId}`,
+        coverage: 'full',
+      },
+      currentOnly: {
+        jql: `sprint = ${sprintId}`,
+        coverage: 'partial',
+      },
+    };
+
+    const strategyOrder: Array<'was' | 'changed' | 'currentOnly'> = this.sprintHistoryJqlMode === 'unknown'
+      ? ['was', 'changed', 'currentOnly']
+      : [this.sprintHistoryJqlMode, 'currentOnly'];
+
+    let lastError: unknown = null;
+    for (const mode of strategyOrder) {
+      const strategy = modeToStrategy[mode];
+      try {
+        const result = await this.searchIssues(strategy.jql, fields, includeChangelog);
+        if (mode !== 'currentOnly') {
+          this.sprintHistoryJqlMode = mode;
+        } else {
+          this.sprintHistoryJqlMode = 'currentOnly';
+        }
+        return {
+          issues: result.issues,
+          coverage: strategy.coverage,
+          truncated: result.truncated,
+        };
+      } catch (error) {
+        lastError = error;
+        if (!this.isHttpStatusError(error, 400)) {
+          throw error;
+        }
+
+        if (mode === this.sprintHistoryJqlMode) {
+          this.sprintHistoryJqlMode = 'unknown';
+        }
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error('Jira query failed for all sprint issue retrieval strategies.');
+  }
+
+  private async fetchSprintIssuesCurrentScope(
+    sprintId: number,
+    fields: string[],
+    includeChangelog: boolean,
+  ): Promise<JiraSearchIssuesResult> {
+    const issues: JiraIssue[] = [];
+    const maxResults = 100;
+    let startAt = 0;
+    let truncated = false;
+    const startedAt = Date.now();
+
+    while (true) {
+      if ((Date.now() - startedAt) >= this.sprintSearchTimeBudgetMs) {
+        truncated = true;
+        break;
+      }
+
+      const response = await this.requestAgile<JiraSearchResponse>(`/sprint/${sprintId}/issue`, {
         fields: fields.join(','),
         expand: includeChangelog ? 'changelog' : undefined,
         maxResults,
@@ -1042,6 +1359,12 @@ export class JiraAnalyticsService {
       });
 
       issues.push(...(response.issues || []));
+
+      if (issues.length >= this.maxIssuesPerSprint) {
+        truncated = true;
+        issues.length = this.maxIssuesPerSprint;
+        break;
+      }
 
       if (!response.issues || response.issues.length === 0) {
         break;
@@ -1055,7 +1378,20 @@ export class JiraAnalyticsService {
       startAt += response.issues.length;
     }
 
-    return issues;
+    return { issues, truncated };
+  }
+
+  private async getSprintById(boardId: number, sprintId: number): Promise<JiraApiSprint> {
+    try {
+      return await this.requestAgile<JiraApiSprint>(`/sprint/${sprintId}`);
+    } catch (error) {
+      if (!this.isHttpStatusError(error, 404)) {
+        throw error;
+      }
+
+      // Compatibility fallback for older Agile route variants.
+      return this.requestAgile<JiraApiSprint>(`/board/${boardId}/sprint/${sprintId}`);
+    }
   }
 
   private async requestAgile<T>(
@@ -1088,17 +1424,119 @@ export class JiraAnalyticsService {
       }
     }
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: this.getAuthHeaders(),
-    });
+    for (let attempt = 0; attempt <= this.requestRetryMax; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+      let response: Response;
+      try {
+        response = await fetch(url.toString(), {
+          method: 'GET',
+          headers: this.getAuthHeaders(),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timeout);
+        if (this.isAbortError(error) && attempt < this.requestRetryMax) {
+          const delayMs = this.getRetryDelayMs(undefined, attempt);
+          await this.sleep(delayMs);
+          continue;
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
 
-    if (!response.ok) {
+      if (response.ok) {
+        return response.json() as Promise<T>;
+      }
+
       const text = await response.text();
+      const canRetry = this.shouldRetry(response.status) && attempt < this.requestRetryMax;
+      if (canRetry) {
+        const delayMs = this.getRetryDelayMs(response, attempt);
+        await this.sleep(delayMs);
+        continue;
+      }
+
       throw new Error(`Jira request failed (${response.status}): ${text.slice(0, 300)}`);
     }
 
-    return response.json() as Promise<T>;
+    throw new Error('Jira request failed after retry attempts were exhausted.');
+  }
+
+  private isHttpStatusError(error: unknown, status: number): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    return error.message.includes(`(${status})`);
+  }
+
+  private shouldRetry(status: number): boolean {
+    return status === 429 || status === 502 || status === 503 || status === 504;
+  }
+
+  private isRetryableOperationalError(error: unknown): boolean {
+    if (this.isAbortError(error)) {
+      return true;
+    }
+
+    return this.shouldRetryStatusInErrorMessage(error, [429, 502, 503, 504]);
+  }
+
+  private shouldRetryStatusInErrorMessage(error: unknown, statuses: number[]): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    return statuses.some((status) => error.message.includes(`(${status})`));
+  }
+
+  private getRetryDelayMs(response: Response | undefined, attempt: number): number {
+    if (!response) {
+      const exponential = Math.min(this.requestRetryMaxMs, this.requestRetryBaseMs * (2 ** attempt));
+      const jitter = Math.floor(Math.random() * 250);
+      return Math.min(this.requestRetryMaxMs, exponential + jitter);
+    }
+
+    const retryAfter = response.headers.get('retry-after');
+    if (retryAfter) {
+      const asNumber = Number.parseInt(retryAfter, 10);
+      if (Number.isFinite(asNumber) && asNumber > 0) {
+        return Math.min(this.requestRetryMaxMs, asNumber * 1000);
+      }
+
+      const asDate = Date.parse(retryAfter);
+      if (!Number.isNaN(asDate)) {
+        const fromDate = asDate - Date.now();
+        if (fromDate > 0) {
+          return Math.min(this.requestRetryMaxMs, fromDate);
+        }
+      }
+    }
+
+    const reset = response.headers.get('x-ratelimit-reset');
+    if (reset) {
+      const resetSeconds = Number.parseInt(reset, 10);
+      if (Number.isFinite(resetSeconds) && resetSeconds > 0) {
+        const delay = (resetSeconds * 1000) - Date.now();
+        if (delay > 0) {
+          return Math.min(this.requestRetryMaxMs, delay);
+        }
+      }
+    }
+
+    const exponential = Math.min(this.requestRetryMaxMs, this.requestRetryBaseMs * (2 ** attempt));
+    const jitter = Math.floor(Math.random() * 250);
+    return Math.min(this.requestRetryMaxMs, exponential + jitter);
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && (error.name === 'AbortError' || error.message.toLowerCase().includes('abort'));
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private getAuthHeaders(): Record<string, string> {
@@ -1174,34 +1612,25 @@ export class JiraAnalyticsService {
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   }
 
-  private async mapWithConcurrency<T, R>(
-    items: T[],
-    concurrency: number,
-    mapper: (item: T) => Promise<R>,
-  ): Promise<R[]> {
-    if (items.length === 0) {
-      return [];
+  private getCacheValue<T>(cache: Map<string, JiraCacheEntry<T>>, key: string): T | null {
+    const entry = cache.get(key);
+    if (!entry) {
+      return null;
     }
 
-    const results: R[] = new Array(items.length);
-    let nextIndex = 0;
+    if (entry.expiresAt <= Date.now()) {
+      cache.delete(key);
+      return null;
+    }
 
-    const worker = async (): Promise<void> => {
-      while (true) {
-        const currentIndex = nextIndex;
-        nextIndex += 1;
-
-        if (currentIndex >= items.length) {
-          return;
-        }
-
-        results[currentIndex] = await mapper(items[currentIndex]);
-      }
-    };
-
-    const workerCount = Math.max(1, Math.min(concurrency, items.length));
-    await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-    return results;
+    return entry.value;
   }
+
+  private setCacheValue<T>(cache: Map<string, JiraCacheEntry<T>>, key: string, value: T): void {
+    cache.set(key, {
+      value,
+      expiresAt: Date.now() + this.cacheTtlMs,
+    });
+  }
+
 }

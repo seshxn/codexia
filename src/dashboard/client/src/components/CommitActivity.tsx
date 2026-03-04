@@ -1,12 +1,13 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Clock, Calendar, TrendingUp } from 'lucide-react';
 import type { ActivityData } from '../types';
+import { CHART_TOOLTIP_PROPS } from './chartTheme';
 
 interface CommitActivityProps {
   data: ActivityData;
 }
 
-export function CommitActivity({ data }: CommitActivityProps) {
+export const CommitActivity = ({ data }: CommitActivityProps) => {
   if (!data || !data.activityByHour) {
     return (
       <div className="flex items-center justify-center h-48 text-neutral-600">
@@ -65,12 +66,7 @@ export function CommitActivity({ data }: CommitActivityProps) {
               />
               <YAxis hide />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                }}
-                labelStyle={{ color: '#f8fafc' }}
+                {...CHART_TOOLTIP_PROPS}
               />
               <Bar dataKey="count" radius={[2, 2, 0, 0]}>
                 {data.activityByHour.map((entry, index) => (
@@ -99,12 +95,7 @@ export function CommitActivity({ data }: CommitActivityProps) {
                 width={40}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                }}
-                labelStyle={{ color: '#f8fafc' }}
+                {...CHART_TOOLTIP_PROPS}
               />
               <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                 {data.activityByDayOfWeek.map((entry, index) => (
@@ -123,4 +114,4 @@ export function CommitActivity({ data }: CommitActivityProps) {
       </div>
     </div>
   );
-}
+};

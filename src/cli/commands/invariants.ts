@@ -118,7 +118,7 @@ Examples:
     }
   });
 
-function generateExampleConfig(): string {
+const generateExampleConfig = (): string => {
   return `# Codexia Architectural Invariants
 # Define rules to enforce codebase conventions
 
@@ -189,4 +189,4 @@ rules:
         canImport: [application]
     severity: error
 `;
-}
+};

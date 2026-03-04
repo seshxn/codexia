@@ -1,9 +1,6 @@
 import type { ImpactResult } from '../../core/types.js';
 
-/**
- * Build a prompt for explaining impact analysis results
- */
-export function buildImpactExplanationPrompt(impact: ImpactResult): string {
+export const buildImpactExplanationPrompt = (impact: ImpactResult): string => {
   const changedSymbols = impact.directlyChanged
     .slice(0, 15)
     .map(c => `- ${c.changeType.toUpperCase()}: ${c.symbol.kind} \`${c.symbol.name}\` in ${c.symbol.filePath}`)
@@ -52,4 +49,4 @@ Write a clear, concise explanation (3-5 sentences) that:
 4. Provides one actionable recommendation
 
 Use plain language that both senior and junior developers can understand. Be specific about file names and module boundaries.`;
-}
+};

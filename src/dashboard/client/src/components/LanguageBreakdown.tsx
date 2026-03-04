@@ -1,4 +1,5 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { CHART_TOOLTIP_PROPS } from './chartTheme';
 
 interface LanguageBreakdownProps {
   languages: Record<string, number>;
@@ -15,7 +16,7 @@ const COLORS = [
   '#f97316', // orange
 ];
 
-export function LanguageBreakdown({ languages }: LanguageBreakdownProps) {
+export const LanguageBreakdown = ({ languages }: LanguageBreakdownProps) => {
   const data = Object.entries(languages)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value)
@@ -50,12 +51,8 @@ export function LanguageBreakdown({ languages }: LanguageBreakdownProps) {
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{
-                backgroundColor: '#1e293b',
-                border: '1px solid #475569',
-                borderRadius: '8px',
-              }}
-              labelStyle={{ color: '#f8fafc' }}
+              {...CHART_TOOLTIP_PROPS}
+              formatter={(value: number, name: string) => [value.toLocaleString(), name]}
             />
           </PieChart>
         </ResponsiveContainer>
@@ -76,4 +73,4 @@ export function LanguageBreakdown({ languages }: LanguageBreakdownProps) {
       </div>
     </div>
   );
-}
+};

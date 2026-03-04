@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GitCommit, User, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Commit } from '../types';
+import { AvatarImage } from './AvatarImage';
 
 interface RecentCommitsProps {
   commits: Commit[];
@@ -8,7 +9,7 @@ interface RecentCommitsProps {
   onCommitClick?: (commit: Commit) => void;
 }
 
-export function RecentCommits({ commits, limit = 20, onCommitClick }: RecentCommitsProps) {
+export const RecentCommits = ({ commits, limit = 20, onCommitClick }: RecentCommitsProps) => {
   const [showAll, setShowAll] = useState(false);
   const displayedCommits = showAll ? commits : commits.slice(0, limit);
   const hasMore = commits.length > limit;
@@ -34,13 +35,13 @@ export function RecentCommits({ commits, limit = 20, onCommitClick }: RecentComm
             className={`flex items-start gap-3 p-3 rounded-lg bg-neutral-900/50 border border-neutral-800 hover:border-neutral-700 transition-colors ${onCommitClick ? 'cursor-pointer hover:bg-neutral-900/50' : ''}`}
           >
             {/* Avatar */}
-            <img
+            <AvatarImage
               src={commit.avatar}
-              alt={commit.author}
+              name={commit.author}
               className="w-8 h-8 rounded-full bg-neutral-800 flex-shrink-0"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(commit.author)}&background=334155&color=f8fafc&size=32`;
-              }}
+              size={32}
+              background="334155"
+              color="f8fafc"
             />
 
             <div className="flex-1 min-w-0">
@@ -82,4 +83,4 @@ export function RecentCommits({ commits, limit = 20, onCommitClick }: RecentComm
       )}
     </div>
   );
-}
+};
