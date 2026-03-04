@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Trophy, GitCommit, TrendingUp, User, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Contributor } from '../types';
+import { AvatarImage } from './AvatarImage';
 
 interface ContributorsListProps {
   contributors: Contributor[];
@@ -10,7 +11,7 @@ interface ContributorsListProps {
   onContributorClick?: (contributor: Contributor) => void;
 }
 
-export function ContributorsList({ contributors, totalContributors, activeContributors, limit = 10, onContributorClick }: ContributorsListProps) {
+export const ContributorsList = ({ contributors, totalContributors, activeContributors, limit = 10, onContributorClick }: ContributorsListProps) => {
   const [showAll, setShowAll] = useState(false);
   const displayedContributors = showAll ? contributors : contributors.slice(0, limit);
   const hasMore = contributors.length > limit;
@@ -64,13 +65,10 @@ export function ContributorsList({ contributors, totalContributors, activeContri
               </div>
 
               {/* Avatar */}
-              <img
+              <AvatarImage
                 src={contributor.avatar}
-                alt={contributor.name}
+                name={contributor.name}
                 className="w-10 h-10 rounded-full bg-neutral-800 ring-2 ring-neutral-700"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(contributor.name)}&background=171717&color=fafafa`;
-                }}
               />
 
               {/* Info */}
@@ -124,4 +122,4 @@ export function ContributorsList({ contributors, totalContributors, activeContri
       )}
     </div>
   );
-}
+};

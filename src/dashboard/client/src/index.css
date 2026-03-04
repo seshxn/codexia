@@ -177,9 +177,9 @@ body {
 /* Tab panel transitions */
 .tab-panel {
   transition:
-    opacity 180ms ease,
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 220ms ease;
+    opacity var(--tab-transition-ms, 180ms) ease,
+    transform calc(var(--tab-transition-ms, 180ms) + 40ms) cubic-bezier(0.22, 1, 0.36, 1),
+    filter calc(var(--tab-transition-ms, 180ms) + 40ms) ease;
   will-change: opacity, transform, filter;
 }
 
@@ -194,4 +194,29 @@ body {
   transform: translateY(10px) scale(0.995);
   filter: blur(2px);
   pointer-events: none;
+}
+
+@keyframes tabContentIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-content {
+  animation: tabContentIn calc(var(--tab-transition-ms, 180ms) + 80ms) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-panel {
+    transition: none;
+  }
+
+  .tab-content {
+    animation: none;
+  }
 }

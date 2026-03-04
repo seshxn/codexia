@@ -170,7 +170,7 @@ const categories: CommandCategory[] = [
 // Custom gradient for Codexia branding
 const codexiaGradient = gradient(['#6366f1', '#8b5cf6', '#a855f7']);
 
-function printBanner(): void {
+const printBanner = (): void => {
   const logo = `
    ██████╗ ██████╗ ██████╗ ███████╗██╗  ██╗██╗ █████╗ 
   ██╔════╝██╔═══██╗██╔══██╗██╔════╝╚██╗██╔╝██║██╔══██╗
@@ -194,9 +194,9 @@ function printBanner(): void {
   );
   console.log(tagline);
   console.log();
-}
+};
 
-export async function selectCategory(): Promise<string> {
+export const selectCategory = async (): Promise<string> => {
   return select({
     message: chalk.bold('What would you like to do?'),
     choices: categories.map((cat) => ({
@@ -204,9 +204,9 @@ export async function selectCategory(): Promise<string> {
       value: cat.value,
     })),
   });
-}
+};
 
-export async function selectCommand(categoryValue: string): Promise<string> {
+export const selectCommand = async (categoryValue: string): Promise<string> => {
   const category = categories.find((c) => c.value === categoryValue);
   if (!category) throw new Error('Invalid category');
 
@@ -224,9 +224,9 @@ export async function selectCommand(categoryValue: string): Promise<string> {
       { name: `  ${chalk.yellow('◀')} ${chalk.yellow('Back to categories')}`, value: 'back' },
     ],
   });
-}
+};
 
-export async function getCommandOptions(command: string): Promise<Record<string, unknown>> {
+export const getCommandOptions = async (command: string): Promise<Record<string, unknown>> => {
   const options: Record<string, unknown> = {};
 
   // Command-specific prompts
@@ -284,17 +284,17 @@ export async function getCommandOptions(command: string): Promise<Record<string,
   }
 
   return options;
-}
+};
 
-function createSpinner(text: string) {
+const createSpinner = (text: string) => {
   return ora({
     text,
     spinner: 'dots',
     color: 'magenta',
   });
-}
+};
 
-export async function executeCommand(command: string, options: Record<string, unknown>): Promise<void> {
+export const executeCommand = async (command: string, options: Record<string, unknown>): Promise<void> => {
   const formatter = new Formatter(options.json as boolean);
   const engine = new CodexiaEngine();
 
@@ -575,10 +575,10 @@ rules:
   } catch (error) {
     console.error(formatter.formatError(error as Error));
   }
-}
+};
 
 // Helper formatters for commands without dedicated formatter methods
-function formatComplexityResult(result: ComplexityResult): void {
+const formatComplexityResult = (result: ComplexityResult): void => {
   const maintainability = result.summary.averageMaintainability;
   const maintColor = maintainability >= 70 ? 'green' : maintainability >= 50 ? 'yellow' : 'red';
   
@@ -606,9 +606,9 @@ function formatComplexityResult(result: ComplexityResult): void {
     }
   }
   console.log();
-}
+};
 
-function formatHistoryResult(result: HistoryResult): void {
+const formatHistoryResult = (result: HistoryResult): void => {
   console.log(
     boxen(
       `${chalk.bold('📜 History Analysis')}\n\n` +
@@ -624,9 +624,9 @@ function formatHistoryResult(result: HistoryResult): void {
     )
   );
   console.log();
-}
+};
 
-function formatInvariantsResult(result: InvariantsResult): void {
+const formatInvariantsResult = (result: InvariantsResult): void => {
   const statusIcon = result.passed ? chalk.green('✓') : chalk.red('✗');
   const statusText = result.passed ? chalk.green('All invariants passed') : chalk.red('Violations found');
   const borderColor = result.passed ? 'green' : 'red';
@@ -660,9 +660,9 @@ function formatInvariantsResult(result: InvariantsResult): void {
     }
   }
   console.log();
-}
+};
 
-function formatHotPathsResult(result: HotPathsResult): void {
+const formatHotPathsResult = (result: HotPathsResult): void => {
   console.log(
     boxen(
       `${chalk.bold('🔥 Hot Paths Analysis')}\n\n` +
@@ -678,9 +678,9 @@ function formatHotPathsResult(result: HotPathsResult): void {
     )
   );
   console.log();
-}
+};
 
-function formatChangelogResult(result: ChangelogResult): void {
+const formatChangelogResult = (result: ChangelogResult): void => {
   let statsLine = '';
   if (result.stats) {
     statsLine = `  ${chalk.cyan(result.stats.commits)} commits  ${chalk.green('+' + result.stats.additions)}  ${chalk.red('-' + result.stats.deletions)}`;
@@ -724,9 +724,9 @@ function formatChangelogResult(result: ChangelogResult): void {
     console.log(chalk.gray('\n  No changelog entries found'));
   }
   console.log();
-}
+};
 
-function formatMonorepoResult(result: MonorepoResult): void {
+const formatMonorepoResult = (result: MonorepoResult): void => {
   if (!result.type) {
     console.log(
       boxen(
@@ -771,9 +771,9 @@ function formatMonorepoResult(result: MonorepoResult): void {
     }
   }
   console.log();
-}
+};
 
-export async function runInteractiveWizard(): Promise<void> {
+export const runInteractiveWizard = async (): Promise<void> => {
   printBanner();
 
   let running = true;
@@ -826,10 +826,10 @@ export async function runInteractiveWizard(): Promise<void> {
     )
   );
   console.log();
-}
+};
 
 // Quick command for direct access without category selection
-export async function runQuickCommand(): Promise<void> {
+export const runQuickCommand = async (): Promise<void> => {
   printBanner();
 
   const allCommands = categories.flatMap((cat) =>
@@ -852,4 +852,4 @@ export async function runQuickCommand(): Promise<void> {
       throw error;
     }
   }
-}
+};

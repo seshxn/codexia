@@ -364,13 +364,7 @@ export class CodexiaWatcher extends EventEmitter {
   }
 }
 
-/**
- * Start watch mode
- */
-export async function startWatchMode(
-  repoRoot: string,
-  options?: Partial<WatchOptions>
-): Promise<CodexiaWatcher> {
+export const startWatchMode = async (repoRoot: string, options?: Partial<WatchOptions>): Promise<CodexiaWatcher> => {
   const watcher = new CodexiaWatcher(repoRoot, options);
   await watcher.start();
   
@@ -382,4 +376,4 @@ export async function startWatchMode(
   });
 
   return watcher;
-}
+};

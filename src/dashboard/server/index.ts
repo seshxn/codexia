@@ -1260,7 +1260,7 @@ export class DashboardServer {
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' data: https://www.gravatar.com https://secure.gravatar.com https://*.gravatar.com; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'"
+      "default-src 'self'; img-src 'self' data: https://www.gravatar.com https://secure.gravatar.com https://*.gravatar.com https://avatars.githubusercontent.com https://ui-avatars.com; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'"
     );
   }
 
@@ -1663,17 +1663,8 @@ export class DashboardServer {
   }
 }
 
-/**
- * Start the dashboard server
- */
-export async function startDashboard(
-  engine: CodexiaEngine,
-  port: number,
-  open = false,
-  host?: string,
-  repoRoot?: string
-): Promise<DashboardServer> {
+export const startDashboard = async (engine: CodexiaEngine, port: number, open = false, host?: string, repoRoot?: string): Promise<DashboardServer> => {
   const server = new DashboardServer(engine, repoRoot);
   await server.start({ port, open, host });
   return server;
-}
+};

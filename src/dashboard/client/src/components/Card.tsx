@@ -8,7 +8,7 @@ interface CardProps {
   action?: React.ReactNode;
 }
 
-export function Card({ title, subtitle, children, className = '', action }: CardProps) {
+export const Card = ({ title, subtitle, children, className = '', action }: CardProps) => {
   return (
     <div className={`bg-neutral-900/50 rounded-2xl border border-neutral-800 overflow-hidden backdrop-blur-sm transition-all duration-300 hover:border-neutral-700 ${className}`}>
       <div className="px-6 py-4 border-b border-neutral-800/50 flex items-center justify-between">
@@ -21,7 +21,7 @@ export function Card({ title, subtitle, children, className = '', action }: Card
       <div className="p-6">{children}</div>
     </div>
   );
-}
+};
 
 interface StatCardProps {
   title: string;
@@ -51,13 +51,13 @@ const glowClasses = {
   cyan: 'shadow-cyan-500/20',
 };
 
-export function StatCard({
+export const StatCard = ({
   title,
   value,
   subtitle,
   icon,
   color = 'blue',
-}: StatCardProps) {
+}: StatCardProps) => {
   return (
     <div className="bg-neutral-900/50 rounded-2xl border border-neutral-800 p-5 backdrop-blur-sm transition-all duration-300 hover:border-neutral-700 hover:bg-neutral-900/70 group">
       <div className="flex items-start justify-between">
@@ -74,4 +74,4 @@ export function StatCard({
       </div>
     </div>
   );
-}
+};

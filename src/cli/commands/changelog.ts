@@ -80,7 +80,7 @@ Examples:
     }
   });
 
-function formatMarkdownChangelog(data: any, options: any): string {
+const formatMarkdownChangelog = (data: any, options: any): string => {
   const lines: string[] = [];
   
   // Handle both ChangelogEntry (from generator) and ChangelogData formats
@@ -198,9 +198,9 @@ function formatMarkdownChangelog(data: any, options: any): string {
   }
 
   return lines.join('\n');
-}
+};
 
-function formatPlainChangelog(data: any): string {
+const formatPlainChangelog = (data: any): string => {
   const lines: string[] = [];
   
   const stats = data.stats || data.summary || {};
@@ -234,4 +234,4 @@ function formatPlainChangelog(data: any): string {
   }
 
   return lines.join('\n');
-}
+};

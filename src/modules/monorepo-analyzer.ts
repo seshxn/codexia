@@ -579,13 +579,10 @@ export class MonorepoAnalyzer {
   }
 }
 
-/**
- * Detect and analyze monorepo
- */
-export async function analyzeMonorepo(repoRoot: string): Promise<MonorepoAnalysis> {
+export const analyzeMonorepo = async (repoRoot: string): Promise<MonorepoAnalysis> => {
   const detector = new MonorepoDetector(repoRoot);
   const config = await detector.detect();
   
   const analyzer = new MonorepoAnalyzer(config);
   return analyzer.analyze();
-}
+};

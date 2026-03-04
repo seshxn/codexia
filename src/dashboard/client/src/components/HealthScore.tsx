@@ -4,26 +4,26 @@ interface HealthScoreProps {
   onClick?: () => void;
 }
 
-function getScoreColor(score: number): string {
+const getScoreColor = (score: number): string => {
   if (score >= 80) return 'text-emerald-400';
   if (score >= 60) return 'text-amber-400';
   if (score >= 40) return 'text-orange-400';
   return 'text-red-400';
-}
+};
 
-function getScoreGradient(score: number): string {
+const getScoreGradient = (score: number): string => {
   if (score >= 80) return 'from-emerald-500 to-emerald-400';
   if (score >= 60) return 'from-amber-500 to-amber-400';
   if (score >= 40) return 'from-orange-500 to-orange-400';
   return 'from-red-500 to-red-400';
-}
+};
 
-function getScoreLabel(score: number): string {
+const getScoreLabel = (score: number): string => {
   if (score >= 80) return 'Excellent';
   if (score >= 60) return 'Good';
   if (score >= 40) return 'Fair';
   return 'Needs Attention';
-}
+};
 
 const sizeClasses = {
   sm: { container: 'w-24 h-24', text: 'text-2xl', label: 'text-xs' },
@@ -31,7 +31,7 @@ const sizeClasses = {
   lg: { container: 'w-40 h-40', text: 'text-4xl', label: 'text-base' },
 };
 
-export function HealthScore({ score, size = 'md', onClick }: HealthScoreProps) {
+export const HealthScore = ({ score, size = 'md', onClick }: HealthScoreProps) => {
   const classes = sizeClasses[size];
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference - (score / 100) * circumference;
@@ -86,4 +86,4 @@ export function HealthScore({ score, size = 'md', onClick }: HealthScoreProps) {
       </span>
     </div>
   );
-}
+};

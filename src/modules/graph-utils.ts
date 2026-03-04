@@ -43,12 +43,7 @@ export interface TransformedGraphData {
   leafNodes: string[];
 }
 
-/**
- * Transform engine's graph format to Visualizer's expected format
- * @param rawData - Graph data from engine (DependencyNode[] or RawGraphNode[])
- * @returns Transformed graph data with imports, importedBy, root and leaf nodes
- */
-export function transformGraphData(rawData: RawGraphData | EngineGraphData): TransformedGraphData {
+export const transformGraphData = (rawData: RawGraphData | EngineGraphData): TransformedGraphData => {
   const nodeMap = new Map<string, TransformedGraphNode>();
   
   // Initialize all nodes - handle both RawGraphNode (id) and DependencyNode (path)
@@ -87,4 +82,4 @@ export function transformGraphData(rawData: RawGraphData | EngineGraphData): Tra
     rootNodes,
     leafNodes,
   };
-}
+};

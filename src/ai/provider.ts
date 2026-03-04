@@ -3,10 +3,7 @@ import { OpenAIProvider } from './providers/openai.js';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { OllamaProvider } from './providers/ollama.js';
 
-/**
- * Create an AI provider based on configuration
- */
-export function createProvider(config: AIConfig): AIProvider {
+export const createProvider = (config: AIConfig): AIProvider => {
   switch (config.provider) {
     case 'openai':
       return new OpenAIProvider(config);
@@ -17,4 +14,4 @@ export function createProvider(config: AIConfig): AIProvider {
     default:
       throw new Error(`Unknown AI provider: ${config.provider}`);
   }
-}
+};

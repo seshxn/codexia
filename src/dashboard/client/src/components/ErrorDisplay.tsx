@@ -5,7 +5,7 @@ interface ErrorDisplayProps {
   onRetry?: () => void;
 }
 
-export function ErrorDisplay({ message, onRetry }: ErrorDisplayProps) {
+export const ErrorDisplay = ({ message, onRetry }: ErrorDisplayProps) => {
   return (
     <div className="flex items-center justify-center p-8">
       <div className="text-center">
@@ -23,4 +23,4 @@ export function ErrorDisplay({ message, onRetry }: ErrorDisplayProps) {
       </div>
     </div>
   );
-}
+};

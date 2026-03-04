@@ -1,10 +1,6 @@
 import type { AIConfig } from './types.js';
 
-/**
- * Load AI configuration from environment variables.
- * Returns null if AI is not configured - this signals graceful fallback.
- */
-export function getAIConfig(): AIConfig | null {
+export const getAIConfig = (): AIConfig | null => {
   const provider = process.env.CODEXIA_AI_PROVIDER as AIConfig['provider'] | undefined;
   const apiKey = process.env.CODEXIA_AI_API_KEY;
   const baseUrl = process.env.CODEXIA_AI_BASE_URL;
@@ -35,9 +31,9 @@ export function getAIConfig(): AIConfig | null {
     baseUrl,
     model: model || getDefaultModel(provider),
   };
-}
+};
 
-function getDefaultModel(provider: AIConfig['provider']): string {
+const getDefaultModel = (provider: AIConfig['provider']): string => {
   switch (provider) {
     case 'openai':
       return 'gpt-4o';
@@ -48,11 +44,8 @@ function getDefaultModel(provider: AIConfig['provider']): string {
     default:
       return 'gpt-4o';
   }
-}
+};
 
-/**
- * Check if AI is enabled (has valid configuration)
- */
-export function isAIEnabled(): boolean {
+export const isAIEnabled = (): boolean => {
   return getAIConfig() !== null;
-}
+};
