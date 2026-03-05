@@ -62,6 +62,28 @@ interface JiraSearchResponse {
   issues: JiraIssue[];
 }
 
+interface JiraGreenhopperIssueStatistic {
+  statFieldId?: string;
+  statFieldValue?: {
+    value?: number | string;
+  } | null;
+}
+
+interface JiraGreenhopperIssue {
+  key?: string;
+  estimateStatistic?: JiraGreenhopperIssueStatistic;
+  currentEstimateStatistic?: JiraGreenhopperIssueStatistic;
+}
+
+interface JiraGreenhopperSprintReport {
+  contents?: {
+    completedIssues?: JiraGreenhopperIssue[];
+    issuesNotCompletedInCurrentSprint?: JiraGreenhopperIssue[];
+    puntedIssues?: JiraGreenhopperIssue[];
+    issueKeysAddedDuringSprint?: Record<string, unknown>;
+  };
+}
+
 interface SprintMembershipEvent {
   type: 'enter' | 'leave';
   at: Date;
@@ -209,6 +231,7 @@ export class JiraAnalyticsService {
   private readonly baseUrl: string | null;
   private readonly basicAuth: string | null;
   private readonly bearerToken: string | null;
+  private readonly useGreenhopperSprintReport: boolean;
   private storyPointsFieldId: string | null | undefined;
   private sprintFieldId: string | null | undefined;
 
@@ -224,6 +247,9 @@ export class JiraAnalyticsService {
 
     const bearerToken = (env.CODEXIA_JIRA_BEARER_TOKEN || '').trim();
     this.bearerToken = bearerToken || null;
+
+    const greenhopperMode = (env.CODEXIA_JIRA_USE_GREENHOPPER_REPORT || 'true').trim().toLowerCase();
+    this.useGreenhopperSprintReport = greenhopperMode !== 'false' && greenhopperMode !== '0' && greenhopperMode !== 'no';
   }
 
   getConfig(): JiraConfig {
@@ -386,6 +412,11 @@ export class JiraAnalyticsService {
   }
 
   private async buildSprintReport(board: JiraApiBoard, sprint: JiraApiSprint): Promise<JiraSprintReport> {
+    const greenhopperReport = await this.tryBuildSprintReportFromGreenhopper(board, sprint);
+    if (greenhopperReport) {
+      return greenhopperReport;
+    }
+
     const storyPointsFieldId = await this.getStoryPointsFieldId();
     const sprintFieldId = await this.getSprintFieldId();
 
@@ -569,6 +600,235 @@ export class JiraAnalyticsService {
         },
       },
     };
+  }
+
+  private async tryBuildSprintReportFromGreenhopper(
+    board: JiraApiBoard,
+    sprint: JiraApiSprint,
+  ): Promise<JiraSprintReport | null> {
+    if (!this.useGreenhopperSprintReport) {
+      return null;
+    }
+
+    try {
+      const payload = await this.getGreenhopperSprintReport(board.id, sprint.id);
+      return this.buildSprintReportFromGreenhopperPayload(board, sprint, payload);
+    } catch {
+      return null;
+    }
+  }
+
+  private async getGreenhopperSprintReport(boardId: number, sprintId: number): Promise<JiraGreenhopperSprintReport> {
+    return this.request<JiraGreenhopperSprintReport>(
+      '/rest/greenhopper/1.0/rapid/charts/sprintreport',
+      { rapidViewId: boardId, sprintId },
+    );
+  }
+
+  private buildSprintReportFromGreenhopperPayload(
+    board: JiraApiBoard,
+    sprint: JiraApiSprint,
+    payload: JiraGreenhopperSprintReport,
+  ): JiraSprintReport {
+    const contents = payload.contents || {};
+    const completed = Array.isArray(contents.completedIssues) ? contents.completedIssues : [];
+    const notCompleted = Array.isArray(contents.issuesNotCompletedInCurrentSprint) ? contents.issuesNotCompletedInCurrentSprint : [];
+    const punted = Array.isArray(contents.puntedIssues) ? contents.puntedIssues : [];
+    const addedKeys = new Set<string>(
+      contents.issueKeysAddedDuringSprint && typeof contents.issueKeysAddedDuringSprint === 'object'
+        ? Object.keys(contents.issueKeysAddedDuringSprint)
+        : [],
+    );
+
+    const committedCompleted = completed.filter((issue) => {
+      const key = this.getGreenhopperIssueKey(issue);
+      return key && !addedKeys.has(key);
+    });
+    const addedCompleted = completed.filter((issue) => {
+      const key = this.getGreenhopperIssueKey(issue);
+      return key && addedKeys.has(key);
+    });
+    const committedNotCompleted = notCompleted.filter((issue) => {
+      const key = this.getGreenhopperIssueKey(issue);
+      return key && !addedKeys.has(key);
+    });
+    const addedNotCompleted = notCompleted.filter((issue) => {
+      const key = this.getGreenhopperIssueKey(issue);
+      return key && addedKeys.has(key);
+    });
+    const committedPunted = punted.filter((issue) => {
+      const key = this.getGreenhopperIssueKey(issue);
+      return key && !addedKeys.has(key);
+    });
+    const addedPunted = punted.filter((issue) => {
+      const key = this.getGreenhopperIssueKey(issue);
+      return key && addedKeys.has(key);
+    });
+
+    const committedCompletedPts = this.sumGreenhopperPoints(committedCompleted, 'estimateStatistic');
+    const committedNotCompletedPts = this.sumGreenhopperPoints(committedNotCompleted, 'estimateStatistic');
+    const addedCompletedPts = this.sumGreenhopperPoints(addedCompleted, 'estimateStatistic');
+    const addedNotCompletedPts = this.sumGreenhopperPoints(addedNotCompleted, 'estimateStatistic');
+    const committedRemovedPts = this.sumGreenhopperPoints(committedPunted, 'estimateStatistic');
+    const addedRemovedPts = this.sumGreenhopperPoints(addedPunted, 'estimateStatistic');
+
+    const removedPts = committedRemovedPts + addedRemovedPts;
+    const initialCommitmentPts = committedCompletedPts + committedNotCompletedPts + committedRemovedPts;
+    const totalAddedPts = addedCompletedPts + addedNotCompletedPts + addedRemovedPts;
+    const finalScopePts = Math.max(
+      0,
+      initialCommitmentPts - committedRemovedPts + addedCompletedPts + addedNotCompletedPts,
+    );
+    const totalCompletedPts = committedCompletedPts + addedCompletedPts;
+    const totalNotCompletedPts = committedNotCompletedPts + addedNotCompletedPts;
+
+    const allIssuesByKey = new Map<string, JiraGreenhopperIssue>();
+    for (const issue of [...completed, ...notCompleted, ...punted]) {
+      const key = this.getGreenhopperIssueKey(issue);
+      if (!key || allIssuesByKey.has(key)) {
+        continue;
+      }
+      allIssuesByKey.set(key, issue);
+    }
+
+    let changedIssueCount = 0;
+    let absolutePointChange = 0;
+    let netPointChange = 0;
+    for (const issue of allIssuesByKey.values()) {
+      const original = this.extractGreenhopperPoints(issue, 'estimateStatistic');
+      const current = this.extractGreenhopperPoints(issue, 'currentEstimateStatistic');
+      if (original === current) {
+        continue;
+      }
+
+      changedIssueCount++;
+      const delta = current - original;
+      absolutePointChange += Math.abs(delta);
+      netPointChange += delta;
+    }
+
+    const committedIssueCount = committedCompleted.length + committedNotCompleted.length + committedPunted.length;
+    const addedIssueCount = addedCompleted.length + addedNotCompleted.length + addedPunted.length;
+    const completedIssueCount = completed.length;
+    const removedIssueCount = punted.length;
+    const carryoverIssueCount = committedNotCompleted.length;
+    const issueCompletionRate = committedIssueCount > 0
+      ? (completedIssueCount / committedIssueCount) * 100
+      : 0;
+
+    const remainingCommitmentPts = committedCompletedPts + committedNotCompletedPts;
+    const pointsCompletionRate = remainingCommitmentPts > 0
+      ? (committedCompletedPts / remainingCommitmentPts) * 100
+      : finalScopePts > 0
+        ? (totalCompletedPts / finalScopePts) * 100
+        : 0;
+
+    const scopeForProgress = sprint.state === 'active' ? finalScopePts : Math.max(0, finalScopePts);
+    const remainingPoints = Math.max(totalNotCompletedPts, scopeForProgress - totalCompletedPts);
+
+    const scopeCreepRatio = initialCommitmentPts > 0
+      ? (totalAddedPts - removedPts) / initialCommitmentPts
+      : 0;
+    const pointChurnRatio = initialCommitmentPts > 0 ? absolutePointChange / initialCommitmentPts : 0;
+    const carryoverRatio = remainingCommitmentPts > 0
+      ? (committedNotCompletedPts / remainingCommitmentPts)
+      : 0;
+    const removedRatio = allIssuesByKey.size > 0 ? removedIssueCount / allIssuesByKey.size : 0;
+
+    const integrity = this.assessIntegrity(scopeCreepRatio, pointChurnRatio, carryoverRatio, removedRatio);
+    integrity.flags.push('Sprint metrics sourced from Jira sprint report categories (completed/not-completed/punted/added).');
+    if (initialCommitmentPts === 0 && allIssuesByKey.size > 0) {
+      integrity.flags.push('Story points are missing on sprint report issues; point metrics may appear as zero.');
+    }
+
+    const health = this.assessSprintHealth({
+      state: sprint.state,
+      start: this.tryParseDate(sprint.startDate),
+      end: this.tryParseDate(sprint.completeDate || sprint.endDate) || new Date(),
+      completionRate: pointsCompletionRate,
+      integrityScore: integrity.score,
+      remainingPoints,
+      scopeForProgress,
+    });
+
+    return {
+      board: {
+        id: board.id,
+        name: board.name,
+      },
+      sprint: this.mapSprintSummary(sprint),
+      metrics: {
+        issues: {
+          total: allIssuesByKey.size,
+          committed: committedIssueCount,
+          completedByEnd: completedIssueCount,
+          completionRate: this.round(issueCompletionRate, 1),
+          addedAfterStart: addedIssueCount,
+          removedDuringSprint: removedIssueCount,
+          carryover: carryoverIssueCount,
+        },
+        points: {
+          committed: this.round(initialCommitmentPts, 1),
+          completedByEnd: this.round(totalCompletedPts, 1),
+          completionRate: this.round(pointsCompletionRate, 1),
+          addedAfterStart: this.round(totalAddedPts, 1),
+          removedDuringSprint: this.round(removedPts, 1),
+          absoluteChangeDuringSprint: this.round(absolutePointChange, 1),
+          netChangeDuringSprint: this.round(netPointChange, 1),
+          changedIssueCount,
+          changeEventCount: changedIssueCount,
+          currentScope: this.round(scopeForProgress, 1),
+          remaining: this.round(remainingPoints, 1),
+        },
+      },
+      health,
+      integrity: {
+        ...integrity,
+        indicators: {
+          scopeCreepPct: this.round(scopeCreepRatio * 100, 1),
+          pointChurnPct: this.round(pointChurnRatio * 100, 1),
+          carryoverPct: this.round(carryoverRatio * 100, 1),
+          removedPct: this.round(removedRatio * 100, 1),
+        },
+      },
+    };
+  }
+
+  private getGreenhopperIssueKey(issue: JiraGreenhopperIssue): string | null {
+    if (!issue || typeof issue.key !== 'string') {
+      return null;
+    }
+
+    const key = issue.key.trim();
+    return key ? key : null;
+  }
+
+  private extractGreenhopperPoints(
+    issue: JiraGreenhopperIssue,
+    field: 'estimateStatistic' | 'currentEstimateStatistic',
+  ): number {
+    const statistic = issue[field];
+    if (!statistic || typeof statistic !== 'object') {
+      return 0;
+    }
+
+    const statFieldValue = statistic.statFieldValue;
+    if (!statFieldValue || typeof statFieldValue !== 'object') {
+      return 0;
+    }
+
+    return this.parseNumeric(statFieldValue.value) ?? 0;
+  }
+
+  private sumGreenhopperPoints(
+    issues: JiraGreenhopperIssue[],
+    field: 'estimateStatistic' | 'currentEstimateStatistic',
+  ): number {
+    let total = 0;
+    for (const issue of issues) {
+      total += this.extractGreenhopperPoints(issue, field);
+    }
+    return total;
   }
 
   private assessIntegrity(
