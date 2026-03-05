@@ -248,10 +248,7 @@ export class JiraAnalyticsService {
   private readonly baseUrl: string | null;
   private readonly basicAuth: string | null;
   private readonly bearerToken: string | null;
-<<<<<<< HEAD
   private readonly useGreenhopperSprintReport: boolean;
-||||||| 83e9878
-=======
   private readonly requestRetryMax: number;
   private readonly requestRetryBaseMs: number;
   private readonly requestRetryMaxMs: number;
@@ -266,7 +263,6 @@ export class JiraAnalyticsService {
   private readonly boardHistoryCache = new Map<string, JiraCacheEntry<JiraBoardHistoryReport>>();
   private readonly sprintReportInFlight = new Map<string, Promise<JiraSprintReport>>();
   private readonly boardHistoryInFlight = new Map<string, Promise<JiraBoardHistoryReport>>();
->>>>>>> main
   private storyPointsFieldId: string | null | undefined;
   private sprintFieldId: string | null | undefined;
 
@@ -282,12 +278,8 @@ export class JiraAnalyticsService {
 
     const bearerToken = (env.CODEXIA_JIRA_BEARER_TOKEN || '').trim();
     this.bearerToken = bearerToken || null;
-
-<<<<<<< HEAD
     const greenhopperMode = (env.CODEXIA_JIRA_USE_GREENHOPPER_REPORT || 'true').trim().toLowerCase();
     this.useGreenhopperSprintReport = greenhopperMode !== 'false' && greenhopperMode !== '0' && greenhopperMode !== 'no';
-||||||| 83e9878
-=======
     const parsedRetryMax = Number.parseInt(env.CODEXIA_JIRA_RETRY_MAX || '1', 10);
     const parsedRetryBaseMs = Number.parseInt(env.CODEXIA_JIRA_RETRY_BASE_MS || '500', 10);
     const parsedRetryMaxMs = Number.parseInt(env.CODEXIA_JIRA_RETRY_MAX_MS || '4000', 10);
@@ -311,7 +303,6 @@ export class JiraAnalyticsService {
     this.boardHistoryTimeBudgetMs = Number.isFinite(parsedBoardHistoryTimeBudgetMs)
       ? Math.min(600000, Math.max(5000, parsedBoardHistoryTimeBudgetMs))
       : 45000;
->>>>>>> main
   }
 
   getConfig(): JiraConfig {
