@@ -7,7 +7,7 @@ interface BranchListProps {
   staleBranches: number;
 }
 
-export function BranchList({ branches, current, staleBranches }: BranchListProps) {
+export const BranchList = ({ branches, current, staleBranches }: BranchListProps) => {
   if (!branches || branches.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-neutral-600">
@@ -89,4 +89,4 @@ export function BranchList({ branches, current, staleBranches }: BranchListProps
       </div>
     </div>
   );
-}
+};

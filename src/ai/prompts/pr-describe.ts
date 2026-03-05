@@ -8,10 +8,7 @@ export interface PrDescribeData {
   deletions: number;
 }
 
-/**
- * Build a prompt for generating a PR description
- */
-export function buildPrDescriptionPrompt(data: PrDescribeData): string {
+export const buildPrDescriptionPrompt = (data: PrDescribeData): string => {
   const commitMessages = data.commits
     .slice(0, 20)
     .map(c => `- ${c.message}`)
@@ -75,4 +72,4 @@ List any breaking changes, or state "None" if there are none.
 - [ ] No breaking changes (or documented above)
 
 Be specific and technical. Use bullet points where appropriate.`;
-}
+};

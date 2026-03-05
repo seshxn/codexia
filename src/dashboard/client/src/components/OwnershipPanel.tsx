@@ -7,7 +7,7 @@ interface OwnershipPanelProps {
   onFileClick?: (file: OwnershipData['files'][0]) => void;
 }
 
-export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
+export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
   const [showAllHighRisk, setShowAllHighRisk] = useState(false);
   const [showAllOwners, setShowAllOwners] = useState(false);
   const [showAllFiles, setShowAllFiles] = useState(false);
@@ -188,4 +188,4 @@ export function OwnershipPanel({ data, onFileClick }: OwnershipPanelProps) {
       </div>
     </div>
   );
-}
+};

@@ -1,14 +1,14 @@
 import { Loader2 } from 'lucide-react';
 
-export function LoadingSpinner() {
+export const LoadingSpinner = () => {
   return (
     <div className="flex items-center justify-center p-8">
       <Loader2 className="w-8 h-8 text-sky-500 animate-spin" />
     </div>
   );
-}
+};
 
-export function LoadingCard() {
+export const LoadingCard = () => {
   return (
     <div className="animate-pulse">
       <div className="h-4 bg-neutral-800 rounded-lg w-1/3 mb-4"></div>
@@ -19,9 +19,9 @@ export function LoadingCard() {
       </div>
     </div>
   );
-}
+};
 
-export function LoadingPage() {
+export const LoadingPage = () => {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="text-center">
@@ -33,4 +33,4 @@ export function LoadingPage() {
       </div>
     </div>
   );
-}
+};

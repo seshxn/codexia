@@ -7,10 +7,10 @@ import {
   FileWarning,
   Gauge,
   Layers,
-  Info,
-  X
+  Info
 } from 'lucide-react';
 import type { CodeHealthData } from '../types';
+import { Modal } from './Modal';
 
 interface CodeHealthPanelProps {
   data: CodeHealthData;
@@ -52,7 +52,7 @@ const SCORING_GUIDE = {
   }
 };
 
-function getGradeColor(grade: string): string {
+const getGradeColor = (grade: string): string => {
   switch (grade) {
     case 'A': return 'text-emerald-400';
     case 'B': return 'text-lime-400';
@@ -61,9 +61,9 @@ function getGradeColor(grade: string): string {
     case 'F': return 'text-red-400';
     default: return 'text-neutral-400';
   }
-}
+};
 
-function getGradeBg(grade: string): string {
+const getGradeBg = (grade: string): string => {
   switch (grade) {
     case 'A': return 'bg-emerald-500/10 border-emerald-500/30';
     case 'B': return 'bg-lime-500/10 border-lime-500/30';
@@ -72,97 +72,87 @@ function getGradeBg(grade: string): string {
     case 'F': return 'bg-red-500/10 border-red-500/30';
     default: return 'bg-neutral-500/10 border-neutral-500/30';
   }
-}
+};
 
-function ScoringGuideModal({ onClose }: { onClose: () => void }) {
+const ScoringGuideModal = ({ onClose }: { onClose: () => void }) => {
   return (
-    <div 
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Scoring Guide"
+      subtitle="How maintainability, complexity, and technical debt are calculated"
+      size="lg"
     >
-      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-scale-in shadow-elevated">
-        <div className="sticky top-0 bg-neutral-900 border-b border-neutral-800 p-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Scoring Guide</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-white p-1 transition-colors hover:bg-neutral-800 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.maintainability.title}</h3>
+          <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.maintainability.description}</p>
+          <div className="grid gap-2">
+            {SCORING_GUIDE.maintainability.grades.map(g => (
+              <div key={g.grade} className="flex items-center gap-3 text-xs">
+                <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${getGradeBg(g.grade)} ${getGradeColor(g.grade)}`}>
+                  {g.grade}
+                </span>
+                <span className="text-neutral-500 w-16">{g.range}</span>
+                <span className="text-neutral-300">{g.meaning}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        
-        <div className="p-4 space-y-6">
-          {/* Maintainability */}
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.maintainability.title}</h3>
-            <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.maintainability.description}</p>
-            <div className="grid gap-2">
-              {SCORING_GUIDE.maintainability.grades.map(g => (
-                <div key={g.grade} className="flex items-center gap-3 text-xs">
-                  <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${getGradeBg(g.grade)} ${getGradeColor(g.grade)}`}>
-                    {g.grade}
-                  </span>
-                  <span className="text-neutral-500 w-16">{g.range}</span>
-                  <span className="text-neutral-300">{g.meaning}</span>
+
+        <div>
+          <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.complexity.title}</h3>
+          <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.complexity.description}</p>
+          <div className="grid gap-2">
+            {SCORING_GUIDE.complexity.thresholds.map(t => {
+              let colorClasses = 'bg-emerald-500';
+              if (t.color === 'lime') colorClasses = 'bg-lime-500';
+              else if (t.color === 'amber') colorClasses = 'bg-amber-500';
+              else if (t.color === 'red') colorClasses = 'bg-red-500';
+
+              return (
+                <div key={t.level} className="flex items-center gap-3 text-xs">
+                  <span className={`w-3 h-3 rounded-full ${colorClasses}`} />
+                  <span className="text-neutral-300 w-20">{t.level}</span>
+                  <span className="text-neutral-500 w-12">{t.range}</span>
+                  <span className="text-neutral-400">{t.meaning}</span>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Complexity */}
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.complexity.title}</h3>
-            <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.complexity.description}</p>
-            <div className="grid gap-2">
-              {SCORING_GUIDE.complexity.thresholds.map(t => {
-                let colorClasses = 'bg-emerald-500';
-                if (t.color === 'lime') colorClasses = 'bg-lime-500';
-                else if (t.color === 'amber') colorClasses = 'bg-amber-500';
-                else if (t.color === 'red') colorClasses = 'bg-red-500';
-                
-                return (
-                  <div key={t.level} className="flex items-center gap-3 text-xs">
-                    <span className={`w-3 h-3 rounded-full ${colorClasses}`} />
-                    <span className="text-neutral-300 w-20">{t.level}</span>
-                    <span className="text-neutral-500 w-12">{t.range}</span>
-                    <span className="text-neutral-400">{t.meaning}</span>
-                  </div>
-                );
-              })}
-            </div>
+        <div>
+          <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.techDebt.title}</h3>
+          <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.techDebt.description}</p>
+          <div className="grid gap-2">
+            {SCORING_GUIDE.techDebt.grades.map(g => (
+              <div key={g.grade} className="flex items-center gap-3 text-xs">
+                <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${getGradeBg(g.grade)} ${getGradeColor(g.grade)}`}>
+                  {g.grade}
+                </span>
+                <span className="text-neutral-500 w-20">{g.range}</span>
+                <span className="text-neutral-300">{g.meaning}</span>
+              </div>
+            ))}
           </div>
+        </div>
 
-          {/* Tech Debt */}
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.techDebt.title}</h3>
-            <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.techDebt.description}</p>
-            <div className="grid gap-2">
-              {SCORING_GUIDE.techDebt.grades.map(g => (
-                <div key={g.grade} className="flex items-center gap-3 text-xs">
-                  <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${getGradeBg(g.grade)} ${getGradeColor(g.grade)}`}>
-                    {g.grade}
-                  </span>
-                  <span className="text-neutral-500 w-20">{g.range}</span>
-                  <span className="text-neutral-300">{g.meaning}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Industry Standards */}
-          <div className="pt-4 border-t border-neutral-800">
-            <h3 className="text-sm font-semibold text-white mb-2">Based on Industry Standards</h3>
-            <ul className="text-xs text-neutral-400 space-y-1.5">
-              <li>• <strong className="text-neutral-300">Maintainability Index:</strong> Microsoft Visual Studio metric (1991)</li>
-              <li>• <strong className="text-neutral-300">Cyclomatic Complexity:</strong> McCabe complexity (IEEE, 1976)</li>
-              <li>• <strong className="text-neutral-300">Coupling/Cohesion:</strong> SOLID principles, Clean Code (Robert C. Martin)</li>
-              <li>• <strong className="text-neutral-300">Tech Debt:</strong> SonarQube-inspired weighted scoring</li>
-            </ul>
-          </div>
+        <div className="pt-4 border-t border-neutral-800">
+          <h3 className="text-sm font-semibold text-white mb-2">Based on Industry Standards</h3>
+          <ul className="text-xs text-neutral-400 space-y-1.5">
+            <li>• <strong className="text-neutral-300">Maintainability Index:</strong> Microsoft Visual Studio metric (1991)</li>
+            <li>• <strong className="text-neutral-300">Cyclomatic Complexity:</strong> McCabe complexity (IEEE, 1976)</li>
+            <li>• <strong className="text-neutral-300">Coupling/Cohesion:</strong> SOLID principles, Clean Code (Robert C. Martin)</li>
+            <li>• <strong className="text-neutral-300">Tech Debt:</strong> SonarQube-inspired weighted scoring</li>
+          </ul>
         </div>
       </div>
-    </div>
+    </Modal>
   );
-}
+};
 
-export function CodeHealthPanel({ data }: CodeHealthPanelProps) {
+export const CodeHealthPanel = ({ data }: CodeHealthPanelProps) => {
   const [showAllFiles, setShowAllFiles] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const displayedFiles = showAllFiles 
@@ -391,4 +381,4 @@ export function CodeHealthPanel({ data }: CodeHealthPanelProps) {
       )}
     </div>
   );
-}
+};

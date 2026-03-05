@@ -106,9 +106,9 @@ Examples:
     }
   });
 
-function getHealthColor(score: number): string {
+const getHealthColor = (score: number): string => {
   if (score >= 80) return chalk.green('');
   if (score >= 60) return chalk.yellow('');
   if (score >= 40) return chalk.hex('#FFA500')('');
   return chalk.red('');
-}
+};

@@ -395,3 +395,16 @@ export interface JiraBoardHistoryReportData {
     flags: string[];
   }>;
 }
+
+export interface JiraAiInsightsData {
+  scope: 'sprint' | 'board';
+  provider: string;
+  generatedAt: string;
+  overview: string;
+  positives: string[];
+  risks: string[];
+  integrityFindings: string[];
+  recommendations: string[];
+  questions: string[];
+  raw: string;
+}

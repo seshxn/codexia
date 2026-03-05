@@ -1,12 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchJiraBoardReport, fetchJiraBoards, fetchJiraConfig, fetchJiraSprintReport, fetchJiraSprints } from '../api';
-import type {
-  JiraBoard,
-  JiraBoardHistoryReportData,
-  JiraConfigData,
-  JiraSprint,
-  JiraSprintReportData,
-} from '../types';
+import type { JiraAiInsightsData, JiraSprintReportData } from '../types';
+import { useJiraAnalytics } from '../hooks/useJiraAnalytics';
 
 const formatPercent = (value: number): string => `${value.toFixed(1)}%`;
 
@@ -48,6 +41,29 @@ const healthBadgeClass = (status: JiraSprintReportData['health']['status']): str
 
 const statusLabel = (status: JiraSprintReportData['health']['status']): string => status.replace('_', ' ');
 
+interface InsightListProps {
+  title: string;
+  items: string[];
+  emptyLabel: string;
+}
+
+const InsightList = ({ title, items, emptyLabel }: InsightListProps) => {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wide text-neutral-500">{title}</p>
+      {items.length === 0 ? (
+        <p className="mt-2 text-sm text-neutral-500">{emptyLabel}</p>
+      ) : (
+        <ul className="mt-2 space-y-1 text-sm text-neutral-200">
+          {items.map((item) => (
+            <li key={item}>- {item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 interface MetricTileProps {
   label: string;
   value: string;
@@ -64,156 +80,50 @@ const MetricTile = ({ label, value, helper }: MetricTileProps) => {
   );
 };
 
-export const JiraSprintAnalysis = () => {
-  const [config, setConfig] = useState<JiraConfigData | null>(null);
-  const [configLoading, setConfigLoading] = useState(true);
-  const [configError, setConfigError] = useState<string | null>(null);
+interface JiraSprintAnalysisProps {
+  refreshKey?: number;
+}
 
-  const [projectKey, setProjectKey] = useState('');
-  const [boardIdInput, setBoardIdInput] = useState('');
-  const [maxSprintsInput, setMaxSprintsInput] = useState('12');
+const insightScopeLabel = (scope: JiraAiInsightsData['scope']): string => {
+  return scope === 'board' ? 'Board History' : 'Sprint';
+};
 
-  const [boards, setBoards] = useState<JiraBoard[]>([]);
-  const [boardsLoading, setBoardsLoading] = useState(false);
-  const [boardsError, setBoardsError] = useState<string | null>(null);
-
-  const [selectedBoardId, setSelectedBoardId] = useState<number | null>(null);
-  const [sprints, setSprints] = useState<JiraSprint[]>([]);
-  const [sprintsLoading, setSprintsLoading] = useState(false);
-  const [sprintsError, setSprintsError] = useState<string | null>(null);
-  const [selectedSprintId, setSelectedSprintId] = useState<number | null>(null);
-
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [sprintReport, setSprintReport] = useState<JiraSprintReportData | null>(null);
-  const [boardReport, setBoardReport] = useState<JiraBoardHistoryReportData | null>(null);
-
-  const loadConfig = useCallback(async () => {
-    setConfigLoading(true);
-    setConfigError(null);
-    try {
-      const response = await fetchJiraConfig();
-      setConfig(response);
-    } catch (error) {
-      setConfigError(error instanceof Error ? error.message : 'Failed to load Jira config.');
-    } finally {
-      setConfigLoading(false);
-    }
-  }, []);
-
-  const loadBoards = useCallback(async () => {
-    setBoardsLoading(true);
-    setBoardsError(null);
-    try {
-      const response = await fetchJiraBoards({
-        projectKey: projectKey.trim() || undefined,
-        limit: 100,
-      });
-      setBoards(response.boards);
-      if (response.boards.length > 0 && !selectedBoardId) {
-        setSelectedBoardId(response.boards[0].id);
-      }
-    } catch (error) {
-      setBoardsError(error instanceof Error ? error.message : 'Failed to load Jira boards.');
-    } finally {
-      setBoardsLoading(false);
-    }
-  }, [projectKey, selectedBoardId]);
-
-  const loadSprints = useCallback(async (boardId: number) => {
-    setSprintsLoading(true);
-    setSprintsError(null);
-    try {
-      const response = await fetchJiraSprints(boardId, { state: 'active,closed,future', limit: 100 });
-      setSprints(response.sprints);
-
-      const activeSprint = response.sprints.find((sprint) => sprint.state === 'active');
-      if (activeSprint) {
-        setSelectedSprintId(activeSprint.id);
-      } else if (response.sprints.length > 0) {
-        setSelectedSprintId(response.sprints[0].id);
-      } else {
-        setSelectedSprintId(null);
-      }
-    } catch (error) {
-      setSprints([]);
-      setSelectedSprintId(null);
-      setSprintsError(error instanceof Error ? error.message : 'Failed to load Jira sprints.');
-    } finally {
-      setSprintsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadConfig();
-  }, [loadConfig]);
-
-  useEffect(() => {
-    if (!selectedBoardId) {
-      setSprints([]);
-      setSelectedSprintId(null);
-      return;
-    }
-
-    void loadSprints(selectedBoardId);
-  }, [loadSprints, selectedBoardId]);
-
-  const selectedBoard = useMemo(
-    () => boards.find((board) => board.id === selectedBoardId) || null,
-    [boards, selectedBoardId],
-  );
-
-  const applyBoardId = useCallback(() => {
-    const parsed = Number.parseInt(boardIdInput.trim(), 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setAnalysisError('Enter a valid numeric board ID.');
-      return;
-    }
-
-    setAnalysisError(null);
-    setSelectedBoardId(parsed);
-  }, [boardIdInput]);
-
-  const runSprintAnalysis = useCallback(async () => {
-    if (!selectedBoardId || !selectedSprintId) {
-      setAnalysisError('Select both a board and sprint before running sprint analysis.');
-      return;
-    }
-
-    setAnalysisLoading(true);
-    setAnalysisError(null);
-
-    try {
-      const response = await fetchJiraSprintReport(selectedBoardId, selectedSprintId);
-      setSprintReport(response);
-    } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze sprint.');
-    } finally {
-      setAnalysisLoading(false);
-    }
-  }, [selectedBoardId, selectedSprintId]);
-
-  const runBoardAnalysis = useCallback(async () => {
-    if (!selectedBoardId) {
-      setAnalysisError('Select a board before running historical analysis.');
-      return;
-    }
-
-    const parsedLimit = Number.parseInt(maxSprintsInput.trim(), 10);
-    const maxSprints = Number.isFinite(parsedLimit) ? Math.min(50, Math.max(1, parsedLimit)) : 12;
-
-    setAnalysisLoading(true);
-    setAnalysisError(null);
-
-    try {
-      const response = await fetchJiraBoardReport(selectedBoardId, maxSprints);
-      setBoardReport(response);
-    } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze board history.');
-    } finally {
-      setAnalysisLoading(false);
-    }
-  }, [maxSprintsInput, selectedBoardId]);
+export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) => {
+  const {
+    config,
+    configLoading,
+    configError,
+    projectKey,
+    setProjectKey,
+    boardIdInput,
+    setBoardIdInput,
+    maxSprintsInput,
+    setMaxSprintsInput,
+    boards,
+    boardsLoading,
+    boardsError,
+    selectedBoardId,
+    setSelectedBoardId,
+    sprints,
+    sprintsLoading,
+    sprintsError,
+    selectedSprintId,
+    setSelectedSprintId,
+    analysisLoading,
+    analysisError,
+    sprintReport,
+    boardReport,
+    aiInsights,
+    aiInsightsLoading,
+    aiInsightsError,
+    selectedBoard,
+    loadBoards,
+    applyBoardId,
+    runSprintAnalysis,
+    runBoardAnalysis,
+    runSprintAiInsights,
+    runBoardAiInsights,
+  } = useJiraAnalytics({ refreshKey });
 
   if (configLoading) {
     return <p className="text-sm text-neutral-400">Loading Jira configuration...</p>;
@@ -257,7 +167,7 @@ export const JiraSprintAnalysis = () => {
             value={maxSprintsInput}
             onChange={(event) => setMaxSprintsInput(event.target.value)}
             className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
-            placeholder="12"
+            placeholder="8"
             inputMode="numeric"
           />
           <p className="mt-2 text-xs text-neutral-500">Used for board-wide sprint trend analysis.</p>
@@ -270,7 +180,7 @@ export const JiraSprintAnalysis = () => {
           <div className="mt-2 flex gap-2">
             <input
               value={projectKey}
-              onChange={(event) => setProjectKey(event.target.value.toUpperCase())}
+              onChange={(event) => setProjectKey(event.target.value)}
               className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
               placeholder="e.g. CORE"
             />
@@ -305,7 +215,10 @@ export const JiraSprintAnalysis = () => {
           </div>
           <select
             value={selectedBoardId || ''}
-            onChange={(event) => setSelectedBoardId(Number(event.target.value))}
+            onChange={(event) => {
+              const value = event.target.value;
+              setSelectedBoardId(value ? Number(value) : null);
+            }}
             className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
           >
             <option value="">Select board...</option>
@@ -323,7 +236,10 @@ export const JiraSprintAnalysis = () => {
           <p className="text-xs uppercase tracking-wide text-neutral-500">Sprint Selection</p>
           <select
             value={selectedSprintId || ''}
-            onChange={(event) => setSelectedSprintId(Number(event.target.value))}
+            onChange={(event) => {
+              const value = event.target.value;
+              setSelectedSprintId(value ? Number(value) : null);
+            }}
             className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
             disabled={!selectedBoardId || sprintsLoading}
           >
@@ -366,6 +282,74 @@ export const JiraSprintAnalysis = () => {
           {analysisError && <p className="mt-2 text-xs text-red-300">{analysisError}</p>}
         </div>
       </div>
+
+      <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
+        <p className="text-xs uppercase tracking-wide text-violet-200">AI Insights</p>
+        <p className="mt-2 text-sm text-neutral-300">
+          Generate narrative analysis from sprint metrics to explain delivery confidence, integrity risk, and next actions.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={runSprintAiInsights}
+            disabled={aiInsightsLoading || !selectedBoardId || !selectedSprintId}
+            className="rounded-lg bg-violet-400 px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {aiInsightsLoading ? 'Generating...' : 'AI Sprint Insights'}
+          </button>
+          <button
+            onClick={runBoardAiInsights}
+            disabled={aiInsightsLoading || !selectedBoardId}
+            className="rounded-lg border border-violet-400/40 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {aiInsightsLoading ? 'Generating...' : 'AI Board Insights'}
+          </button>
+        </div>
+        {aiInsightsError && <p className="mt-2 text-xs text-red-300">{aiInsightsError}</p>}
+      </div>
+
+      {aiInsights && (
+        <div className="space-y-4 rounded-2xl border border-violet-500/30 bg-neutral-900/60 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-base font-semibold text-white tracking-tight">
+                AI {insightScopeLabel(aiInsights.scope)} Insights
+              </h4>
+              <p className="text-xs text-neutral-500">
+                Generated via {aiInsights.provider} at {new Date(aiInsights.generatedAt).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
+            <p className="text-xs uppercase tracking-wide text-neutral-500">Overview</p>
+            <p className="mt-2 text-sm text-neutral-200">{aiInsights.overview}</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InsightList title="Positives" items={aiInsights.positives} emptyLabel="No notable positives returned." />
+            <InsightList title="Risks" items={aiInsights.risks} emptyLabel="No explicit risks returned." />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InsightList
+              title="Integrity Findings"
+              items={aiInsights.integrityFindings}
+              emptyLabel="No integrity findings returned."
+            />
+            <InsightList
+              title="Recommendations"
+              items={aiInsights.recommendations}
+              emptyLabel="No recommendations returned."
+            />
+          </div>
+
+          <InsightList
+            title="Follow-up Questions"
+            items={aiInsights.questions}
+            emptyLabel="No follow-up questions suggested."
+          />
+        </div>
+      )}
 
       {sprintReport && (
         <div className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5">

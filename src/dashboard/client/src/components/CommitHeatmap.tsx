@@ -4,7 +4,7 @@ interface CommitHeatmapProps {
   data: ActivityData;
 }
 
-export function CommitHeatmap({ data }: CommitHeatmapProps) {
+export const CommitHeatmap = ({ data }: CommitHeatmapProps) => {
   if (!data || !data.activityByDate || data.activityByDate.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-neutral-600">
@@ -151,4 +151,4 @@ export function CommitHeatmap({ data }: CommitHeatmapProps) {
       </div>
     </div>
   );
-}
+};

@@ -7,7 +7,7 @@ interface UseApiResult<T> {
   refetch: () => void;
 }
 
-export function useApi<T>(fetchFn: () => Promise<T>): UseApiResult<T> {
+export const useApi = <T,>(fetchFn: () => Promise<T>): UseApiResult<T> => {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -26,4 +26,4 @@ export function useApi<T>(fetchFn: () => Promise<T>): UseApiResult<T> {
   }, [refetch]);
 
   return { data, loading, error, refetch };
-}
+};
