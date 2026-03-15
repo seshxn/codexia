@@ -1,3 +1,5 @@
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import { Command } from 'commander';
 import { CodexiaEngine } from '../engine.js';
 import { Formatter } from '../formatter.js';
@@ -7,7 +9,8 @@ import { transformGraphData } from '../../modules/graph-utils.js';
 export const graphCommand = new Command('graph')
   .description('Visualize dependency graph')
   .argument('[file]', 'File to show graph for (optional)')
-  .option('-f, --format <format>', 'Output format: ascii, mermaid, dot, json', 'ascii')
+  .option('-f, --format <format>', 'Output format: ascii, mermaid, dot, json, html', 'ascii')
+  .option('-o, --output <path>', 'Write visualization to a file instead of stdout')
   .option('-d, --depth <depth>', 'Maximum depth to traverse', '5')
   .option('--direction <dir>', 'Graph direction: TB, LR, BT, RL', 'TB')
   .option('--show-orphans', 'Include orphan modules')
@@ -18,6 +21,7 @@ Examples:
   $ codexia graph src/core/types.ts         Show graph for specific file
   $ codexia graph --format mermaid          Output as Mermaid diagram
   $ codexia graph --format dot > graph.dot  Export for Graphviz
+  $ codexia graph --format html             Generate interactive HTML graph
   $ codexia graph --highlight src/api.ts    Highlight specific files
 `)
   .action(async (file, options, command) => {
@@ -42,6 +46,14 @@ Examples:
         showOrphans: options.showOrphans,
         highlight: options.highlight?.split(','),
       });
+
+      if (options.output || options.format === 'html') {
+        const outputPath = path.resolve(options.output || path.join(process.cwd(), '.codexia', 'codegraph', 'graph.html'));
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+        await fs.writeFile(outputPath, output, 'utf-8');
+        console.log(outputPath);
+        return;
+      }
 
       console.log(output);
     } catch (error) {

@@ -1,8 +1,10 @@
 import * as fs from 'node:fs/promises';
+import * as crypto from 'node:crypto';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import type { FileInfo, ImportInfo, ExportInfo, Symbol, SymbolKind } from './types.js';
 import { getLanguageRegistry, type LanguageProviderRegistry } from './language-providers/index.js';
+import { TreeSitterParser } from './parser.js';
 
 interface CacheMetadata {
   version: string;
@@ -13,6 +15,7 @@ interface CacheMetadata {
 interface CachedFileInfo {
   info: FileInfo;
   mtime: number; // File modification time in milliseconds
+  hash: string;
 }
 
 interface IndexCache {
@@ -25,15 +28,25 @@ const CACHE_DIR = '.codexia';
 const CACHE_FILE = 'index-cache.json';
 const CACHE_STALENESS_MS = parseInt(process.env.CODEXIA_CACHE_STALENESS_MS || '3600000', 10); // Default: 1 hour
 
+export interface IncrementalIndexResult {
+  changedFiles: string[];
+  deletedFiles: string[];
+  unchangedFiles: string[];
+  previousFiles: Map<string, FileInfo>;
+  currentFiles: Map<string, FileInfo>;
+}
+
 export class RepoIndexer {
   private repoRoot: string;
   private files: Map<string, FileInfo> = new Map();
   private indexed: boolean = false;
   private languageRegistry: LanguageProviderRegistry;
+  private parser: TreeSitterParser;
 
   constructor(repoRoot: string) {
     this.repoRoot = repoRoot;
     this.languageRegistry = getLanguageRegistry();
+    this.parser = new TreeSitterParser();
   }
 
   /**
@@ -69,6 +82,70 @@ export class RepoIndexer {
   async reindex(): Promise<void> {
     await this.performIndex();
     await this.saveCache();
+  }
+
+  /**
+   * Incrementally update the index using cached file hashes.
+   */
+  async incrementalUpdate(): Promise<IncrementalIndexResult> {
+    const previousCache = await this.readCache();
+    const previousFiles = new Map<string, FileInfo>();
+    const previousHashes = new Map<string, string>();
+
+    for (const [filePath, cachedFile] of Object.entries(previousCache?.files || {})) {
+      previousFiles.set(filePath, cachedFile.info);
+      previousHashes.set(filePath, cachedFile.hash);
+    }
+
+    const nextFiles = new Map(previousFiles);
+    const changedFiles: string[] = [];
+    const deletedFiles: string[] = [];
+    const unchangedFiles: string[] = [];
+
+    const patterns = this.languageRegistry.getAllPatterns();
+    const ignorePatterns = this.languageRegistry.getIgnorePatterns();
+    const discoveredFiles = await glob(patterns, {
+      cwd: this.repoRoot,
+      ignore: ignorePatterns,
+      absolute: false,
+    });
+    const discoveredSet = new Set(discoveredFiles);
+
+    for (const existingFile of previousFiles.keys()) {
+      if (!discoveredSet.has(existingFile)) {
+        nextFiles.delete(existingFile);
+        deletedFiles.push(existingFile);
+      }
+    }
+
+    for (const relativePath of discoveredFiles) {
+      const absolutePath = path.join(this.repoRoot, relativePath);
+      try {
+        const content = await fs.readFile(absolutePath, 'utf-8');
+        const hash = this.hashContent(content);
+        if (previousHashes.get(relativePath) === hash) {
+          unchangedFiles.push(relativePath);
+          continue;
+        }
+
+        nextFiles.set(relativePath, this.analyzeFile(relativePath, content));
+        changedFiles.push(relativePath);
+      } catch {
+        // Skip unreadable files during incremental updates.
+      }
+    }
+
+    this.files = nextFiles;
+    this.indexed = true;
+    await this.saveCache();
+
+    return {
+      changedFiles,
+      deletedFiles,
+      unchangedFiles,
+      previousFiles,
+      currentFiles: new Map(nextFiles),
+    };
   }
 
   /**
@@ -116,41 +193,30 @@ export class RepoIndexer {
    * Load index from cache file
    */
   private async loadCache(): Promise<IndexCache | null> {
-    const cachePath = path.join(this.repoRoot, CACHE_DIR, CACHE_FILE);
-    
-    try {
-      const content = await fs.readFile(cachePath, 'utf-8');
-      const cache = JSON.parse(content) as IndexCache;
-      
-      // Validate cache version
-      if (cache.metadata.version !== CACHE_VERSION) {
-        return null;
-      }
-      
-      // Check if cache is stale (default: 1 hour, configurable via CODEXIA_CACHE_STALENESS_MS)
-      if (Date.now() - cache.metadata.timestamp > CACHE_STALENESS_MS) {
-        return null;
-      }
-      
-      // Validate that cached files still exist and haven't been modified
-      for (const [relativePath, cachedFile] of Object.entries(cache.files)) {
-        const absolutePath = path.join(this.repoRoot, relativePath);
-        try {
-          const stats = await fs.stat(absolutePath);
-          // If file has been modified since caching, invalidate entire cache
-          if (stats.mtimeMs > cachedFile.mtime) {
-            return null;
-          }
-        } catch {
-          // File no longer exists, invalidate cache
-          return null;
-        }
-      }
-      
-      return cache;
-    } catch {
+    const cache = await this.readCache();
+    if (!cache) {
       return null;
     }
+
+    // Check if cache is stale (default: 1 hour, configurable via CODEXIA_CACHE_STALENESS_MS)
+    if (Date.now() - cache.metadata.timestamp > CACHE_STALENESS_MS) {
+      return null;
+    }
+
+    // Validate that cached files still exist and haven't been modified
+    for (const [relativePath, cachedFile] of Object.entries(cache.files)) {
+      const absolutePath = path.join(this.repoRoot, relativePath);
+      try {
+        const stats = await fs.stat(absolutePath);
+        if (stats.mtimeMs > cachedFile.mtime) {
+          return null;
+        }
+      } catch {
+        return null;
+      }
+    }
+
+    return cache;
   }
 
   /**
@@ -159,17 +225,9 @@ export class RepoIndexer {
   private async saveCache(): Promise<void> {
     const cacheDir = path.join(this.repoRoot, CACHE_DIR);
     const cachePath = path.join(cacheDir, CACHE_FILE);
-    
+
     try {
-      // Only save cache if .codexia directory already exists
-      // (i.e., user has run `codexia init`)
-      await fs.access(cacheDir);
-    } catch {
-      // .codexia directory doesn't exist, skip caching
-      return;
-    }
-    
-    try {
+      await fs.mkdir(cacheDir, { recursive: true });
       const filesObj: Record<string, CachedFileInfo> = {};
       for (const [key, value] of this.files) {
         const absolutePath = path.join(this.repoRoot, key);
@@ -178,6 +236,7 @@ export class RepoIndexer {
           filesObj[key] = {
             info: value,
             mtime: stats.mtimeMs,
+            hash: this.hashFileInfo(value),
           };
         } catch {
           // Skip files that can't be accessed
@@ -247,12 +306,16 @@ export class RepoIndexer {
   private analyzeFile(relativePath: string, content: string): FileInfo {
     const lines = content.split('\n');
     const provider = this.languageRegistry.getForFile(relativePath);
-    
-    // Use language provider if available, otherwise use legacy extraction
-    const language = provider ? provider.getLanguageName(path.extname(relativePath)) : this.getLanguageLegacy(relativePath);
-    const imports = provider ? provider.extractImports(content, relativePath) : this.extractImportsLegacy(content);
-    const exports = provider ? provider.extractExports(content, relativePath) : this.extractExportsLegacy(content);
-    const symbols = provider ? provider.extractSymbols(content, relativePath) : this.extractSymbolsLegacy(content, relativePath);
+    const parsed = this.parser.parseFile(relativePath, content);
+
+    const language = parsed?.language
+      || (provider ? provider.getLanguageName(path.extname(relativePath)) : this.getLanguageLegacy(relativePath));
+    const imports = parsed?.imports
+      || (provider ? provider.extractImports(content, relativePath) : this.extractImportsLegacy(content));
+    const exports = parsed?.exports
+      || (provider ? provider.extractExports(content, relativePath) : this.extractExportsLegacy(content));
+    const symbols = parsed?.symbols
+      || (provider ? provider.extractSymbols(content, relativePath) : this.extractSymbolsLegacy(content, relativePath));
 
     return {
       path: path.join(this.repoRoot, relativePath),
@@ -264,6 +327,29 @@ export class RepoIndexer {
       imports,
       exports,
     };
+  }
+
+  private async readCache(): Promise<IndexCache | null> {
+    const cachePath = path.join(this.repoRoot, CACHE_DIR, CACHE_FILE);
+
+    try {
+      const content = await fs.readFile(cachePath, 'utf-8');
+      const cache = JSON.parse(content) as IndexCache;
+      if (cache.metadata.version !== CACHE_VERSION) {
+        return null;
+      }
+      return cache;
+    } catch {
+      return null;
+    }
+  }
+
+  private hashContent(content: string): string {
+    return crypto.createHash('sha256').update(content).digest('hex');
+  }
+
+  private hashFileInfo(fileInfo: FileInfo): string {
+    return crypto.createHash('sha256').update(JSON.stringify(fileInfo)).digest('hex');
   }
 
   /**

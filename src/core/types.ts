@@ -48,6 +48,20 @@ export interface CommitInfo {
   files: string[];
 }
 
+export interface CommitFileChange {
+  path: string;
+  additions: number;
+  deletions: number;
+  hunks: DiffHunk[];
+}
+
+export interface CommitRecord extends CommitInfo {
+  isMerge: boolean;
+  isRevert: boolean;
+  revertsSha?: string;
+  changes: CommitFileChange[];
+}
+
 export interface AuthorStats {
   name: string;
   email: string;
@@ -77,8 +91,14 @@ export interface Symbol {
   filePath: string;
   line: number;
   column: number;
+  endLine?: number;
   exported: boolean;
   documentation?: string;
+  parentSymbol?: string;
+  parameters?: string[];
+  returnType?: string;
+  extendsSymbols?: string[];
+  implementsSymbols?: string[];
   references: SymbolReference[];
 }
 
@@ -87,6 +107,7 @@ export interface SymbolReference {
   line: number;
   column: number;
   kind: 'read' | 'write' | 'call' | 'import' | 'export';
+  target?: string;
 }
 
 export interface FileInfo {

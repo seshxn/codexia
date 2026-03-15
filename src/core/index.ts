@@ -3,4 +3,8 @@ export { RepoIndexer } from './repo-indexer.js';
 export { DependencyGraph } from './dependency-graph.js';
 export { SymbolMap } from './symbol-map.js';
 export { SignalsEngine } from './signals-engine.js';
+export { GraphStore } from './graph-store.js';
+export { TreeSitterParser } from './parser.js';
+export { SemanticIndex, type SemanticSearchResult, type SemanticIndexStats } from './semantic-index.js';
+export { DocsIndex, type DocsSectionResult } from './docs-index.js';
 export * from './types.js';

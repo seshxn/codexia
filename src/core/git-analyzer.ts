@@ -6,7 +6,9 @@ import type {
   DiffHunk,
   FileHistory, 
   CommitInfo, 
-  AuthorStats 
+  AuthorStats,
+  CommitRecord,
+  CommitFileChange,
 } from './types.js';
 
 export class GitAnalyzer {
@@ -55,6 +57,18 @@ export class GitAnalyzer {
   async getCurrentBranch(): Promise<string> {
     const status = await this.git.status();
     return status.current || 'HEAD';
+  }
+
+  /**
+   * Get the current HEAD commit hash.
+   */
+  async getHeadCommit(): Promise<string | undefined> {
+    try {
+      const hash = await this.git.revparse(['HEAD']);
+      return hash.trim() || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -222,6 +236,137 @@ export class GitAnalyzer {
   async getStagedFiles(): Promise<string[]> {
     const status = await this.git.status();
     return status.staged;
+  }
+
+  /**
+   * Get all files changed by a commit.
+   */
+  async getFilesForCommit(commitSha: string): Promise<string[]> {
+    try {
+      const output = await this.git.show([commitSha, '--name-only', '--pretty=format:']);
+      return output
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get the subject line for a commit.
+   */
+  async getCommitMessage(commitSha: string): Promise<string | undefined> {
+    try {
+      const output = await this.git.show([commitSha, '--format=%s', '--no-patch']);
+      return output.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Find files that tend to change with a given file by scanning recent commits.
+   */
+  async getCoChangedFiles(filePath: string, maxCommits: number = 50): Promise<Array<{
+    path: string;
+    coChangeCount: number;
+    coChangeRatio: number;
+  }>> {
+    try {
+      const log = await this.git.log({
+        file: filePath,
+        maxCount: maxCommits,
+      });
+
+      if (log.all.length === 0) {
+        return [];
+      }
+
+      const counts = new Map<string, number>();
+      for (const commit of log.all) {
+        const files = await this.getFilesForCommit(commit.hash);
+        for (const file of files) {
+          if (file === filePath) {
+            continue;
+          }
+
+          counts.set(file, (counts.get(file) || 0) + 1);
+        }
+      }
+
+      return Array.from(counts.entries())
+        .map(([path, coChangeCount]) => ({
+          path,
+          coChangeCount,
+          coChangeRatio: coChangeCount / log.all.length,
+        }))
+        .sort((a, b) => b.coChangeRatio - a.coChangeRatio || b.coChangeCount - a.coChangeCount);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Return recent commits with file and hunk metadata.
+   */
+  async getRecentCommits(maxCount: number = 200): Promise<CommitRecord[]> {
+    const log = await this.git.log({ maxCount });
+    const commits: CommitRecord[] = [];
+
+    for (const commit of log.all) {
+      const files = await this.getFilesForCommit(commit.hash);
+      const body = await this.getCommitBody(commit.hash);
+      const changes = await this.getCommitChanges(commit.hash);
+      const revertsSha = body.match(/This reverts commit\s+([a-f0-9]{7,40})/i)?.[1];
+      const parentLine = await this.git.show([commit.hash, '--format=%P', '--no-patch']);
+      const parents = parentLine.trim().split(/\s+/).filter(Boolean);
+
+      commits.push({
+        hash: commit.hash,
+        message: commit.message,
+        author: commit.author_name,
+        date: new Date(commit.date),
+        files,
+        isMerge: parents.length > 1,
+        isRevert: /^revert\b/i.test(commit.message) || Boolean(revertsSha),
+        revertsSha,
+        changes,
+      });
+    }
+
+    return commits;
+  }
+
+  /**
+   * Get line-level changes for a specific commit.
+   */
+  async getCommitChanges(commitSha: string): Promise<CommitFileChange[]> {
+    try {
+      const diffSummary = await this.git.diffSummary([`${commitSha}^!`]);
+      const rawDiff = await this.git.show([commitSha, '--format=', '--unified=0']);
+      const fileHunks = this.parseDiffHunks(rawDiff);
+
+      return diffSummary.files.map((file) => {
+        const filePath = 'file' in file ? (file as { file: string }).file : '';
+        return {
+          path: filePath,
+          additions: 'insertions' in file ? (file as { insertions: number }).insertions : 0,
+          deletions: 'deletions' in file ? (file as { deletions: number }).deletions : 0,
+          hunks: fileHunks.get(filePath) || [],
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  private async getCommitBody(commitSha: string): Promise<string> {
+    try {
+      return await this.git.show([commitSha, '--format=%B', '--no-patch']);
+    } catch {
+      return '';
+    }
   }
 
   private getFileStatus(file: unknown): 'added' | 'modified' | 'deleted' | 'renamed' {

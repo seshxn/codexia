@@ -1,3 +1,6 @@
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RepoIndexer } from './repo-indexer.js';
 
@@ -106,6 +109,32 @@ describe('RepoIndexer', () => {
       await indexer.index({ useCache: true });
       const files = indexer.getFiles();
       expect(files.size).toBeGreaterThan(0);
+    });
+
+    it('should detect changed and deleted files incrementally', async () => {
+      const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexia-indexer-'));
+      const memoryDir = path.join(repoRoot, '.codexia');
+      await fs.mkdir(memoryDir, { recursive: true });
+      await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+      await fs.writeFile(path.join(repoRoot, 'src', 'a.ts'), 'export function a() { return 1; }\n', 'utf-8');
+      await fs.writeFile(path.join(repoRoot, 'src', 'b.ts'), 'export function b() { return 2; }\n', 'utf-8');
+
+      const tempIndexer = new RepoIndexer(repoRoot);
+      await tempIndexer.index({ useCache: true });
+
+      await fs.writeFile(path.join(repoRoot, 'src', 'a.ts'), 'export function a() { return 3; }\n', 'utf-8');
+      await fs.unlink(path.join(repoRoot, 'src', 'b.ts'));
+      await fs.writeFile(path.join(repoRoot, 'src', 'c.ts'), 'export function c() { return 4; }\n', 'utf-8');
+
+      const result = await tempIndexer.incrementalUpdate();
+
+      expect(result.changedFiles).toEqual(expect.arrayContaining(['src/a.ts', 'src/c.ts']));
+      expect(result.deletedFiles).toEqual(['src/b.ts']);
+      expect(result.currentFiles.has('src/a.ts')).toBe(true);
+      expect(result.currentFiles.has('src/b.ts')).toBe(false);
+      expect(result.currentFiles.has('src/c.ts')).toBe(true);
+
+      await fs.rm(repoRoot, { recursive: true, force: true });
     });
   });
 });

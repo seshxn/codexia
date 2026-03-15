@@ -29,6 +29,34 @@ Examples:
       const engine = new CodexiaEngine();
       await engine.initialize();
 
+      const noExplicitMode = !options.churn && !options.ownership && !options.coupling && !options.regressionRisk;
+      if (file && noExplicitMode) {
+        const history = await engine.getHistoryDetails(file);
+        const timeline = Array.isArray((history as { commits?: unknown[] }).commits)
+          ? ((history as { commits: Array<Record<string, unknown>> }).commits)
+          : [];
+
+        if (globalOpts.json) {
+          console.log(JSON.stringify(history, null, 2));
+          return;
+        }
+
+        console.log(chalk.bold.cyan(`\nHistory Timeline: ${file}\n`));
+        console.log(chalk.dim('─'.repeat(80)));
+        for (const commit of timeline.slice(0, parseInt(options.top))) {
+          console.log(`${chalk.yellow(String(commit.sha).slice(0, 8))}  ${chalk.white(String(commit.message))}`);
+          console.log(`  ${chalk.dim(String(commit.author))} · ${chalk.dim(String(commit.date))}`);
+          if (commit.isRevert) {
+            console.log(`  ${chalk.red('revert')} ${commit.revertsSha ? `→ ${commit.revertsSha}` : ''}`);
+          }
+          if (commit.linesAdded !== undefined || commit.linesRemoved !== undefined) {
+            console.log(`  +${commit.linesAdded || 0} / -${commit.linesRemoved || 0}`);
+          }
+          console.log('');
+        }
+        return;
+      }
+
       const analysis = await engine.analyzeHistory({
         file,
         since: options.since,

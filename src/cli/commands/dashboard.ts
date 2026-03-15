@@ -36,7 +36,12 @@ export const dashboardCommand = new Command('dashboard')
         process.exit(0);
       });
     } catch (error) {
-      console.error(chalk.red('Failed to start dashboard:'), error instanceof Error ? error.message : error);
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('Cannot find module') || message.includes('ERR_MODULE_NOT_FOUND')) {
+        console.error(chalk.red('Failed to start dashboard:'), 'The dashboard is not shipped in the npm package. Use the repository checkout to run it.');
+      } else {
+        console.error(chalk.red('Failed to start dashboard:'), message);
+      }
       process.exit(1);
     }
   });

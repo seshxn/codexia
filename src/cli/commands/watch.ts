@@ -29,6 +29,7 @@ Examples:
     let engine = new CodexiaEngine();
     let debounceTimer: NodeJS.Timeout | null = null;
     let isProcessing = false;
+    let graphReady = false;
 
     const runAnalysis = async (configChanged: boolean = false) => {
       if (isProcessing) return;
@@ -41,8 +42,16 @@ Examples:
         if (configChanged) {
           console.log(chalk.gray(`[${timestamp}]`) + ' Configuration changed, reloading engine...\n');
           engine = new CodexiaEngine();
+          graphReady = false;
         } else {
           console.log(chalk.gray(`[${timestamp}]`) + ' Change detected, analyzing...\n');
+        }
+
+        if (!graphReady) {
+          await engine.analyzeRepository();
+          graphReady = true;
+        } else {
+          await engine.updateRepository();
         }
 
         if (options.signals) {

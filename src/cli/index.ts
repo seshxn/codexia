@@ -21,6 +21,13 @@ import { changelogCommand } from './commands/changelog.js';
 import { monorepoCommand } from './commands/monorepo.js';
 import { mcpServerCommand } from './commands/mcp-server.js';
 import { dashboardCommand } from './commands/dashboard.js';
+import { analyzeCommand } from './commands/analyze.js';
+import { updateCommand } from './commands/update.js';
+import { statusCommand } from './commands/status.js';
+import { listCommand } from './commands/list.js';
+import { cleanCommand } from './commands/clean.js';
+import { setupCommand } from './commands/setup.js';
+import { serveCommand } from './commands/serve.js';
 
 // Interactive wizard
 import { runInteractiveWizard } from './interactive.js';
@@ -82,6 +89,13 @@ program.addCommand(changelogCommand);
 program.addCommand(monorepoCommand);
 program.addCommand(mcpServerCommand);
 program.addCommand(dashboardCommand);
+program.addCommand(analyzeCommand);
+program.addCommand(updateCommand);
+program.addCommand(statusCommand);
+program.addCommand(listCommand);
+program.addCommand(cleanCommand);
+program.addCommand(setupCommand);
+program.addCommand(serveCommand);
 
 // Wrap in async IIFE for ES module compatibility
 (async () => {

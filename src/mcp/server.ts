@@ -65,6 +65,8 @@ export interface MCPToolResult {
 export class CodexiaMCPServer {
   private engine: CodexiaEngine;
   private initialized = false;
+  private sessionStarted = false;
+  private sessionFinalized = false;
   private authToken: string | null = process.env.CODEXIA_MCP_TOKEN || null;
   private maxBodyBytes: number = Number(process.env.CODEXIA_MCP_MAX_BODY_BYTES || 1024 * 1024);
   private rateLimitWindowMs: number = Number(process.env.CODEXIA_MCP_RATE_LIMIT_WINDOW_MS || 60000);
@@ -73,6 +75,20 @@ export class CodexiaMCPServer {
 
   constructor(repoRoot?: string) {
     this.engine = new CodexiaEngine({ repoRoot });
+    const finalize = async (): Promise<void> => {
+      if (this.sessionFinalized) {
+        return;
+      }
+      this.sessionFinalized = true;
+      await this.engine.finalizeLearningSession();
+    };
+
+    process.once('beforeExit', () => {
+      void finalize();
+    });
+    process.once('SIGINT', () => {
+      void finalize().finally(() => process.exit(0));
+    });
   }
 
   /**
@@ -258,6 +274,309 @@ export class CodexiaMCPServer {
           },
         },
       },
+      {
+        name: 'query',
+        description: 'Search files and symbols in the indexed repository',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Search query',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum results to return',
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'semantic_search',
+        description: 'Hybrid lexical and semantic search across files and symbols',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Search query',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum results to return',
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'semantic_search_nodes_tool',
+        description: 'Compatibility alias for semantic search',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Search query',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum results to return',
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'impact',
+        description: 'Return blast radius grouped by dependency depth',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'Changed files to analyze',
+              items: { type: 'string' },
+            },
+            depth: {
+              type: 'number',
+              description: 'Maximum dependency depth',
+            },
+            staged: {
+              type: 'boolean',
+              description: 'Use staged changes when files are omitted',
+            },
+          },
+        },
+      },
+      {
+        name: 'review_context',
+        description: 'Return token-efficient review context for changed files and their blast radius',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'Specific files to review',
+              items: { type: 'string' },
+            },
+            staged: {
+              type: 'boolean',
+              description: 'Use staged changes when files are omitted',
+            },
+            depth: {
+              type: 'number',
+              description: 'Blast radius depth',
+            },
+          },
+        },
+      },
+      {
+        name: 'get_review_context_tool',
+        description: 'Compatibility alias for review_context',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'Specific files to review',
+              items: { type: 'string' },
+            },
+            staged: {
+              type: 'boolean',
+              description: 'Use staged changes when files are omitted',
+            },
+            depth: {
+              type: 'number',
+              description: 'Blast radius depth',
+            },
+          },
+        },
+      },
+      {
+        name: 'context',
+        description: 'Get structural and temporal context for a file or symbol',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            symbol: {
+              type: 'string',
+              description: 'Symbol name',
+            },
+            file: {
+              type: 'string',
+              description: 'File path',
+            },
+            includeHistory: {
+              type: 'boolean',
+              description: 'Include git history and co-change data',
+            },
+          },
+        },
+      },
+      {
+        name: 'detect_changes',
+        description: 'Map working tree or staged changes to graph entities',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            staged: {
+              type: 'boolean',
+              description: 'Inspect staged changes instead of the working tree',
+            },
+          },
+        },
+      },
+      {
+        name: 'cypher',
+        description: 'Execute a read-only Cypher query against the persisted graph',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Cypher query',
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'history',
+        description: 'Get temporal history for a file or symbol',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            symbol_or_file: {
+              type: 'string',
+              description: 'File path or symbol name',
+            },
+          },
+          required: ['symbol_or_file'],
+        },
+      },
+      {
+        name: 'co_changes',
+        description: 'List files that frequently change with the given file',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            file: {
+              type: 'string',
+              description: 'File path',
+            },
+            min_confidence: {
+              type: 'number',
+              description: 'Minimum confidence threshold',
+            },
+          },
+          required: ['file'],
+        },
+      },
+      {
+        name: 'volatility',
+        description: 'Return volatility and fragility signals for a file set',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            files: {
+              type: 'array',
+              description: 'Files to inspect',
+              items: { type: 'string' },
+            },
+          },
+          required: ['files'],
+        },
+      },
+      {
+        name: 'plan',
+        description: 'Recommend a file-read order based on prior successful sessions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task: {
+              type: 'string',
+              description: 'Task description',
+            },
+          },
+          required: ['task'],
+        },
+      },
+      {
+        name: 'locate',
+        description: 'Predict which files match a natural language intent',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            intent: {
+              type: 'string',
+              description: 'Natural language intent',
+            },
+          },
+          required: ['intent'],
+        },
+      },
+      {
+        name: 'embed_graph',
+        description: 'Build the local semantic index used for semantic search',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'embed_graph_tool',
+        description: 'Compatibility alias for embed_graph',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'docs_section',
+        description: 'Retrieve a named documentation section from README/docs',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            section_name: {
+              type: 'string',
+              description: 'Heading or file-style section name',
+            },
+          },
+          required: ['section_name'],
+        },
+      },
+      {
+        name: 'get_docs_section_tool',
+        description: 'Compatibility alias for docs_section',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            section_name: {
+              type: 'string',
+              description: 'Heading or file-style section name',
+            },
+          },
+          required: ['section_name'],
+        },
+      },
+      {
+        name: 'graph_stats',
+        description: 'Return graph size, freshness, and semantic-index health',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'list_graph_stats_tool',
+        description: 'Compatibility alias for graph_stats',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ];
   }
 
@@ -296,30 +615,104 @@ export class CodexiaMCPServer {
     }
 
     try {
+      if (!this.sessionStarted) {
+        await this.engine.beginLearningSession(this.deriveTaskDescription(name, params));
+        this.sessionStarted = true;
+      }
+
+      let result: MCPToolResult;
       switch (name) {
         case 'codexia/scan':
-          return this.handleScan(params);
+          result = await this.handleScan(params);
+          break;
         case 'codexia/impact':
-          return this.handleImpact(params);
+          result = await this.handleImpact(params);
+          break;
         case 'codexia/context':
-          return this.handleContext(params);
+          result = await this.handleContext(params);
+          break;
         case 'codexia/validate':
-          return this.handleValidate(params);
+          result = await this.handleValidate(params);
+          break;
         case 'codexia/signals':
-          return this.handleSignals(params);
+          result = await this.handleSignals(params);
+          break;
         case 'codexia/tests':
-          return this.handleTests(params);
+          result = await this.handleTests(params);
+          break;
         case 'codexia/dependencies':
-          return this.handleDependencies(params);
+          result = await this.handleDependencies(params);
+          break;
         case 'codexia/hotpaths':
-          return this.handleHotPaths(params);
+          result = await this.handleHotPaths(params);
+          break;
         case 'codexia/complexity':
-          return this.handleComplexity(params);
+          result = await this.handleComplexity(params);
+          break;
         case 'codexia/memory':
-          return this.handleMemory(params);
+          result = await this.handleMemory(params);
+          break;
+        case 'query':
+          result = await this.handleQuery(params);
+          break;
+        case 'semantic_search':
+        case 'semantic_search_nodes_tool':
+          result = await this.handleSemanticSearch(params);
+          break;
+        case 'impact':
+          result = await this.handleCodeGraphImpact(params);
+          break;
+        case 'review_context':
+        case 'get_review_context_tool':
+          result = await this.handleReviewContext(params);
+          break;
+        case 'context':
+          result = await this.handleCodeGraphContext(params);
+          break;
+        case 'detect_changes':
+          result = await this.handleDetectChanges(params);
+          break;
+        case 'cypher':
+          result = await this.handleCypher(params);
+          break;
+        case 'history':
+          result = await this.handleHistory(params);
+          break;
+        case 'co_changes':
+          result = await this.handleCoChanges(params);
+          break;
+        case 'volatility':
+          result = await this.handleVolatility(params);
+          break;
+        case 'plan':
+          result = await this.handlePlan(params);
+          break;
+        case 'locate':
+          result = await this.handleLocate(params);
+          break;
+        case 'embed_graph':
+        case 'embed_graph_tool':
+          result = await this.handleEmbedGraph();
+          break;
+        case 'docs_section':
+        case 'get_docs_section_tool':
+          result = await this.handleDocsSection(params);
+          break;
+        case 'graph_stats':
+        case 'list_graph_stats_tool':
+          result = await this.handleGraphStats();
+          break;
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
+
+      await this.engine.recordToolActivity(
+        name,
+        params,
+        this.extractFilesRead(params, result),
+        this.extractFilesEdited(params, result)
+      );
+      return result;
     } catch (error) {
       return {
         content: [{
@@ -398,6 +791,196 @@ export class CodexiaMCPServer {
       content: [{
         type: 'json',
         json: context,
+      }],
+    };
+  }
+
+  private async handleQuery(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const results = await this.engine.queryGraph(params.query as string, params.limit as number | undefined);
+    return {
+      content: [{
+        type: 'json',
+        json: {
+          results,
+        },
+      }],
+    };
+  }
+
+  private async handleSemanticSearch(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const results = await this.engine.semanticSearch(params.query as string, params.limit as number | undefined);
+    return {
+      content: [{
+        type: 'json',
+        json: {
+          results,
+        },
+      }],
+    };
+  }
+
+  private async handleCodeGraphImpact(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const files = Array.isArray(params.files) ? params.files as string[] : [];
+    const blastRadius = files.length > 0
+      ? await this.engine.getBlastRadius(files, Number(params.depth || 2))
+      : (await this.engine.detectChanges({ staged: params.staged as boolean })).files;
+
+    return {
+      content: [{
+        type: 'json',
+        json: {
+          depthGroups: blastRadius,
+        },
+      }],
+    };
+  }
+
+  private async handleCodeGraphContext(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const context = await this.engine.getCodeContext({
+      symbol: params.symbol as string | undefined,
+      file: params.file as string | undefined,
+      includeHistory: params.includeHistory as boolean | undefined,
+    });
+
+    return {
+      content: [{
+        type: 'json',
+        json: context,
+      }],
+    };
+  }
+
+  private async handleReviewContext(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const reviewContext = await this.engine.getReviewContext({
+      files: Array.isArray(params.files) ? params.files as string[] : undefined,
+      staged: params.staged as boolean | undefined,
+      depth: params.depth as number | undefined,
+    });
+
+    return {
+      content: [{
+        type: 'json',
+        json: reviewContext,
+      }],
+    };
+  }
+
+  private async handleDetectChanges(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const changes = await this.engine.detectChanges({
+      staged: params.staged as boolean | undefined,
+    });
+
+    return {
+      content: [{
+        type: 'json',
+        json: changes,
+      }],
+    };
+  }
+
+  private async handleCypher(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const rows = await this.engine.executePseudoCypher(params.query as string);
+    return {
+      content: [{
+        type: 'json',
+        json: rows,
+      }],
+    };
+  }
+
+  private async handleHistory(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const target = params.symbol_or_file as string;
+    const result = await this.engine.getHistoryDetails(target);
+
+    return {
+      content: [{
+        type: 'json',
+        json: result,
+      }],
+    };
+  }
+
+  private async handleCoChanges(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const result = await this.engine.getCoChanges(
+      params.file as string,
+      params.min_confidence as number | undefined
+    );
+
+    return {
+      content: [{
+        type: 'json',
+        json: {
+          file: params.file,
+          results: result,
+        },
+      }],
+    };
+  }
+
+  private async handleVolatility(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const result = await this.engine.getVolatility(params.files as string[]);
+    return {
+      content: [{
+        type: 'json',
+        json: {
+          results: result,
+        },
+      }],
+    };
+  }
+
+  private async handlePlan(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const result = await this.engine.planTask(params.task as string);
+    return {
+      content: [{
+        type: 'json',
+        json: {
+          task: params.task,
+          plan: result,
+        },
+      }],
+    };
+  }
+
+  private async handleLocate(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const result = await this.engine.locateIntent(params.intent as string);
+    return {
+      content: [{
+        type: 'json',
+        json: {
+          intent: params.intent,
+          files: result,
+        },
+      }],
+    };
+  }
+
+  private async handleEmbedGraph(): Promise<MCPToolResult> {
+    const result = await this.engine.embedGraph();
+    return {
+      content: [{
+        type: 'json',
+        json: result,
+      }],
+    };
+  }
+
+  private async handleDocsSection(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const result = await this.engine.getDocsSection(params.section_name as string);
+    return {
+      content: [{
+        type: 'json',
+        json: result,
+      }],
+    };
+  }
+
+  private async handleGraphStats(): Promise<MCPToolResult> {
+    const result = await this.engine.getGraphStats();
+    return {
+      content: [{
+        type: 'json',
+        json: result,
       }],
     };
   }
@@ -721,6 +1304,82 @@ export class CodexiaMCPServer {
         }));
       }
     });
+  }
+
+  private deriveTaskDescription(name: string, params: Record<string, unknown>): string {
+    if (typeof params.task === 'string' && params.task.trim().length > 0) {
+      return params.task;
+    }
+    if (typeof params.intent === 'string' && params.intent.trim().length > 0) {
+      return params.intent;
+    }
+    if (typeof params.query === 'string' && params.query.trim().length > 0) {
+      return params.query;
+    }
+    if (typeof params.symbol === 'string' && params.symbol.trim().length > 0) {
+      return `Inspect symbol ${params.symbol}`;
+    }
+    if (typeof params.file === 'string' && params.file.trim().length > 0) {
+      return `Inspect file ${params.file}`;
+    }
+    return `MCP tool session started with ${name}`;
+  }
+
+  private extractFilesRead(params: Record<string, unknown>, result: MCPToolResult): string[] {
+    const paramFiles = new Set<string>();
+    for (const key of ['file', 'symbol_or_file']) {
+      const value = params[key];
+      if (typeof value === 'string' && value.includes('/')) {
+        paramFiles.add(value);
+      }
+    }
+
+    const jsonContent = result.content.find((entry) => entry.type === 'json')?.json as Record<string, unknown> | undefined;
+    const collect = (value: unknown): void => {
+      if (typeof value === 'string' && value.includes('/')) {
+        paramFiles.add(value);
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach(collect);
+        return;
+      }
+      if (value && typeof value === 'object') {
+        for (const [key, nested] of Object.entries(value)) {
+          if (key === 'file' || key === 'path') {
+            collect(nested);
+          }
+        }
+      }
+    };
+
+    collect(jsonContent);
+    return Array.from(paramFiles);
+  }
+
+  private extractFilesEdited(params: Record<string, unknown>, result: MCPToolResult): string[] {
+    const jsonContent = result.content.find((entry) => entry.type === 'json')?.json as Record<string, unknown> | undefined;
+    const files = new Set<string>();
+
+    const add = (value: unknown): void => {
+      if (typeof value === 'string' && value.includes('/')) {
+        files.add(value);
+      }
+    };
+
+    if (Array.isArray(params.files)) {
+      for (const file of params.files) {
+        add(file);
+      }
+    }
+
+    if (jsonContent && Array.isArray(jsonContent.files)) {
+      for (const item of jsonContent.files as Array<Record<string, unknown>>) {
+        add(item.path);
+      }
+    }
+
+    return Array.from(files);
   }
 
   private isAuthorized(req: IncomingMessage): boolean {

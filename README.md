@@ -2,7 +2,7 @@
 
 ![Codexia header banner showing brand colors and tagline](assets/codexia-header.png)
 
-**Engineering intelligence layer for repositories.**
+**Engineering intelligence layer for repositories and AI coding agents.**
 
 Codexia understands your codebase, its history, its architecture, and its rules—and produces evidence-based insight, not guesses.
 
@@ -14,11 +14,25 @@ Codexia understands your codebase, its history, its architecture, and its rules�
 # Install globally
 npm install -g codexia
 
-# Run the interactive wizard
-codexia
+# Index a repository
+codexia analyze
+
+# Start MCP for an editor/agent
+codexia serve
 ```
 
-When you run `codexia` without any arguments, an interactive wizard guides you through all features:
+The current CodeGraph-compatible flow is:
+
+```bash
+codexia analyze          # Build/update the persisted graph
+codexia status           # Show graph health and freshness
+codexia update           # Incremental hash-based refresh
+codexia setup            # Write MCP config snippet
+codexia serve            # Start MCP server (stdio)
+codexia list             # List registered repos
+```
+
+When you run `codexia` without any arguments, an interactive wizard still guides you through the legacy Codexia features:
 
 ```text
 ┌────────────────────────────────────────┐
@@ -38,9 +52,10 @@ Select a category, then choose a specific command—the wizard handles paths, op
 Or use commands directly for scripting and CI:
 
 ```bash
-codexia scan          # Full repository scan
+codexia analyze       # Build the persisted typed graph
+codexia update        # Incrementally refresh changed files
 codexia impact        # Analyze change impact
-codexia signals       # Detect code smells
+codexia history foo.ts
 ```
 
 ---
@@ -49,11 +64,18 @@ codexia signals       # Detect code smells
 
 ### 🔍 **Repository Scanning**
 
-Indexes your codebase to understand structure, symbols, exports, and dependencies.
+Indexes your codebase into a persisted Kuzu graph with typed file/function/class/type/module entities, structural edges, and temporal commit metadata.
 
 ```bash
-codexia scan
+codexia analyze
+codexia update
+codexia status
 ```
+
+The index currently uses:
+- Tree-sitter for TypeScript/JavaScript, Python, and Go
+- A typed Kuzu graph for files, functions, classes, types, modules, and commits
+- Hash-based incremental refresh for `codexia update`
 
 ### 📊 **Impact Analysis**
 
@@ -96,6 +118,7 @@ Visualize your dependency graph in multiple formats.
 codexia graph                    # ASCII tree view
 codexia graph --format mermaid   # Mermaid diagram
 codexia graph --format dot       # Graphviz DOT format
+codexia graph --format html      # Interactive HTML graph
 codexia graph src/core/types.ts  # Focus on specific file
 ```
 
@@ -116,6 +139,7 @@ Understand temporal patterns, ownership, and risk from git history.
 
 ```bash
 codexia history                   # Full temporal analysis
+codexia history src/core/types.ts # Commit timeline for a specific file/symbol
 codexia history --churn           # File change frequency
 codexia history --ownership       # Code ownership & bus factor
 codexia history --coupling        # Files that change together
@@ -176,18 +200,23 @@ codexia watch --impact     # Watch and analyze impact
 codexia watch --check      # Watch and check conventions
 ```
 
+Watch mode now refreshes the persisted graph and semantic index incrementally before rerunning analyses.
+
 ### 🤖 **MCP Server (AI Integration)**
 
 Model Context Protocol server for AI assistant integration.
 
 ```bash
-codexia mcp-server                # Start stdio server (for Claude)
-codexia mcp-server --port 3000    # Start HTTP server
+codexia serve                     # Start stdio server
+codexia serve --http --port 3000  # Start HTTP server
+codexia mcp-server                # Legacy alias/command surface
 ```
 
 ### 📊 **Web Dashboard**
 
 Beautiful, real-time visualization of your repository health.
+
+This is available from the repository checkout and local source build, not the published npm package.
 
 ```bash
 codexia dashboard                 # Start dashboard server
@@ -301,7 +330,7 @@ npm install -g codexia
 Or use directly with npx:
 
 ```bash
-npx codexia scan
+npx codexia analyze
 ```
 
 Run as a standalone local app from source:
@@ -379,7 +408,7 @@ Codexia exposes a Model Context Protocol server for AI assistants:
   "mcpServers": {
     "codexia": {
       "command": "npx",
-      "args": ["codexia", "mcp-server"]
+      "args": ["codexia", "serve"]
     }
   }
 }
@@ -389,16 +418,25 @@ Codexia exposes a Model Context Protocol server for AI assistants:
 
 | Tool | Description |
 |------|-------------|
-| `codexia_scan` | Scan and index repository |
-| `codexia_impact` | Analyze change impact |
-| `codexia_context` | Get intelligent file context |
-| `codexia_validate` | Check conventions |
-| `codexia_signals` | Detect code signals |
-| `codexia_tests` | Suggest affected tests |
-| `codexia_dependencies` | Get dependency info |
-| `codexia_hotpaths` | Analyze critical paths |
-| `codexia_complexity` | Get complexity metrics |
-| `codexia_memory` | Access project memory |
+| `query` | Search files, functions, classes, and types in the persisted graph |
+| `semantic_search` | Hybrid lexical and semantic search across files and symbols |
+| `impact` | Return dependency blast radius grouped by depth |
+| `review_context` | Token-efficient review context with changed symbols, snippets, and blast radius guidance |
+| `context` | Structural and temporal context for a file or symbol |
+| `detect_changes` | Map working tree changes to graph entities |
+| `cypher` | Run read-only Cypher against the persisted graph |
+| `history` | Return commit timeline for a file or function |
+| `co_changes` | Files that statistically change together |
+| `volatility` | Volatility and fragility scores for a file set |
+| `plan` | Learned file-read order from prior successful sessions |
+| `locate` | Predict likely files for a natural-language intent |
+| `embed_graph` | Refresh the local semantic index explicitly |
+| `docs_section` | Retrieve named documentation sections from `README.md` and `docs/*.md` |
+| `graph_stats` | Return graph freshness, structural counts, and semantic-index health |
+
+Compatibility aliases are also exposed for reference workflows: `semantic_search_nodes_tool`, `get_review_context_tool`, `embed_graph_tool`, `get_docs_section_tool`, and `list_graph_stats_tool`.
+
+Legacy `codexia/*` MCP tools are still exposed for backward compatibility.
 
 ---
 
@@ -437,6 +475,12 @@ Interactive Mode:
 
 Commands:
   init                Initialize .codexia directory
+  analyze             Build persisted typed graph
+  update              Incrementally refresh changed files
+  status              Show graph status for current repo
+  list                List registered graph repos
+  setup               Write local MCP setup snippet
+  serve               Start CodeGraph-style MCP server
   scan                Scan and index repository
   impact              Analyze change impact
   check               Check conventions
@@ -444,14 +488,14 @@ Commands:
   signals             Detect code signals
   pr-report           Generate PR analysis report
   watch               Watch mode with live analysis
-  graph               Visualize dependency graph
+  graph               Visualize dependency graph, including interactive HTML output
   complexity          Analyze code complexity
   history             Analyze git history patterns
   invariants          Check architectural invariants
   hotpaths            Detect critical code paths
   changelog           Generate semantic changelog
   monorepo            Analyze monorepo structure
-  mcp-server          Start MCP server for AI tools
+  mcp-server          Start legacy MCP server command
   dashboard           Start web dashboard
 
 Options:

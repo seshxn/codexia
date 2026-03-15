@@ -92,6 +92,8 @@ export class LanguageProviderRegistry {
       '**/dist/**',
       '**/build/**',
       '**/.git/**',
+      '**/.codexia/**',
+      '**/.codegraph/**',
       '**/coverage/**',
       '**/vendor/**',
       '**/__pycache__/**',

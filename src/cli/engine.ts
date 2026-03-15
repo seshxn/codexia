@@ -1,9 +1,14 @@
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import {
   GitAnalyzer,
+  GraphStore,
   RepoIndexer,
   DependencyGraph,
   SymbolMap,
   SignalsEngine,
+  SemanticIndex,
+  DocsIndex,
 } from '../core/index.js';
 import {
   MemoryLoader,
@@ -29,7 +34,13 @@ import type {
   ProjectMemory,
   Symbol,
   Signal,
+  FileInfo,
 } from '../core/types.js';
+import { CodeGraphRegistry } from '../codegraph/registry.js';
+import type { IntentLocation, PlanStep, RepoRegistryEntry, RepoStatus, SessionRecord } from '../codegraph/types.js';
+import { SessionStore } from '../learning/session-store.js';
+import { ExecutionPlanner } from '../learning/planner.js';
+import { IntentMapper } from '../learning/intent-map.js';
 
 export interface EngineOptions {
   repoRoot?: string;
@@ -39,6 +50,8 @@ export interface EngineOptions {
 export class CodexiaEngine {
   private repoRoot: string;
   private git: GitAnalyzer;
+  private graphStore: GraphStore;
+  private semanticIndex: SemanticIndex;
   private indexer: RepoIndexer;
   private depGraph: DependencyGraph;
   private symbolMap: SymbolMap;
@@ -54,6 +67,12 @@ export class CodexiaEngine {
   private monorepoDetector: MonorepoDetector;
   private monorepoAnalyzer: MonorepoAnalyzer | null = null;
   private testPrioritizer: SmartTestPrioritizer;
+  private registry: CodeGraphRegistry;
+  private sessionStore: SessionStore;
+  private planner: ExecutionPlanner;
+  private intentMapper: IntentMapper;
+  private docsIndex: DocsIndex;
+  private currentSessionHead?: string;
   private initialized = false;
 
   constructor(options: EngineOptions = {}) {
@@ -61,6 +80,8 @@ export class CodexiaEngine {
     
     // Initialize all components
     this.git = new GitAnalyzer(this.repoRoot);
+    this.graphStore = new GraphStore(this.repoRoot);
+    this.semanticIndex = new SemanticIndex(this.repoRoot);
     this.indexer = new RepoIndexer(this.repoRoot);
     this.depGraph = new DependencyGraph(this.repoRoot);
     this.symbolMap = new SymbolMap(this.repoRoot);
@@ -77,6 +98,11 @@ export class CodexiaEngine {
     this.changelogGenerator = new ChangelogGenerator(this.repoRoot);
     this.monorepoDetector = new MonorepoDetector(this.repoRoot);
     this.testPrioritizer = new SmartTestPrioritizer();
+    this.registry = new CodeGraphRegistry(this.repoRoot);
+    this.sessionStore = new SessionStore(this.repoRoot);
+    this.planner = new ExecutionPlanner();
+    this.intentMapper = new IntentMapper();
+    this.docsIndex = new DocsIndex(this.repoRoot);
   }
 
   /**
@@ -85,17 +111,25 @@ export class CodexiaEngine {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Index repository
-    await this.indexer.index();
+    await this.loadIndex(false);
+    await this.graphStore.initialize();
+    await this.semanticIndex.load();
+  }
 
-    // Build dependency graph
+  private async loadIndex(force: boolean): Promise<void> {
+    if (force) {
+      await this.indexer.reindex();
+    } else {
+      await this.indexer.index();
+    }
+
+    this.depGraph = new DependencyGraph(this.repoRoot);
+    this.symbolMap = new SymbolMap(this.repoRoot);
+
     const files = this.indexer.getFiles();
     this.depGraph.buildFromImports(files);
-
-    // Build symbol map
     this.symbolMap.buildFromFiles(files);
 
-    // Load memory if available
     const projectMemory = await this.memory.loadMemory();
     if (projectMemory?.conventions) {
       this.conventionChecker.loadFromMemory(projectMemory.conventions);
@@ -124,6 +158,90 @@ export class CodexiaEngine {
       stats,
       hasMemory,
     };
+  }
+
+  async analyzeRepository(options: { force?: boolean } = {}): Promise<AnalysisResult> {
+    const start = Date.now();
+
+    await this.loadIndex(Boolean(options.force));
+    await this.graphStore.rebuild(this.indexer.getFiles(), this.depGraph);
+    if (await this.git.isGitRepo()) {
+      const commits = await this.git.getRecentCommits(200);
+      await this.graphStore.syncTemporalData(this.indexer.getFiles(), commits);
+    }
+    await this.semanticIndex.build(this.indexer.getFiles());
+    const stats = this.indexer.getStats();
+    const hasMemory = await this.memory.hasMemory();
+    await this.registry.registerRepo(stats);
+
+    return {
+      success: true,
+      duration: Date.now() - start,
+      stats,
+      hasMemory,
+    };
+  }
+
+  async updateRepository(): Promise<AnalysisResult> {
+    const start = Date.now();
+    await this.graphStore.initialize();
+    const incremental = await this.indexer.incrementalUpdate();
+
+    this.depGraph = new DependencyGraph(this.repoRoot);
+    this.symbolMap = new SymbolMap(this.repoRoot);
+    this.depGraph.buildFromImports(this.indexer.getFiles());
+    this.symbolMap.buildFromFiles(this.indexer.getFiles());
+
+    if (incremental.changedFiles.length > 0 || incremental.deletedFiles.length > 0) {
+      await this.graphStore.updateFiles(
+        this.indexer.getFiles(),
+        this.depGraph,
+        incremental.changedFiles,
+        incremental.deletedFiles
+      );
+    }
+
+    if (await this.git.isGitRepo()) {
+      const commits = await this.git.getRecentCommits(200);
+      await this.graphStore.syncTemporalData(this.indexer.getFiles(), commits);
+    }
+    if (incremental.changedFiles.length > 0 || incremental.deletedFiles.length > 0 || !(await this.semanticIndex.exists())) {
+      await this.semanticIndex.build(this.indexer.getFiles());
+    }
+
+    this.initialized = true;
+    const result = {
+      success: true,
+      duration: Date.now() - start,
+      stats: this.indexer.getStats(),
+      hasMemory: await this.memory.hasMemory(),
+    };
+    const now = new Date().toISOString();
+    await this.registry.updateRepoState({
+      analyzedAt: now,
+      updatedAt: now,
+      stats: result.stats,
+    });
+    return result;
+  }
+
+  async getRepoStatus(): Promise<RepoStatus> {
+    const sessionCount = await this.sessionStore.getSessionCount();
+    return this.registry.getStatus(sessionCount);
+  }
+
+  async listRegisteredRepos(): Promise<RepoRegistryEntry[]> {
+    return this.registry.listRepos();
+  }
+
+  async cleanRepository(): Promise<void> {
+    await this.indexer.clearCache();
+    await this.registry.unregisterRepo();
+    try {
+      await fs.unlink(path.join(this.repoRoot, '.codexia', 'index-cache.json'));
+    } catch {
+      // Ignore missing cache file.
+    }
   }
 
   /**
@@ -324,6 +442,536 @@ export class CodexiaEngine {
    */
   async getMemory(): Promise<ProjectMemory | null> {
     return this.memory.loadMemory();
+  }
+
+  async queryGraph(query: string, limit: number = 10): Promise<Array<Record<string, unknown>>> {
+    await this.initialize();
+
+    const fusedResults = new Map<string, Record<string, unknown>>();
+    const addResult = (key: string, result: Record<string, unknown>, rank: number, source: 'lexical' | 'semantic'): void => {
+      const current = fusedResults.get(key) || { ...result, score: 0, sources: [] as string[] };
+      current.score = Number(current.score) + 1 / (50 + rank + 1);
+      const sources = current.sources as string[];
+      if (!sources.includes(source)) {
+        sources.push(source);
+      }
+      fusedResults.set(key, current);
+    };
+
+    try {
+      const persisted = await this.graphStore.queryText(query, limit * 3);
+      for (const [index, row] of persisted.entries()) {
+        const normalized = {
+          ...row,
+          id: String(row.type === 'file' ? row.path : `${row.path}:${row.name || row.type}`),
+        };
+        addResult(String(normalized.id), normalized, index, 'lexical');
+      }
+    } catch {
+      // Fall back to in-memory query if the persisted graph is unavailable.
+    }
+
+    const semanticResults = await this.semanticIndex.search(query, limit * 3);
+    for (const [index, result] of semanticResults.entries()) {
+      addResult(result.id, {
+        type: result.type,
+        id: result.id,
+        path: result.path,
+        name: result.name,
+        kind: result.kind,
+        excerpt: result.excerpt,
+        lexicalScore: result.lexicalScore,
+        semanticScore: result.semanticScore,
+      }, index, 'semantic');
+    }
+
+    if (fusedResults.size > 0) {
+      return Array.from(fusedResults.values())
+        .sort((left, right) => Number(right.score) - Number(left.score))
+        .slice(0, limit)
+        .map((result) => ({
+          ...result,
+          score: Number(Number(result.score).toFixed(4)),
+        }));
+    }
+
+    const q = query.trim().toLowerCase();
+    const results: Array<Record<string, unknown>> = [];
+
+    for (const [filePath, fileInfo] of this.indexer.getFiles()) {
+      const fileScore = this.computeTextScore(q, [filePath, fileInfo.language]);
+      if (fileScore > 0) {
+        results.push({
+          type: 'file',
+          id: filePath,
+          path: filePath,
+          language: fileInfo.language,
+          score: fileScore,
+        });
+      }
+
+      for (const symbol of fileInfo.symbols) {
+        const symbolScore = this.computeTextScore(q, [symbol.name, symbol.kind, symbol.filePath]);
+        if (symbolScore > 0) {
+          results.push({
+            type: 'symbol',
+            id: `${symbol.filePath}:${symbol.name}:${symbol.line}`,
+            name: symbol.name,
+            kind: symbol.kind,
+            file: symbol.filePath,
+            line: symbol.line,
+            score: symbolScore + (symbol.exported ? 0.15 : 0),
+          });
+        }
+      }
+    }
+
+    return results
+      .sort((a, b) => Number(b.score) - Number(a.score))
+      .slice(0, limit);
+  }
+
+  async semanticSearch(query: string, limit: number = 10): Promise<Array<Record<string, unknown>>> {
+    await this.initialize();
+    const results = await this.semanticIndex.search(query, limit);
+    return results.map((result) => ({
+      ...result,
+      source: 'semantic-index',
+    }));
+  }
+
+  async embedGraph(): Promise<Record<string, unknown>> {
+    await this.initialize();
+    const stats = await this.semanticIndex.build(this.indexer.getFiles());
+    return {
+      status: 'success',
+      ...stats,
+    };
+  }
+
+  async getCodeContext(options: {
+    symbol?: string;
+    file?: string;
+    includeHistory?: boolean;
+  }): Promise<Record<string, unknown>> {
+    await this.initialize();
+
+    const context: Record<string, unknown> = {};
+    const files = this.indexer.getFiles();
+    let targetFile: string | undefined = options.file;
+
+    if (options.file) {
+      try {
+        const rows = await this.graphStore.getFileContext(options.file);
+        if (rows.length > 0) {
+          context.file = {
+            path: options.file,
+            language: rows[0].language,
+            symbols: rows.map((row) => ({
+              name: row.symbol,
+              kind: row.kind,
+              line: row.line,
+            })),
+            imports: (await this.graphStore.getDependencies(options.file)).map((row) => row.path),
+            importedBy: (await this.graphStore.getDependents(options.file)).map((row) => row.path),
+          };
+        }
+      } catch {
+        const fileInfo = files.get(options.file);
+        if (fileInfo) {
+          context.file = this.buildFileContext(options.file, fileInfo);
+        }
+      }
+    }
+
+    if (options.symbol) {
+      try {
+        const rows = await this.graphStore.getSymbolContext(options.symbol);
+        if (rows.length > 0) {
+          const filePath = rows[0].file_path;
+          context.symbol = {
+            name: options.symbol,
+            entityType: rows[0].entity_type,
+            filePath,
+            callers: rows.map((row) => row.caller).filter((value): value is string => typeof value === 'string' && value.length > 0),
+            callees: rows.map((row) => row.callee).filter((value): value is string => typeof value === 'string' && value.length > 0),
+            container: rows.find((row) => typeof row.class_name === 'string' && row.class_name.length > 0)?.class_name || rows.find((row) => typeof row.parent_class === 'string' && row.parent_class.length > 0)?.parent_class || null,
+            baseClasses: rows.map((row) => row.base_class).filter((value): value is string => typeof value === 'string' && value.length > 0),
+            implements: rows.map((row) => row.implemented_type).filter((value): value is string => typeof value === 'string' && value.length > 0),
+          };
+          targetFile = targetFile || (typeof filePath === 'string' ? filePath : undefined);
+        } else {
+          const matches = this.symbolMap.findByName(options.symbol);
+          context.symbol = matches.map((match) => ({
+            ...match,
+            dependents: this.depGraph.getDependents(match.filePath),
+            dependencies: this.depGraph.getDependencies(match.filePath),
+          }));
+          targetFile = targetFile || matches[0]?.filePath;
+        }
+      } catch {
+        const matches = this.symbolMap.findByName(options.symbol);
+        context.symbol = matches.map((match) => ({
+          ...match,
+          dependents: this.depGraph.getDependents(match.filePath),
+          dependencies: this.depGraph.getDependencies(match.filePath),
+        }));
+        targetFile = targetFile || matches[0]?.filePath;
+      }
+    }
+
+    if (options.includeHistory && targetFile) {
+      try {
+        context.history = await this.temporalAnalyzer.analyzeFile(targetFile);
+        context.coChanges = await this.getCoChanges(targetFile, 0.2);
+      } catch {
+        context.history = null;
+      }
+    }
+
+    return context;
+  }
+
+  async getReviewContext(options: {
+    files?: string[];
+    staged?: boolean;
+    depth?: number;
+  } = {}): Promise<Record<string, unknown>> {
+    await this.initialize();
+
+    const diff = options.staged ? await this.git.getStagedDiff() : await this.git.getDiff('HEAD', '');
+    const changedFiles = (options.files && options.files.length > 0 ? options.files : diff.files.map((file) => file.path))
+      .filter((file, index, all) => all.indexOf(file) === index);
+
+    if (changedFiles.length === 0) {
+      return {
+        summary: 'No changed files were detected.',
+        changedFiles: [],
+        impactedFiles: [],
+        impact: {
+          changedNodes: [],
+          impactedNodes: [],
+          depthGroups: [],
+        },
+        snippets: [],
+        guidance: ['Run the tool against staged or working tree changes to generate review context.'],
+      };
+    }
+
+    const changeMap = new Map(diff.files.map((file) => [file.path, file]));
+    const detected = await this.detectChanges({ staged: options.staged });
+    const detectedFiles = Array.isArray(detected.files) ? detected.files as Array<Record<string, unknown>> : [];
+    const detectedByPath = new Map<string, Record<string, unknown>>(
+      detectedFiles
+        .map((entry) => (typeof entry.path === 'string' ? [entry.path, entry] : null))
+        .filter((entry): entry is [string, Record<string, unknown>] => Array.isArray(entry))
+    );
+
+    const depthGroups = await this.getBlastRadius(changedFiles, options.depth || 2);
+    const impactedFiles = Array.from(new Set(
+      depthGroups
+        .filter((group) => group.depth > 0)
+        .flatMap((group) => group.files)
+        .filter((file) => !changedFiles.includes(file))
+    ));
+
+    const changedNodes = changedFiles.flatMap((file) => {
+      const entry = detectedByPath.get(file);
+      const impactedSymbols = Array.isArray(entry?.impactedSymbols) ? entry.impactedSymbols as Array<Record<string, unknown>> : [];
+      return impactedSymbols.map((symbol) => ({
+        file,
+        ...symbol,
+      }));
+    });
+
+    const impactedNodes = impactedFiles.slice(0, 12).flatMap((file) => {
+      const fileInfo = this.indexer.getFiles().get(file);
+      return (fileInfo?.symbols || []).slice(0, 5).map((symbol) => ({
+        file,
+        name: symbol.name,
+        kind: symbol.kind,
+        line: symbol.line,
+      }));
+    });
+
+    const snippets: Array<Record<string, unknown>> = [];
+    for (const file of changedFiles) {
+      const diffFile = changeMap.get(file);
+      if (!diffFile) {
+        continue;
+      }
+      snippets.push(...await this.buildReviewSnippets(file, diffFile.hunks));
+    }
+
+    const guidance = await this.generateReviewGuidance(changedFiles, impactedFiles, changedNodes);
+
+    return {
+      summary: `Review ${changedFiles.length} changed file(s) with ${impactedFiles.length} impacted file(s) in the blast radius.`,
+      changedFiles,
+      impactedFiles,
+      impact: {
+        changedNodes,
+        impactedNodes,
+        depthGroups,
+      },
+      snippets: snippets.slice(0, 16),
+      guidance,
+    };
+  }
+
+  async detectChanges(options: { staged?: boolean } = {}): Promise<Record<string, unknown>> {
+    await this.initialize();
+
+    const diff = options.staged ? await this.git.getStagedDiff() : await this.git.getDiff('HEAD', '');
+    const files = this.indexer.getFiles();
+
+    return {
+      stats: diff.stats,
+      files: diff.files.map((file) => {
+        const fileInfo = files.get(file.path);
+        const changedLines = file.hunks.flatMap((hunk) =>
+          Array.from({ length: Math.max(hunk.newLines, 1) }, (_, index) => hunk.newStart + index)
+        );
+        const impactedSymbols = (fileInfo?.symbols || [])
+          .filter((symbol) => changedLines.length === 0 || changedLines.some((line) => Math.abs(symbol.line - line) <= 3))
+          .map((symbol) => ({
+            name: symbol.name,
+            kind: symbol.kind,
+            line: symbol.line,
+          }));
+
+        return {
+          path: file.path,
+          status: file.status,
+          additions: file.additions,
+          deletions: file.deletions,
+          impactedSymbols,
+          dependents: this.depGraph.getDependents(file.path),
+        };
+      }),
+    };
+  }
+
+  async getDocsSection(sectionName: string): Promise<Record<string, unknown>> {
+    const section = await this.docsIndex.getSection(sectionName);
+    return {
+      ...section,
+    };
+  }
+
+  async getBlastRadius(files: string[], depth: number = 2): Promise<Array<{ depth: number; files: string[] }>> {
+    await this.initialize();
+
+    try {
+      const persisted = await this.graphStore.getBlastRadius(files, depth);
+      if (persisted.length > 0) {
+        return persisted;
+      }
+    } catch {
+      // Fall back to in-memory dependency traversal.
+    }
+
+    const grouped = new Map<number, Set<string>>();
+    for (const file of files) {
+      if (!grouped.has(0)) {
+        grouped.set(0, new Set());
+      }
+      grouped.get(0)!.add(file);
+
+      for (let hop = 1; hop <= depth; hop++) {
+        const previous = hop === 1 ? [file] : Array.from(grouped.get(hop - 1) || []);
+        for (const current of previous) {
+          for (const dependent of this.depGraph.getDependents(current)) {
+            if (!grouped.has(hop)) {
+              grouped.set(hop, new Set());
+            }
+            grouped.get(hop)!.add(dependent);
+          }
+        }
+      }
+    }
+
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([hop, nodes]) => ({
+        depth: hop,
+        files: Array.from(nodes),
+      }));
+  }
+
+  async executePseudoCypher(query: string): Promise<Record<string, unknown>> {
+    await this.initialize();
+    return {
+      rows: await this.graphStore.runCypher(query),
+    };
+  }
+
+  async getCoChanges(file: string, minConfidence: number = 0.3): Promise<Array<{
+    file: string;
+    confidence: number;
+    coCommitCount: number;
+  }>> {
+    const coChanges = await this.git.getCoChangedFiles(file);
+    return coChanges
+      .filter((item) => item.coChangeRatio >= minConfidence)
+      .slice(0, 20)
+      .map((item) => ({
+        file: item.path,
+        confidence: Number(item.coChangeRatio.toFixed(2)),
+        coCommitCount: item.coChangeCount,
+      }));
+  }
+
+  async getVolatility(files: string[]): Promise<Array<Record<string, unknown>>> {
+    await this.initialize();
+    const analysis = await this.temporalAnalyzer.analyzeAll(files);
+
+    return Array.from(analysis.files.values()).map((entry) => {
+      const volatility = Number(((100 - entry.stabilityScore) / 100).toFixed(2));
+      const fragility = Number(
+        Math.min(1, volatility * (entry.regressionProne ? 1 : 0.5) + entry.ownershipRisk / 200).toFixed(2)
+      );
+
+      return {
+        file: entry.path,
+        volatility,
+        fragility,
+        churnRate: entry.churnRate,
+        ownershipRisk: entry.ownershipRisk,
+        regressionProne: entry.regressionProne,
+        lastModified: entry.lastModified,
+      };
+    });
+  }
+
+  async getHistoryDetails(target: string): Promise<Record<string, unknown>> {
+    await this.initialize();
+
+    try {
+      const rows = await this.graphStore.getHistoryForTarget(target);
+      if (rows.length > 0) {
+        return {
+          target,
+          targetType: rows[0].target_type,
+          commits: rows.map((row) => ({
+            sha: row.sha,
+            message: row.message,
+            author: row.author,
+            date: row.date,
+            isRevert: row.is_revert,
+            revertsSha: row.reverts_sha || undefined,
+            linesAdded: row.lines_added,
+            linesRemoved: row.lines_removed,
+          })),
+        };
+      }
+    } catch {
+      // Fall back to direct git history below.
+    }
+
+    const fileHistory = await this.git.getFileHistory(target, 50);
+    return {
+      target,
+      targetType: 'file',
+      commits: fileHistory.commits.map((commit) => ({
+        sha: commit.hash,
+        message: commit.message,
+        author: commit.author,
+        date: commit.date.toISOString(),
+      })),
+      authors: fileHistory.authors,
+      changeFrequency: fileHistory.changeFrequency,
+      lastModified: fileHistory.lastModified.toISOString(),
+    };
+  }
+
+  async getGraphStats(): Promise<Record<string, unknown>> {
+    await this.initialize();
+
+    const status = await this.getRepoStatus();
+    const graphStats = await this.graphStore.getStats();
+    const semanticStats = this.semanticIndex.getStats();
+
+    return {
+      repo: {
+        name: status.repoName,
+        analyzed: status.analyzed,
+        stale: status.isStale,
+        lastAnalyzedAt: status.lastAnalyzedAt,
+        lastUpdatedAt: status.lastUpdatedAt,
+      },
+      index: status.stats || this.indexer.getStats(),
+      graph: graphStats,
+      semantic: semanticStats,
+      sessionsRecorded: status.sessionsRecorded,
+    };
+  }
+
+  async planTask(task: string): Promise<PlanStep[]> {
+    const sessions = await this.sessionStore.getSessions();
+    const learned = this.planner.buildPlan(task, sessions);
+    if (learned.length > 0) {
+      return learned;
+    }
+
+    const fallback = await this.queryGraph(task, 6);
+    return fallback.map((item, index) => ({
+      file: String(item.type === 'file' ? item.path : item.file),
+      confidence: Number(Math.max(0.2, 1 - index * 0.12).toFixed(2)),
+      reason: 'Fallback from structural search because no successful historical sessions matched the task.',
+    }));
+  }
+
+  async locateIntent(intent: string): Promise<IntentLocation[]> {
+    const sessions = await this.sessionStore.getSessions();
+    const learned = this.intentMapper.locate(intent, sessions);
+    if (learned.length > 0) {
+      return learned;
+    }
+
+    const fallback = await this.queryGraph(intent, 8);
+    return fallback.map((item, index) => ({
+      file: String(item.type === 'file' ? item.path : item.file),
+      confidence: Number(Math.max(0.15, 0.9 - index * 0.1).toFixed(2)),
+      reason: 'Fallback from indexed filenames and symbol names.',
+    }));
+  }
+
+  async beginLearningSession(taskDescription: string = 'MCP session'): Promise<SessionRecord> {
+    const headStart = await this.git.getHeadCommit();
+    this.currentSessionHead = headStart;
+    return this.sessionStore.startSession(taskDescription, headStart);
+  }
+
+  async recordToolActivity(name: string, params: Record<string, unknown>, filesRead: string[] = [], filesEdited: string[] = []): Promise<void> {
+    await this.sessionStore.addToolCall({
+      tool: name,
+      paramsSummary: JSON.stringify(params),
+      filesRead,
+      filesEdited,
+    });
+  }
+
+  async finalizeLearningSession(): Promise<SessionRecord | null> {
+    const headEnd = await this.git.getHeadCommit();
+    const commitMessage = headEnd ? await this.git.getCommitMessage(headEnd) : undefined;
+    const outcome: SessionRecord['outcome'] =
+      headEnd && this.currentSessionHead && headEnd !== this.currentSessionHead && commitMessage?.toLowerCase().startsWith('revert')
+        ? 'failure'
+        : headEnd && this.currentSessionHead && headEnd !== this.currentSessionHead
+          ? 'success'
+          : 'abandoned';
+
+    const changedFiles = await this.git.getChangedFiles();
+    this.currentSessionHead = undefined;
+    return this.sessionStore.finalizeSession({
+      outcome,
+      headEnd,
+      filesEdited: changedFiles.map((file) => ({
+        path: file,
+        linesChanged: 1,
+      })),
+    });
   }
 
   private calculateRiskLevel(riskScore: RiskScore): 'low' | 'medium' | 'high' | 'critical' {
@@ -926,5 +1574,158 @@ export class CodexiaEngine {
       busFactor: result.summary?.busFactor || 0,
       activeContributors: result.summary?.activeContributors || 0,
     };
+  }
+
+  private buildFileContext(filePath: string, fileInfo: FileInfo): Record<string, unknown> {
+    return {
+      path: filePath,
+      language: fileInfo.language,
+      symbols: fileInfo.symbols.map((symbol) => ({
+        name: symbol.name,
+        kind: symbol.kind,
+        line: symbol.line,
+      })),
+      imports: this.depGraph.getDependencies(filePath),
+      importedBy: this.depGraph.getDependents(filePath),
+      exports: fileInfo.exports,
+    };
+  }
+
+  private async buildReviewSnippets(
+    filePath: string,
+    hunks: Array<{ newStart: number; newLines: number; content: string }>
+  ): Promise<Array<Record<string, unknown>>> {
+    try {
+      const content = await fs.readFile(path.join(this.repoRoot, filePath), 'utf-8');
+      const lines = content.split(/\r?\n/);
+      return hunks.slice(0, 4).map((hunk) => {
+        const startLine = Math.max(1, hunk.newStart - 2);
+        const endLine = Math.min(lines.length, hunk.newStart + Math.max(hunk.newLines, 1) + 2);
+        return {
+          file: filePath,
+          startLine,
+          endLine,
+          language: this.resolveLanguageForFile(filePath),
+          content: lines.slice(startLine - 1, endLine).join('\n'),
+          reason: 'Changed hunk',
+        };
+      });
+    } catch {
+      return hunks.slice(0, 4).map((hunk) => ({
+        file: filePath,
+        startLine: hunk.newStart,
+        endLine: hunk.newStart + Math.max(hunk.newLines, 1) - 1,
+        language: this.resolveLanguageForFile(filePath),
+        content: hunk.content,
+        reason: 'Changed hunk',
+      }));
+    }
+  }
+
+  private async generateReviewGuidance(
+    changedFiles: string[],
+    impactedFiles: string[],
+    changedNodes: Array<Record<string, unknown>>
+  ): Promise<string[]> {
+    const guidance: string[] = [];
+
+    if (impactedFiles.length > 5) {
+      guidance.push(`Wide blast radius: ${impactedFiles.length} additional files depend on the changed surface.`);
+    }
+
+    const changedFileSet = new Set(changedFiles);
+    const testFiles = changedFiles.filter((file) => /(?:^|\/)(?:__tests__|tests?)\/|(?:test|spec)\./i.test(file));
+    if (testFiles.length === 0) {
+      const changedSymbols = changedNodes
+        .map((node) => (typeof node.name === 'string' ? node.name : ''))
+        .filter((name) => name.length > 0);
+
+      let discoveredTests = 0;
+      for (const symbolName of changedSymbols.slice(0, 8)) {
+        try {
+          const tests = await this.graphStore.getTestsForSymbol(symbolName);
+          discoveredTests += tests.length;
+        } catch {
+          // Ignore graph lookup failures and keep heuristic guidance.
+        }
+      }
+
+      if (discoveredTests === 0) {
+        guidance.push('No test coverage was detected around the changed symbols. Verify impacted behavior manually or add focused tests.');
+      }
+    }
+
+    const exportedChanges = changedFiles.flatMap((file) => {
+      const fileInfo = this.indexer.getFiles().get(file);
+      return (fileInfo?.symbols || []).filter((symbol) => symbol.exported);
+    });
+    if (exportedChanges.length > 0) {
+      guidance.push(`Public surface changed in ${new Set(exportedChanges.map((symbol) => symbol.filePath)).size} file(s). Check downstream callers and release notes.`);
+    }
+
+    const inheritanceChanges = changedFiles.flatMap((file) => {
+      const fileInfo = this.indexer.getFiles().get(file);
+      return (fileInfo?.symbols || []).filter((symbol) =>
+        (symbol.kind === 'class') && (((symbol.extendsSymbols || []).length > 0) || ((symbol.implementsSymbols || []).length > 0))
+      );
+    });
+    if (inheritanceChanges.length > 0) {
+      guidance.push('Inheritance or interface contracts are involved. Validate subclasses, implementations, and dispatch behavior.');
+    }
+
+    const crossBoundaryImpact = impactedFiles.filter((file) => !changedFileSet.has(file));
+    if (crossBoundaryImpact.length > 0 && guidance.length === 0) {
+      guidance.push('Review direct dependents first; the graph shows downstream files affected even when their source did not change.');
+    }
+
+    if (guidance.length === 0) {
+      guidance.push('Blast radius is narrow. Focus review on the changed hunks and their immediate callers.');
+    }
+
+    return guidance;
+  }
+
+  private computeTextScore(query: string, fields: string[]): number {
+    const haystack = fields.join(' ').toLowerCase();
+    if (!query || !haystack) {
+      return 0;
+    }
+
+    if (haystack === query) {
+      return 1;
+    }
+
+    if (haystack.includes(query)) {
+      return 0.8;
+    }
+
+    const queryTokens = query.split(/\s+/).filter(Boolean);
+    const hits = queryTokens.filter((token) => haystack.includes(token)).length;
+    return hits > 0 ? hits / queryTokens.length : 0;
+  }
+
+  private resolveLanguageForFile(filePath: string): string {
+    const extension = path.extname(filePath).toLowerCase();
+    switch (extension) {
+      case '.ts':
+      case '.tsx':
+        return 'typescript';
+      case '.js':
+      case '.jsx':
+      case '.mjs':
+        return 'javascript';
+      case '.py':
+        return 'python';
+      case '.go':
+        return 'go';
+      case '.rs':
+        return 'rust';
+      case '.java':
+        return 'java';
+      case '.rb':
+        return 'ruby';
+      default:
+        return extension.replace(/^\./, '') || 'text';
+    }
   }
 }
