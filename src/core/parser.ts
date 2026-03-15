@@ -3,11 +3,16 @@ import TypeScriptGrammars from 'tree-sitter-typescript';
 import JavaScriptGrammar from 'tree-sitter-javascript';
 import PythonGrammar from 'tree-sitter-python';
 import GoGrammar from 'tree-sitter-go';
+import RubyGrammar from 'tree-sitter-ruby';
+import JavaGrammar from 'tree-sitter-java';
+import RustGrammar from 'tree-sitter-rust';
+import CSharpGrammar from 'tree-sitter-c-sharp';
+import KotlinGrammar from 'tree-sitter-kotlin';
 import type { ExportInfo, ImportInfo, Symbol, SymbolKind } from './types.js';
 
 type SyntaxNode = Parser.SyntaxNode;
 
-type SupportedLanguage = 'typescript' | 'javascript' | 'python' | 'go';
+type SupportedLanguage = 'typescript' | 'javascript' | 'python' | 'go' | 'ruby' | 'java' | 'rust' | 'csharp' | 'kotlin';
 
 interface ParsedFile {
   language: string;
@@ -25,8 +30,14 @@ const tsGrammars = TypeScriptGrammars as unknown as { typescript: unknown; tsx: 
 const jsGrammar = JavaScriptGrammar as unknown;
 const pyGrammar = PythonGrammar as unknown;
 const goGrammar = GoGrammar as unknown;
+const rubyGrammar = RubyGrammar as unknown;
+const javaGrammar = JavaGrammar as unknown;
+const rustGrammar = RustGrammar as unknown;
+const csharpGrammar = CSharpGrammar as unknown;
+const kotlinGrammar = KotlinGrammar as unknown;
 
 const parserConfigForFile = (filePath: string): LanguageConfig | null => {
+  const basename = filePath.replace(/\\/g, '/').split('/').pop() || filePath;
   if (/\.(ts|tsx)$/.test(filePath)) {
     return {
       language: 'typescript',
@@ -52,6 +63,41 @@ const parserConfigForFile = (filePath: string): LanguageConfig | null => {
     return {
       language: 'go',
       grammar: goGrammar,
+    };
+  }
+
+  if (/\.(rb|rake|gemspec)$/.test(filePath) || /^(Gemfile|Rakefile)$/.test(basename)) {
+    return {
+      language: 'ruby',
+      grammar: rubyGrammar,
+    };
+  }
+
+  if (/\.java$/.test(filePath)) {
+    return {
+      language: 'java',
+      grammar: javaGrammar,
+    };
+  }
+
+  if (/\.rs$/.test(filePath)) {
+    return {
+      language: 'rust',
+      grammar: rustGrammar,
+    };
+  }
+
+  if (/\.cs$/.test(filePath)) {
+    return {
+      language: 'csharp',
+      grammar: csharpGrammar,
+    };
+  }
+
+  if (/\.(kt|kts)$/.test(filePath)) {
+    return {
+      language: 'kotlin',
+      grammar: kotlinGrammar,
     };
   }
 
@@ -100,6 +146,16 @@ export class TreeSitterParser {
         return this.parsePython(filePath, root);
       case 'go':
         return this.parseGo(filePath, root);
+      case 'ruby':
+        return this.parseRuby(filePath, root);
+      case 'java':
+        return this.parseJava(filePath, root);
+      case 'rust':
+        return this.parseRust(filePath, root);
+      case 'csharp':
+        return this.parseCSharp(filePath, root);
+      case 'kotlin':
+        return this.parseKotlin(filePath, root);
       default:
         return null;
     }
@@ -484,6 +540,505 @@ export class TreeSitterParser {
     };
   }
 
+  private parseRuby(filePath: string, root: SyntaxNode): ParsedFile {
+    const imports: ImportInfo[] = [];
+    const exports: ExportInfo[] = [];
+    const symbols: Symbol[] = [];
+
+    const visit = (node: SyntaxNode, currentContainer?: string): void => {
+      switch (node.type) {
+        case 'call': {
+          const methodName = node.childForFieldName('method')?.text || node.namedChildren.find((child) => child.type === 'identifier')?.text || '';
+          const args = this.extractRubyCallArguments(node);
+          if (['require', 'require_relative', 'load'].includes(methodName) && args.length > 0) {
+            imports.push({
+              source: args[0],
+              specifiers: args[0] ? [args[0].split('/').at(-1) || args[0]] : [],
+              isDefault: methodName !== 'load',
+              isNamespace: false,
+              line: lineNumber(node),
+            });
+          }
+          break;
+        }
+        case 'module': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'constant');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, 'namespace', filePath, node, true));
+            exports.push({ name: nameNode.text, kind: 'namespace', isDefault: false, line: lineNumber(node) });
+          }
+          const body = node.childForFieldName('body') || node.namedChildren.find((child) => child.type === 'body_statement');
+          if (body) {
+            for (const child of body.namedChildren) {
+              visit(child, nameNode?.text);
+            }
+          }
+          return;
+        }
+        case 'class': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'constant');
+          if (nameNode) {
+            const superclass = node.childForFieldName('superclass')?.text.replace(/^<\s*/, '').trim();
+            const body = node.childForFieldName('body') || node.namedChildren.find((child) => child.type === 'body_statement');
+            const mixins = body
+              ? body.namedChildren
+                .filter((child) => child.type === 'call')
+                .flatMap((child) => {
+                  const method = child.childForFieldName('method')?.text;
+                  return ['include', 'extend', 'prepend'].includes(method || '') ? this.extractRubyCallArguments(child) : [];
+                })
+              : [];
+            symbols.push(this.createSymbol(nameNode.text, 'class', filePath, node, true, {
+              extendsSymbols: superclass ? [superclass] : [],
+              implementsSymbols: mixins,
+            }));
+            exports.push({ name: nameNode.text, kind: 'class', isDefault: false, line: lineNumber(node) });
+            if (body) {
+              for (const child of body.namedChildren) {
+                visit(child, nameNode.text);
+              }
+            }
+          }
+          return;
+        }
+        case 'method': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            const params = this.extractRubyParameters(node.childForFieldName('parameters') || node.namedChildren.find((child) => child.type === 'method_parameters') || null);
+            const refs = this.extractRubyCallReferences(filePath, node);
+            const kind: SymbolKind = currentContainer ? 'method' : 'function';
+            const exported = !nameNode.text.startsWith('_');
+            symbols.push(this.createSymbol(nameNode.text, kind, filePath, node, exported, {
+              parentSymbol: currentContainer,
+              parameters: params,
+              references: refs,
+            }));
+            if (!currentContainer && exported) {
+              exports.push({ name: nameNode.text, kind, isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+
+      for (const child of node.namedChildren) {
+        visit(child, currentContainer);
+      }
+    };
+
+    visit(root);
+    return this.finalizeParsedFile('ruby', imports, exports, symbols);
+  }
+
+  private parseJava(filePath: string, root: SyntaxNode): ParsedFile {
+    const imports: ImportInfo[] = [];
+    const exports: ExportInfo[] = [];
+    const symbols: Symbol[] = [];
+
+    const visit = (node: SyntaxNode, currentClass?: string): void => {
+      switch (node.type) {
+        case 'import_declaration': {
+          const source = node.namedChildren[0]?.text || '';
+          if (source) {
+            imports.push({
+              source,
+              specifiers: [source.split('.').at(-1) || source],
+              isDefault: false,
+              isNamespace: source.endsWith('.*'),
+              line: lineNumber(node),
+            });
+          }
+          break;
+        }
+        case 'class_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => ['identifier', 'type_identifier'].includes(child.type));
+          if (nameNode) {
+            const exported = this.hasModifier(node, 'public');
+            const baseClass = node.childForFieldName('superclass')?.text.replace(/^extends\s+/, '').trim();
+            const implemented = splitCommaSeparated((node.childForFieldName('interfaces')?.text || node.namedChildren.find((child) => child.type === 'super_interfaces')?.text || '').replace(/^implements\s+/, ''));
+            symbols.push(this.createSymbol(nameNode.text, 'class', filePath, node, exported, {
+              extendsSymbols: baseClass ? [baseClass] : [],
+              implementsSymbols: implemented,
+            }));
+            if (exported) {
+              exports.push({ name: nameNode.text, kind: 'class', isDefault: false, line: lineNumber(node) });
+            }
+            const body = node.childForFieldName('body') || node.namedChildren.find((child) => child.type === 'class_body');
+            if (body) {
+              for (const child of body.namedChildren) {
+                visit(child, nameNode.text);
+              }
+            }
+          }
+          return;
+        }
+        case 'interface_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => ['identifier', 'type_identifier'].includes(child.type));
+          if (nameNode) {
+            const exported = this.hasModifier(node, 'public');
+            symbols.push(this.createSymbol(nameNode.text, 'interface', filePath, node, exported));
+            if (exported) {
+              exports.push({ name: nameNode.text, kind: 'interface', isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'enum_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => ['identifier', 'type_identifier'].includes(child.type));
+          if (nameNode) {
+            const exported = this.hasModifier(node, 'public');
+            symbols.push(this.createSymbol(nameNode.text, 'enum', filePath, node, exported));
+            if (exported) {
+              exports.push({ name: nameNode.text, kind: 'enum', isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'method_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, currentClass ? 'method' : 'function', filePath, node, this.hasModifier(node, 'public'), {
+              parentSymbol: currentClass,
+              parameters: this.extractNamedParameterNodes(node.childForFieldName('parameters') || node.namedChildren.find((child) => child.type === 'formal_parameters') || null, ['formal_parameter', 'spread_parameter', 'receiver_parameter']),
+              references: this.extractJavaCallReferences(filePath, node),
+            }));
+          }
+          break;
+        }
+        case 'constructor_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, 'method', filePath, node, this.hasModifier(node, 'public'), {
+              parentSymbol: currentClass,
+              parameters: this.extractNamedParameterNodes(node.childForFieldName('parameters') || node.namedChildren.find((child) => child.type === 'formal_parameters') || null, ['formal_parameter']),
+              references: this.extractJavaCallReferences(filePath, node),
+            }));
+          }
+          break;
+        }
+        case 'field_declaration': {
+          const variableNode = node.descendantsOfType('variable_declarator')[0];
+          const nameNode = variableNode?.childForFieldName('name') || variableNode?.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, 'property', filePath, node, this.hasModifier(node, 'public'), {
+              parentSymbol: currentClass,
+            }));
+          }
+          break;
+        }
+        default:
+          break;
+      }
+
+      for (const child of node.namedChildren) {
+        visit(child, currentClass);
+      }
+    };
+
+    visit(root);
+    return this.finalizeParsedFile('java', imports, exports, symbols);
+  }
+
+  private parseRust(filePath: string, root: SyntaxNode): ParsedFile {
+    const imports: ImportInfo[] = [];
+    const exports: ExportInfo[] = [];
+    const symbols: Symbol[] = [];
+
+    const visit = (node: SyntaxNode, currentImplType?: string, implementedTrait?: string): void => {
+      switch (node.type) {
+        case 'use_declaration': {
+          const source = node.namedChildren[0]?.text || '';
+          if (source) {
+            imports.push({
+              source,
+              specifiers: [source.split('::').at(-1) || source],
+              isDefault: false,
+              isNamespace: source.endsWith('::*'),
+              line: lineNumber(node),
+            });
+          }
+          break;
+        }
+        case 'struct_item': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'type_identifier');
+          if (nameNode) {
+            const exported = node.text.startsWith('pub ');
+            symbols.push(this.createSymbol(nameNode.text, 'class', filePath, node, exported));
+            if (exported) {
+              exports.push({ name: nameNode.text, kind: 'class', isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'enum_item': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'type_identifier');
+          if (nameNode) {
+            const exported = node.text.startsWith('pub ');
+            symbols.push(this.createSymbol(nameNode.text, 'enum', filePath, node, exported));
+            if (exported) {
+              exports.push({ name: nameNode.text, kind: 'enum', isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'trait_item': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'type_identifier');
+          if (nameNode) {
+            const exported = node.text.startsWith('pub ');
+            symbols.push(this.createSymbol(nameNode.text, 'interface', filePath, node, exported));
+            if (exported) {
+              exports.push({ name: nameNode.text, kind: 'interface', isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'type_item': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'type_identifier');
+          if (nameNode) {
+            const exported = node.text.startsWith('pub ');
+            symbols.push(this.createSymbol(nameNode.text, 'type', filePath, node, exported));
+            if (exported) {
+              exports.push({ name: nameNode.text, kind: 'type', isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'function_item': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            const exported = node.text.startsWith('pub ');
+            const kind: SymbolKind = currentImplType ? 'method' : 'function';
+            symbols.push(this.createSymbol(nameNode.text, kind, filePath, node, exported, {
+              parentSymbol: currentImplType,
+              implementsSymbols: implementedTrait ? [implementedTrait] : [],
+              parameters: this.extractRustParameters(node.childForFieldName('parameters') || node.namedChildren.find((child) => child.type === 'parameters') || null),
+              references: this.extractRustCallReferences(filePath, node),
+            }));
+            if (!currentImplType && exported) {
+              exports.push({ name: nameNode.text, kind, isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'impl_item': {
+          const typeIdentifiers = node.namedChildren.filter((child) => child.type === 'type_identifier');
+          const traitName = typeIdentifiers.length > 1 ? typeIdentifiers[0].text : undefined;
+          const targetType = typeIdentifiers.length > 1 ? typeIdentifiers[1].text : typeIdentifiers[0]?.text;
+          const body = node.namedChildren.find((child) => child.type === 'declaration_list');
+          if (body) {
+            for (const child of body.namedChildren) {
+              visit(child, targetType, traitName);
+            }
+          }
+          return;
+        }
+        default:
+          break;
+      }
+
+      for (const child of node.namedChildren) {
+        visit(child, currentImplType, implementedTrait);
+      }
+    };
+
+    visit(root);
+    return this.finalizeParsedFile('rust', imports, exports, symbols);
+  }
+
+  private parseCSharp(filePath: string, root: SyntaxNode): ParsedFile {
+    const imports: ImportInfo[] = [];
+    const exports: ExportInfo[] = [];
+    const symbols: Symbol[] = [];
+
+    const visit = (node: SyntaxNode, currentClass?: string): void => {
+      switch (node.type) {
+        case 'using_directive': {
+          const source = node.namedChildren[0]?.text || '';
+          if (source) {
+            imports.push({
+              source,
+              specifiers: [source.split('.').at(-1) || source],
+              isDefault: false,
+              isNamespace: true,
+              line: lineNumber(node),
+            });
+          }
+          break;
+        }
+        case 'class_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            const baseTypes = splitCommaSeparated((node.childForFieldName('bases')?.text || node.namedChildren.find((child) => child.type === 'base_list')?.text || '').replace(/^:\s*/, ''));
+            symbols.push(this.createSymbol(nameNode.text, 'class', filePath, node, this.hasModifier(node, 'public'), {
+              extendsSymbols: baseTypes.length > 0 ? [baseTypes[0]] : [],
+              implementsSymbols: baseTypes.slice(1),
+            }));
+            if (this.hasModifier(node, 'public')) {
+              exports.push({ name: nameNode.text, kind: 'class', isDefault: false, line: lineNumber(node) });
+            }
+            const body = node.namedChildren.find((child) => child.type === 'declaration_list');
+            if (body) {
+              for (const child of body.namedChildren) {
+                visit(child, nameNode.text);
+              }
+            }
+          }
+          return;
+        }
+        case 'interface_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, 'interface', filePath, node, this.hasModifier(node, 'public')));
+            if (this.hasModifier(node, 'public')) {
+              exports.push({ name: nameNode.text, kind: 'interface', isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'enum_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, 'enum', filePath, node, this.hasModifier(node, 'public')));
+            if (this.hasModifier(node, 'public')) {
+              exports.push({ name: nameNode.text, kind: 'enum', isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        case 'method_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, currentClass ? 'method' : 'function', filePath, node, this.hasModifier(node, 'public'), {
+              parentSymbol: currentClass,
+              parameters: this.extractNamedParameterNodes(node.childForFieldName('parameters') || node.namedChildren.find((child) => child.type === 'parameter_list') || null, ['parameter']),
+              references: this.extractCSharpCallReferences(filePath, node),
+            }));
+          }
+          break;
+        }
+        case 'constructor_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, 'method', filePath, node, this.hasModifier(node, 'public'), {
+              parentSymbol: currentClass,
+              parameters: this.extractNamedParameterNodes(node.childForFieldName('parameters') || node.namedChildren.find((child) => child.type === 'parameter_list') || null, ['parameter']),
+              references: this.extractCSharpCallReferences(filePath, node),
+            }));
+          }
+          break;
+        }
+        case 'property_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => child.type === 'identifier');
+          if (nameNode) {
+            symbols.push(this.createSymbol(nameNode.text, 'property', filePath, node, this.hasModifier(node, 'public'), {
+              parentSymbol: currentClass,
+            }));
+          }
+          break;
+        }
+        default:
+          break;
+      }
+
+      for (const child of node.namedChildren) {
+        visit(child, currentClass);
+      }
+    };
+
+    visit(root);
+    return this.finalizeParsedFile('csharp', imports, exports, symbols);
+  }
+
+  private parseKotlin(filePath: string, root: SyntaxNode): ParsedFile {
+    const imports: ImportInfo[] = [];
+    const exports: ExportInfo[] = [];
+    const symbols: Symbol[] = [];
+
+    const visit = (node: SyntaxNode, currentClass?: string): void => {
+      switch (node.type) {
+        case 'import_header': {
+          const source = node.namedChildren[0]?.text || '';
+          if (source) {
+            imports.push({
+              source,
+              specifiers: [source.split('.').at(-1) || source],
+              isDefault: false,
+              isNamespace: source.endsWith('.*'),
+              line: lineNumber(node),
+            });
+          }
+          break;
+        }
+        case 'class_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => ['type_identifier', 'simple_identifier'].includes(child.type));
+          if (nameNode) {
+            const delegation = node.namedChildren.filter((child) => child.type === 'delegation_specifier');
+            const extendsSymbols = delegation
+              .map((child) => child.namedChildren.find((part) => part.type === 'constructor_invocation'))
+              .filter((child): child is SyntaxNode => child !== undefined)
+              .map((child) => child.namedChildren.find((part) => part.type === 'user_type')?.text || child.text.replace(/\(\s*\)$/, '').trim())
+              .filter(Boolean);
+            const implementsSymbols = delegation
+              .filter((child) => !child.namedChildren.some((part) => part.type === 'constructor_invocation'))
+              .map((child) => child.namedChildren.find((part) => part.type === 'user_type')?.text || child.text.trim())
+              .filter(Boolean);
+            const exported = !this.isPrivateLikeNode(node);
+            symbols.push(this.createSymbol(nameNode.text, 'class', filePath, node, exported, {
+              extendsSymbols,
+              implementsSymbols,
+            }));
+            if (exported) {
+              exports.push({ name: nameNode.text, kind: 'class', isDefault: false, line: lineNumber(node) });
+            }
+            const body = node.namedChildren.find((child) => child.type === 'class_body');
+            if (body) {
+              for (const child of body.namedChildren) {
+                visit(child, nameNode.text);
+              }
+            }
+          }
+          return;
+        }
+        case 'function_declaration': {
+          const nameNode = node.childForFieldName('name') || node.namedChildren.find((child) => ['simple_identifier', 'identifier'].includes(child.type));
+          if (nameNode) {
+            const exported = !this.isPrivateLikeNode(node);
+            const kind: SymbolKind = currentClass ? 'method' : 'function';
+            symbols.push(this.createSymbol(nameNode.text, kind, filePath, node, exported, {
+              parentSymbol: currentClass,
+              parameters: this.extractKotlinParameters(node.childForFieldName('parameters') || node.namedChildren.find((child) => child.type === 'function_value_parameters') || null),
+              references: this.extractKotlinCallReferences(filePath, node),
+            }));
+            if (!currentClass && exported) {
+              exports.push({ name: nameNode.text, kind, isDefault: false, line: lineNumber(node) });
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+
+      for (const child of node.namedChildren) {
+        visit(child, currentClass);
+      }
+    };
+
+    visit(root);
+    return this.finalizeParsedFile('kotlin', imports, exports, symbols);
+  }
+
+  private finalizeParsedFile(language: string, imports: ImportInfo[], exports: ExportInfo[], symbols: Symbol[]): ParsedFile {
+    return {
+      language,
+      imports: uniqueBy(imports, (item) => `${item.source}:${item.line}:${item.specifiers.join(',')}`),
+      exports: uniqueBy(exports, (item) => `${item.name}:${item.line}:${item.kind}`),
+      symbols: uniqueBy(symbols, (item) => `${item.filePath}:${item.name}:${item.kind}:${item.line}`),
+    };
+  }
+
   private createSymbol(
     name: string,
     kind: SymbolKind,
@@ -559,6 +1114,43 @@ export class TreeSitterParser {
     return parts.at(-1);
   }
 
+  private extractRubyParameters(node: SyntaxNode | null): string[] {
+    if (!node) {
+      return [];
+    }
+    return node.namedChildren.map((child) => child.text.replace(/^[:*]+/, '').trim()).filter(Boolean);
+  }
+
+  private extractRustParameters(node: SyntaxNode | null): string[] {
+    if (!node) {
+      return [];
+    }
+    return node.namedChildren
+      .filter((child) => child.type === 'parameter')
+      .map((child) => child.childForFieldName('pattern')?.text || child.namedChildren[0]?.text || child.text)
+      .map((text) => text.replace(/^mut\s+/, '').trim())
+      .filter((value) => value && value !== 'self' && value !== '&self');
+  }
+
+  private extractKotlinParameters(node: SyntaxNode | null): string[] {
+    if (!node) {
+      return [];
+    }
+    return node.namedChildren
+      .filter((child) => ['function_value_parameter', 'parameter'].includes(child.type))
+      .map((child) => child.namedChildren.find((part) => ['simple_identifier', 'identifier'].includes(part.type))?.text || child.text)
+      .filter(Boolean);
+  }
+
+  private extractNamedParameterNodes(node: SyntaxNode | null, parameterTypes: string[]): string[] {
+    if (!node) {
+      return [];
+    }
+    return node.descendantsOfType(parameterTypes)
+      .map((child) => child.childForFieldName('name')?.text || child.namedChildren.find((part) => ['identifier', 'simple_identifier'].includes(part.type))?.text || '')
+      .filter(Boolean);
+  }
+
   private extractCallReferences(filePath: string, node: SyntaxNode, callTypes: string[]): Symbol['references'] {
     const refs = node
       .descendantsOfType(callTypes)
@@ -579,5 +1171,116 @@ export class TreeSitterParser {
       .filter((value): value is NonNullable<typeof value> => value !== null);
 
     return uniqueBy(refs, (ref) => `${ref.target}:${ref.line}:${ref.column}`);
+  }
+
+  private extractRubyCallArguments(node: SyntaxNode): string[] {
+    const argsNode = node.childForFieldName('arguments') || node.namedChildren.find((child) => child.type === 'argument_list');
+    if (!argsNode) {
+      return [];
+    }
+    return argsNode.namedChildren
+      .map((child) => child.text.replace(/^['"]|['"]$/g, '').trim())
+      .filter(Boolean);
+  }
+
+  private extractRubyCallReferences(filePath: string, node: SyntaxNode): Symbol['references'] {
+    const refs = node.descendantsOfType(['call']).map((callNode) => {
+      const method = callNode.childForFieldName('method')?.text || callNode.namedChildren.find((child) => child.type === 'identifier')?.text;
+      if (!method || ['require', 'require_relative', 'load', 'include', 'extend', 'prepend'].includes(method)) {
+        return null;
+      }
+      const receiver = callNode.childForFieldName('receiver')?.text;
+      return {
+        filePath,
+        line: lineNumber(callNode),
+        column: columnNumber(callNode),
+        kind: 'call' as const,
+        target: receiver ? `${receiver}.${method}` : method,
+      };
+    }).filter((value): value is NonNullable<typeof value> => value !== null);
+
+    return uniqueBy(refs, (ref) => `${ref.target}:${ref.line}:${ref.column}`);
+  }
+
+  private extractJavaCallReferences(filePath: string, node: SyntaxNode): Symbol['references'] {
+    const refs = node.descendantsOfType(['method_invocation']).map((callNode) => {
+      const method = callNode.childForFieldName('name')?.text || callNode.namedChildren.at(-1)?.text;
+      if (!method) {
+        return null;
+      }
+      const object = callNode.childForFieldName('object')?.text;
+      return {
+        filePath,
+        line: lineNumber(callNode),
+        column: columnNumber(callNode),
+        kind: 'call' as const,
+        target: object ? `${object}.${method}` : method,
+      };
+    }).filter((value): value is NonNullable<typeof value> => value !== null);
+
+    return uniqueBy(refs, (ref) => `${ref.target}:${ref.line}:${ref.column}`);
+  }
+
+  private extractRustCallReferences(filePath: string, node: SyntaxNode): Symbol['references'] {
+    const refs = node.descendantsOfType(['call_expression', 'method_call_expression']).map((callNode) => {
+      const target = callNode.childForFieldName('function')?.text || callNode.childForFieldName('name')?.text || callNode.text.split('(')[0];
+      if (!target) {
+        return null;
+      }
+      return {
+        filePath,
+        line: lineNumber(callNode),
+        column: columnNumber(callNode),
+        kind: 'call' as const,
+        target,
+      };
+    }).filter((value): value is NonNullable<typeof value> => value !== null);
+
+    return uniqueBy(refs, (ref) => `${ref.target}:${ref.line}:${ref.column}`);
+  }
+
+  private extractCSharpCallReferences(filePath: string, node: SyntaxNode): Symbol['references'] {
+    const refs = node.descendantsOfType(['invocation_expression']).map((callNode) => {
+      const expression = callNode.namedChildren[0]?.text;
+      if (!expression) {
+        return null;
+      }
+      return {
+        filePath,
+        line: lineNumber(callNode),
+        column: columnNumber(callNode),
+        kind: 'call' as const,
+        target: expression,
+      };
+    }).filter((value): value is NonNullable<typeof value> => value !== null);
+
+    return uniqueBy(refs, (ref) => `${ref.target}:${ref.line}:${ref.column}`);
+  }
+
+  private extractKotlinCallReferences(filePath: string, node: SyntaxNode): Symbol['references'] {
+    const refs = node.descendantsOfType(['call_expression']).map((callNode) => {
+      const callee = callNode.namedChildren[0]?.text;
+      if (!callee) {
+        return null;
+      }
+      return {
+        filePath,
+        line: lineNumber(callNode),
+        column: columnNumber(callNode),
+        kind: 'call' as const,
+        target: callee,
+      };
+    }).filter((value): value is NonNullable<typeof value> => value !== null);
+
+    return uniqueBy(refs, (ref) => `${ref.target}:${ref.line}:${ref.column}`);
+  }
+
+  private hasModifier(node: SyntaxNode, modifier: string): boolean {
+    return node.namedChildren.some((child) => child.type === 'modifier' && child.text === modifier)
+      || node.namedChildren.some((child) => child.type === 'modifiers' && child.text.includes(modifier));
+  }
+
+  private isPrivateLikeNode(node: SyntaxNode): boolean {
+    return node.text.startsWith('private ') || node.text.startsWith('internal ');
   }
 }

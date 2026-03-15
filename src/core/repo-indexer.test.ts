@@ -136,5 +136,70 @@ describe('RepoIndexer', () => {
 
       await fs.rm(repoRoot, { recursive: true, force: true });
     });
+
+    it('should index richer Tree-sitter symbols for Ruby, Java, Rust, C#, and Kotlin', async () => {
+      const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexia-ast-'));
+      await fs.mkdir(path.join(repoRoot, '.codexia'), { recursive: true });
+      await fs.mkdir(path.join(repoRoot, 'app', 'models'), { recursive: true });
+      await fs.mkdir(path.join(repoRoot, 'src', 'main', 'java', 'com', 'acme'), { recursive: true });
+      await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+
+      await fs.writeFile(
+        path.join(repoRoot, 'app', 'models', 'user.rb'),
+        `require 'json'\nclass User < BaseUser\n  include Auditable\n  def save(record)\n    Logger.info(record)\n  end\nend\n`,
+        'utf-8'
+      );
+      await fs.writeFile(
+        path.join(repoRoot, 'src', 'main', 'java', 'com', 'acme', 'UserService.java'),
+        `import java.util.List;\npublic class UserService extends BaseService implements Auditable {\n  public void save(User user) { repo.save(user); }\n}\n`,
+        'utf-8'
+      );
+      await fs.writeFile(
+        path.join(repoRoot, 'src', 'lib.rs'),
+        `use crate::db::Repo;\npub struct Service;\nimpl Service {\n  pub fn save(&self, user: User) { repo.save(user); }\n}\n`,
+        'utf-8'
+      );
+      await fs.writeFile(
+        path.join(repoRoot, 'src', 'UserService.cs'),
+        `using System.Collections.Generic;\npublic class UserService : BaseService, IAuditable {\n  public void Save(User user) { repo.Save(user); }\n}\n`,
+        'utf-8'
+      );
+      await fs.writeFile(
+        path.join(repoRoot, 'src', 'UserService.kt'),
+        `import kotlin.collections.List\nclass UserService : BaseService(), Auditable {\n  fun save(user: User) { repo.save(user) }\n}\n`,
+        'utf-8'
+      );
+
+      const tempIndexer = new RepoIndexer(repoRoot);
+      await tempIndexer.index({ useCache: false });
+
+      const rubyFile = tempIndexer.getFile('app/models/user.rb');
+      const javaFile = tempIndexer.getFile('src/main/java/com/acme/UserService.java');
+      const rustFile = tempIndexer.getFile('src/lib.rs');
+      const csharpFile = tempIndexer.getFile('src/UserService.cs');
+      const kotlinFile = tempIndexer.getFile('src/UserService.kt');
+
+      expect(rubyFile?.language).toBe('ruby');
+      expect(rubyFile?.symbols.find((symbol) => symbol.name === 'User')?.extendsSymbols).toEqual(['BaseUser']);
+      expect(rubyFile?.symbols.find((symbol) => symbol.name === 'save')?.references.map((ref) => ref.target)).toEqual(['Logger.info']);
+
+      expect(javaFile?.language).toBe('java');
+      expect(javaFile?.symbols.find((symbol) => symbol.name === 'UserService' && symbol.kind === 'class')?.implementsSymbols).toEqual(['Auditable']);
+      expect(javaFile?.symbols.find((symbol) => symbol.name === 'save')?.references.map((ref) => ref.target)).toEqual(['repo.save']);
+
+      expect(rustFile?.language).toBe('rust');
+      expect(rustFile?.symbols.find((symbol) => symbol.name === 'save')?.parentSymbol).toBe('Service');
+      expect(rustFile?.symbols.find((symbol) => symbol.name === 'save')?.references.map((ref) => ref.target)).toEqual(['repo.save']);
+
+      expect(csharpFile?.language).toBe('csharp');
+      expect(csharpFile?.symbols.find((symbol) => symbol.name === 'UserService' && symbol.kind === 'class')?.extendsSymbols).toEqual(['BaseService']);
+      expect(csharpFile?.symbols.find((symbol) => symbol.name === 'Save')?.references.map((ref) => ref.target)).toEqual(['repo.Save']);
+
+      expect(kotlinFile?.language).toBe('kotlin');
+      expect(kotlinFile?.symbols.find((symbol) => symbol.name === 'UserService' && symbol.kind === 'class')?.extendsSymbols).toEqual(['BaseService']);
+      expect(kotlinFile?.symbols.find((symbol) => symbol.name === 'save')?.parameters).toEqual(['user']);
+
+      await fs.rm(repoRoot, { recursive: true, force: true });
+    });
   });
 });

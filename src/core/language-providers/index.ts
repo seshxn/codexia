@@ -11,3 +11,8 @@ export { RubyProvider } from './providers/ruby.js';
 export { JavaProvider } from './providers/java.js';
 export { GoProvider } from './providers/go.js';
 export { RustProvider } from './providers/rust.js';
+export { CSharpProvider } from './providers/csharp.js';
+export { KotlinProvider } from './providers/kotlin.js';
+export { SwiftProvider } from './providers/swift.js';
+export { PhpProvider } from './providers/php.js';
+export { CppProvider } from './providers/cpp.js';

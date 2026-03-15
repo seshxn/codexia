@@ -73,7 +73,7 @@ codexia status
 ```
 
 The index currently uses:
-- Tree-sitter for TypeScript/JavaScript, Python, and Go
+- Tree-sitter for TypeScript/JavaScript, Python, Go, Ruby, Java, Rust, C#, and Kotlin
 - A typed Kuzu graph for files, functions, classes, types, modules, and commits
 - Hash-based incremental refresh for `codexia update`
 
@@ -310,14 +310,23 @@ The system gracefully falls back if no API keys are configured—all core analys
 
 Codexia supports analysis across multiple programming languages:
 
-| Language | Symbols | Dependencies | Complexity |
-|----------|---------|--------------|------------|
-| TypeScript/JavaScript | ✅ | ✅ | ✅ |
-| Python | ✅ | ✅ | ✅ |
-| Ruby | ✅ | ✅ | ✅ |
-| Java | ✅ | ✅ | ✅ |
-| Go | ✅ | ✅ | ✅ |
-| Rust | ✅ | ✅ | ✅ |
+| Language | Symbols | Dependencies | Complexity | Parser Depth |
+|----------|---------|--------------|------------|--------------|
+| TypeScript/JavaScript | ✅ | ✅ | ✅ | Deep AST (Tree-sitter) |
+| Python | ✅ | ✅ | ✅ | Deep AST (Tree-sitter) |
+| Ruby | ✅ | ✅ | ✅ | Deep AST (Tree-sitter) |
+| Java | ✅ | ✅ | ✅ | Deep AST (Tree-sitter) |
+| Go | ✅ | ✅ | ✅ | Deep AST (Tree-sitter) |
+| Rust | ✅ | ✅ | ✅ | Deep AST (Tree-sitter) |
+| C# | ✅ | ✅ | ✅ | Deep AST (Tree-sitter) |
+| Kotlin | ✅ | ✅ | ✅ | Deep AST (Tree-sitter) |
+| Swift | ✅ | ✅ | ✅ | Provider-backed |
+| PHP | ✅ | ✅ | ✅ | Provider-backed |
+| C/C++ | ✅ | ✅ | ✅ | Provider-backed |
+
+Deep AST support feeds the typed graph with richer symbols, parameters, inheritance, implemented interfaces/traits, and call references.
+
+Provider-backed support still participates in indexing, dependency analysis, and complexity metrics, but uses the lighter language-provider path rather than the richer Tree-sitter extraction.
 
 ---
 

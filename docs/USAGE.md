@@ -1,5 +1,14 @@
 # Usage
 
+## Language Support
+
+Codexia currently has two language tiers:
+
+- Deep AST support via Tree-sitter: TypeScript/JavaScript, Python, Ruby, Java, Go, Rust, C#, Kotlin
+- Provider-backed support: Swift, PHP, C/C++
+
+Deep AST languages contribute richer graph edges such as calls, inheritance, implemented interfaces/traits, and parameter-aware symbols. Provider-backed languages still participate in indexing, dependency analysis, and complexity features.
+
 ## Review Context
 
 Use `review_context` when you want a compact review packet instead of raw graph primitives.

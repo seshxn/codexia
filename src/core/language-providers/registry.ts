@@ -5,6 +5,11 @@ import { RubyProvider } from './providers/ruby.js';
 import { JavaProvider } from './providers/java.js';
 import { GoProvider } from './providers/go.js';
 import { RustProvider } from './providers/rust.js';
+import { CSharpProvider } from './providers/csharp.js';
+import { KotlinProvider } from './providers/kotlin.js';
+import { SwiftProvider } from './providers/swift.js';
+import { PhpProvider } from './providers/php.js';
+import { CppProvider } from './providers/cpp.js';
 
 /**
  * Registry for language providers
@@ -12,6 +17,7 @@ import { RustProvider } from './providers/rust.js';
 export class LanguageProviderRegistry {
   private providers = new Map<string, LanguageProvider>();
   private extensionMap = new Map<string, LanguageProvider>();
+  private basenameMap = new Map<string, LanguageProvider>();
 
   constructor() {
     // Register built-in providers
@@ -21,6 +27,11 @@ export class LanguageProviderRegistry {
     this.register(new JavaProvider());
     this.register(new GoProvider());
     this.register(new RustProvider());
+    this.register(new CSharpProvider());
+    this.register(new KotlinProvider());
+    this.register(new SwiftProvider());
+    this.register(new PhpProvider());
+    this.register(new CppProvider());
   }
 
   /**
@@ -31,6 +42,13 @@ export class LanguageProviderRegistry {
     
     for (const ext of provider.extensions) {
       this.extensionMap.set(ext, provider);
+    }
+
+    for (const pattern of provider.filePatterns) {
+      const basename = this.getStaticBasename(pattern);
+      if (basename) {
+        this.basenameMap.set(basename, provider);
+      }
     }
   }
 
@@ -55,7 +73,14 @@ export class LanguageProviderRegistry {
    */
   getForFile(filePath: string): LanguageProvider | undefined {
     const ext = this.getExtension(filePath);
-    return this.getForExtension(ext);
+    if (ext) {
+      const byExt = this.getForExtension(ext);
+      if (byExt) {
+        return byExt;
+      }
+    }
+
+    return this.basenameMap.get(this.getBasename(filePath));
   }
 
   /**
@@ -70,6 +95,10 @@ export class LanguageProviderRegistry {
    */
   getAllExtensions(): string[] {
     return Array.from(this.extensionMap.keys());
+  }
+
+  getAllProviderIds(): string[] {
+    return Array.from(this.providers.keys()).sort();
   }
 
   /**
@@ -127,6 +156,21 @@ export class LanguageProviderRegistry {
     const lastDot = filePath.lastIndexOf('.');
     if (lastDot === -1) return '';
     return filePath.slice(lastDot);
+  }
+
+  private getBasename(filePath: string): string {
+    const normalized = filePath.replace(/\\/g, '/');
+    const parts = normalized.split('/');
+    return parts[parts.length - 1];
+  }
+
+  private getStaticBasename(pattern: string): string | null {
+    const normalized = pattern.replace(/\\/g, '/');
+    const lastSegment = normalized.split('/').pop() || normalized;
+    if (lastSegment.includes('*') || lastSegment.includes('?') || lastSegment.includes('[')) {
+      return null;
+    }
+    return lastSegment;
   }
 }
 
