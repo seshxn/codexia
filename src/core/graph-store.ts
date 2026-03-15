@@ -67,9 +67,9 @@ export class GraphStore {
   async syncTemporalData(files: Map<string, FileInfo>, commits: CommitRecord[]): Promise<void> {
     await this.initialize();
 
-    await this.run('MATCH (f:File)-[r:MODIFIED_IN]->(:Commit) DELETE r;', true);
-    await this.run('MATCH (fn:Function)-[r:FN_MODIFIED_IN]->(:Commit) DELETE r;', true);
-    await this.run('MATCH (c:Commit) DELETE c;', true);
+    await this.run('MATCH ()-[r:MODIFIED_IN]->() DELETE r;', true);
+    await this.run('MATCH ()-[r:FN_MODIFIED_IN]->() DELETE r;', true);
+    await this.run('MATCH (c:Commit) DETACH DELETE c;', true);
 
     const functionSymbols = Array.from(files.values()).flatMap((file) =>
       file.symbols.filter((symbol) => symbol.kind === 'function' || symbol.kind === 'method')
@@ -222,12 +222,20 @@ export class GraphStore {
     }
 
     for (const source of allImportSources) {
-      await this.run(`
-        CREATE (:Module {
-          path: '${this.escape(source)}',
-          is_external: ${this.isExternalImport(source) ? 'true' : 'false'}
-        });
-      `, true);
+      const existing = await this.query(`
+        MATCH (m:Module {path: '${this.escape(source)}'})
+        RETURN m.path AS path
+        LIMIT 1;
+      `);
+
+      if (existing.length === 0) {
+        await this.run(`
+          CREATE (:Module {
+            path: '${this.escape(source)}',
+            is_external: ${this.isExternalImport(source) ? 'true' : 'false'}
+          });
+        `);
+      }
     }
 
     for (const [filePath, fileInfo] of files) {
@@ -499,10 +507,10 @@ export class GraphStore {
       await this.run(`MATCH (f:File {path: '${escaped}'})-[r:IMPORTS_FROM]->() DELETE r;`, true);
       await this.run(`MATCH (f:File {path: '${escaped}'})-[r:DEPENDS_ON]->() DELETE r;`, true);
       await this.run(`MATCH ()-[r:DEPENDS_ON]->(f:File {path: '${escaped}'}) DELETE r;`, true);
-      await this.run(`MATCH (fn:Function {file_path: '${escaped}'}) DELETE fn;`, true);
-      await this.run(`MATCH (c:Class {file_path: '${escaped}'}) DELETE c;`, true);
-      await this.run(`MATCH (t:Type {file_path: '${escaped}'}) DELETE t;`, true);
-      await this.run(`MATCH (f:File {path: '${escaped}'}) DELETE f;`, true);
+      await this.run(`MATCH (fn:Function {file_path: '${escaped}'}) DETACH DELETE fn;`, true);
+      await this.run(`MATCH (c:Class {file_path: '${escaped}'}) DETACH DELETE c;`, true);
+      await this.run(`MATCH (t:Type {file_path: '${escaped}'}) DETACH DELETE t;`, true);
+      await this.run(`MATCH (f:File {path: '${escaped}'}) DETACH DELETE f;`, true);
     }
   }
 

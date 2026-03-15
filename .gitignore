@@ -31,3 +31,7 @@ temp/
 
 # User-specific config (use example files as templates)
 codexia.invariants.yaml
+
+# Generated CodeGraph state
+.codexia/index-cache.json
+.codexia/codegraph/

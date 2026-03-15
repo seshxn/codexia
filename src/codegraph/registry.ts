@@ -7,6 +7,7 @@ const GLOBAL_DIR = path.join(os.homedir(), '.codexia');
 const REGISTRY_PATH = path.join(GLOBAL_DIR, 'registry.json');
 const LOCAL_DIR = path.join('.codexia', 'codegraph');
 const STATE_PATH = path.join(LOCAL_DIR, 'state.json');
+const LOCAL_REGISTRY_PATH = path.join(LOCAL_DIR, 'registry.json');
 const STALE_MS = 24 * 60 * 60 * 1000;
 
 interface RepoState {
@@ -36,8 +37,23 @@ export class CodeGraphRegistry {
     return path.join(this.repoRoot, STATE_PATH);
   }
 
+  private getLocalRegistryPath(): string {
+    return path.join(this.repoRoot, LOCAL_REGISTRY_PATH);
+  }
+
+  private async getRegistryPath(): Promise<string> {
+    try {
+      await fs.mkdir(GLOBAL_DIR, { recursive: true });
+      await fs.access(GLOBAL_DIR, fs.constants.W_OK);
+      return REGISTRY_PATH;
+    } catch {
+      return this.getLocalRegistryPath();
+    }
+  }
+
   async listRepos(): Promise<RepoRegistryEntry[]> {
-    const entries = await readJsonFile<RepoRegistryEntry[]>(REGISTRY_PATH, []);
+    const registryPath = await this.getRegistryPath();
+    const entries = await readJsonFile<RepoRegistryEntry[]>(registryPath, []);
     return entries.sort((a, b) => a.repoName.localeCompare(b.repoName));
   }
 
@@ -57,7 +73,7 @@ export class CodeGraphRegistry {
 
     const nextEntries = entries.filter((item) => item.repoRoot !== this.repoRoot);
     nextEntries.push(entry);
-    await writeJsonFile(REGISTRY_PATH, nextEntries);
+    await writeJsonFile(await this.getRegistryPath(), nextEntries);
 
     await writeJsonFile(this.getLocalStatePath(), {
       lastAnalyzedAt: now,
@@ -93,7 +109,7 @@ export class CodeGraphRegistry {
             }
           : entry
       );
-      await writeJsonFile(REGISTRY_PATH, nextEntries);
+      await writeJsonFile(await this.getRegistryPath(), nextEntries);
     }
 
     await writeJsonFile(this.getLocalStatePath(), nextState);
@@ -102,7 +118,7 @@ export class CodeGraphRegistry {
   async unregisterRepo(): Promise<void> {
     const entries = await this.listRepos();
     await writeJsonFile(
-      REGISTRY_PATH,
+      await this.getRegistryPath(),
       entries.filter((entry) => entry.repoRoot !== this.repoRoot)
     );
 
