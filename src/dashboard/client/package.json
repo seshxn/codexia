@@ -11,6 +11,7 @@
   "dependencies": {
     "@sigma/edge-curve": "^3.1.0",
     "graphology": "^0.26.0",
+    "graphology-types": "^0.24.8",
     "graphology-layout-forceatlas2": "^0.10.1",
     "graphology-layout-noverlap": "^0.4.2",
     "lucide-react": "^0.309.0",
