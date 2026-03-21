@@ -220,8 +220,8 @@ const rgba = (hex: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const buildSigmaGraph = (nodes: GraphNode[], edges: GraphEdge[]): Graph<SigmaNodeAttributes, SigmaEdgeAttributes, Record<string, never>> => {
-  const graph = new Graph<SigmaNodeAttributes, SigmaEdgeAttributes, Record<string, never>>({
+const buildSigmaGraph = (nodes: GraphNode[], edges: GraphEdge[]): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> => {
+  const graph = new Graph<SigmaNodeAttributes, SigmaEdgeAttributes>({
     multi: true,
   });
   const positions = buildInitialLayout(nodes);
@@ -304,8 +304,8 @@ export const KnowledgeGraphSigmaCanvas = ({
   onSelectNode,
 }: KnowledgeGraphSigmaCanvasProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const sigmaRef = useRef<Sigma<SigmaNodeAttributes, SigmaEdgeAttributes, Record<string, never>> | null>(null);
-  const graphRef = useRef<Graph<SigmaNodeAttributes, SigmaEdgeAttributes, Record<string, never>> | null>(null);
+  const sigmaRef = useRef<Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null>(null);
+  const graphRef = useRef<Graph<SigmaNodeAttributes, SigmaEdgeAttributes> | null>(null);
   const layoutTimerRef = useRef<number | null>(null);
   const selectionRef = useRef<string | null>(selectedNodeId);
   const matchedRef = useRef<Set<string>>(matchedNodeIds);
@@ -319,7 +319,7 @@ export const KnowledgeGraphSigmaCanvas = ({
 
   const hoveredNode = useMemo(() => nodes.find((node) => node.id === hoveredNodeId) || null, [hoveredNodeId, nodes]);
 
-  const runLayoutPass = (graph: Graph<SigmaNodeAttributes, SigmaEdgeAttributes, Record<string, never>>, iterations?: number) => {
+  const runLayoutPass = (graph: Graph<SigmaNodeAttributes, SigmaEdgeAttributes>, iterations?: number) => {
     if (layoutTimerRef.current) {
       clearTimeout(layoutTimerRef.current);
       layoutTimerRef.current = null;
@@ -361,8 +361,8 @@ export const KnowledgeGraphSigmaCanvas = ({
       return;
     }
 
-    const sigma = new Sigma<SigmaNodeAttributes, SigmaEdgeAttributes, Record<string, never>>(
-      new Graph<SigmaNodeAttributes, SigmaEdgeAttributes, Record<string, never>>({
+    const sigma = new Sigma<SigmaNodeAttributes, SigmaEdgeAttributes>(
+      new Graph<SigmaNodeAttributes, SigmaEdgeAttributes>({
         multi: true,
       }),
       containerRef.current,
