@@ -23,18 +23,21 @@ interface ParsedFile {
 
 interface LanguageConfig {
   language: SupportedLanguage;
-  grammar: unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  grammar: any;
 }
 
-const tsGrammars = TypeScriptGrammars as unknown as { typescript: unknown; tsx: unknown };
-const jsGrammar = JavaScriptGrammar as unknown;
-const pyGrammar = PythonGrammar as unknown;
-const goGrammar = GoGrammar as unknown;
-const rubyGrammar = RubyGrammar as unknown;
-const javaGrammar = JavaGrammar as unknown;
-const rustGrammar = RustGrammar as unknown;
-const csharpGrammar = CSharpGrammar as unknown;
-const kotlinGrammar = KotlinGrammar as unknown;
+// Grammar modules have inconsistent type declarations across tree-sitter versions;
+// cast through unknown to suppress import-type errors.
+const tsGrammars = TypeScriptGrammars as unknown as { typescript: any; tsx: any };
+const jsGrammar = JavaScriptGrammar as unknown as any;
+const pyGrammar = PythonGrammar as unknown as any;
+const goGrammar = GoGrammar as unknown as any;
+const rubyGrammar = RubyGrammar as unknown as any;
+const javaGrammar = JavaGrammar as unknown as any;
+const rustGrammar = RustGrammar as unknown as any;
+const csharpGrammar = CSharpGrammar as unknown as any;
+const kotlinGrammar = KotlinGrammar as unknown as any;
 
 const parserConfigForFile = (filePath: string): LanguageConfig | null => {
   const basename = filePath.replace(/\\/g, '/').split('/').pop() || filePath;
