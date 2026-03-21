@@ -6,6 +6,7 @@ import type {
   RepoPickData,
   ComplexityData,
   GraphData,
+  GraphFileData,
   SignalsData,
   HotPathsData,
   TemporalData,
@@ -27,6 +28,9 @@ import type {
 
 const API_BASE = '/api';
 const TOKEN_STORAGE_KEY = 'codexia_dashboard_token';
+
+let _cachedToken: string | null | undefined = undefined;
+
 const syncTokenFromUrl = (): string | null => {
   if (typeof window === 'undefined') {
     return null;
@@ -36,14 +40,20 @@ const syncTokenFromUrl = (): string | null => {
   const token = params.get('token');
   if (token) {
     localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    _cachedToken = token;
     return token;
   }
 
-  return localStorage.getItem(TOKEN_STORAGE_KEY);
+  const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+  _cachedToken = stored;
+  return stored;
 };
 
-const getAuthHeaders = (): HeadersInit => {
-  const token = syncTokenFromUrl();
+const getAuthHeaders = (): Record<string, string> => {
+  if (_cachedToken === undefined) {
+    syncTokenFromUrl();
+  }
+  const token = _cachedToken ?? localStorage.getItem(TOKEN_STORAGE_KEY);
   if (!token) {
     return {};
   }
@@ -62,9 +72,9 @@ interface PaginationParams {
   all?: boolean;
 }
 
-const fetchJson = async <T,>(endpoint: string, params?: Record<string, QueryValue>): Promise<T> => {
+const fetchJson = async <T,>(endpoint: string, params?: Record<string, QueryValue>, signal?: AbortSignal): Promise<T> => {
   let url = `${API_BASE}${endpoint}`;
-  
+
   if (params) {
     const queryParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
@@ -73,15 +83,16 @@ const fetchJson = async <T,>(endpoint: string, params?: Record<string, QueryValu
       }
       queryParams.set(key, String(value));
     }
-    
+
     const queryString = queryParams.toString();
     if (queryString) {
       url += `?${queryString}`;
     }
   }
-  
+
   const response = await fetch(url, {
     headers: getAuthHeaders(),
+    signal,
   });
   if (!response.ok) {
     const fallback = `API error: ${response.status} ${response.statusText}`;
@@ -123,6 +134,14 @@ export const fetchComplexity = async (): Promise<ComplexityData> => {
 
 export const fetchGraph = async (): Promise<GraphData> => {
   return fetchJson<GraphData>('/graph');
+};
+
+export const fetchGraphFile = async (params: {
+  path: string;
+  line?: number;
+  context?: number;
+}, signal?: AbortSignal): Promise<GraphFileData> => {
+  return fetchJson<GraphFileData>('/graph/file', params, signal);
 };
 
 export const fetchSignals = async (): Promise<SignalsData> => {
