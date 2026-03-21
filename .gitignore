@@ -35,3 +35,6 @@ codexia.invariants.yaml
 # Generated CodeGraph state
 .codexia/index-cache.json
 .codexia/codegraph/
+
+# Local git worktrees
+.worktrees/
