@@ -7,11 +7,48 @@ import { CodexiaEngine } from '../../cli/engine.js';
 import { getAIProvider } from '../../ai/index.js';
 import { EngineeringIntelligenceService } from './engineering.js';
 import { JiraAnalyticsService, type JiraBoardHistoryReport, type JiraSprintReport } from './jira.js';
+import { buildKnowledgeGraphData } from './knowledge-graph.js';
 
 export interface DashboardServerOptions {
   port: number;
   host?: string;
   open?: boolean;
+}
+
+class ResultCache {
+  private store = new Map<string, { data: unknown; expiry: number }>();
+
+  get<T>(key: string): T | undefined {
+    const entry = this.store.get(key);
+    if (!entry || Date.now() > entry.expiry) {
+      this.store.delete(key);
+      return undefined;
+    }
+    return entry.data as T;
+  }
+
+  set(key: string, data: unknown, ttlMs: number): void {
+    this.store.set(key, { data, expiry: Date.now() + ttlMs });
+  }
+
+  invalidate(prefix: string): void {
+    for (const key of this.store.keys()) {
+      if (key.startsWith(prefix)) this.store.delete(key);
+    }
+  }
+}
+
+async function processInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    results.push(...await Promise.all(batch.map(fn)));
+  }
+  return results;
 }
 
 /**
@@ -57,6 +94,8 @@ export class DashboardServer {
   private currentRepoRoot: string;
   private recentRepoRoots: string[] = [];
   private static readonly MAX_RECENT_REPOS = 10;
+  private resultCache = new ResultCache();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(engine: CodexiaEngine, repoRoot?: string) {
     this.engine = engine;
@@ -191,6 +230,9 @@ export class DashboardServer {
           break;
         case '/api/graph':
           data = await this.getGraph(url);
+          break;
+        case '/api/graph/file':
+          data = await this.getGraphFile(url);
           break;
         case '/api/signals':
           data = await this.getSignals(url);
@@ -367,25 +409,67 @@ export class DashboardServer {
   private async getGraph(url: URL): Promise<object> {
     const depth = this.normalizeDepth(url.searchParams.get('depth'));
     const focus = this.normalizeFocus(url.searchParams.get('focus'));
+    const cacheKey = `graph::${this.currentRepoRoot}::${depth}::${focus ?? ''}`;
+    const cached = this.resultCache.get<object>(cacheKey);
+    if (cached !== undefined) return cached;
 
     const graphData = await this.engine.getGraphData({ depth, focus });
-    
-    // Transform for visualization
-    const nodes = graphData.nodes.map(n => ({
-      id: n.path,
-      label: path.basename(n.path),
-      depth: n.depth,
-      imports: n.imports.length,
-      importedBy: n.importedBy.length,
-    }));
+    // When a focus is set, restrict the file set to only those referenced by
+    // the filtered edges so that node construction respects the focus/depth.
+    let files = this.engine.getFiles();
+    if (focus) {
+      const relevantPaths = new Set<string>([focus]);
+      for (const edge of graphData.edges) {
+        relevantPaths.add(edge.from);
+        relevantPaths.add(edge.to);
+      }
+      files = new Map([...files].filter(([p]) => relevantPaths.has(p)));
+    }
+    const result = await buildKnowledgeGraphData(this.currentRepoRoot, files, graphData.edges);
+    this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
+    return result;
+  }
 
-    const edges = graphData.edges.map(e => ({
-      source: e.from,
-      target: e.to,
-      kind: e.kind,
-    }));
+  /**
+   * Get a code snippet for a graph node file path.
+   */
+  private async getGraphFile(url: URL): Promise<object> {
+    const relativePath = this.normalizeFocus(url.searchParams.get('path'));
+    if (!relativePath) {
+      throw new Error('BadRequest: Missing or invalid path query parameter.');
+    }
 
-    return { nodes, edges };
+    const file = this.engine.getFiles().get(relativePath);
+    if (!file) {
+      throw new Error(`BadRequest: File not found in repository index: ${relativePath}`);
+    }
+
+    const absolutePath = path.resolve(this.currentRepoRoot, relativePath);
+    if (!absolutePath.startsWith(this.currentRepoRoot + path.sep)) {
+      throw new Error('BadRequest: Invalid path.');
+    }
+
+    const lineParam = this.parsePositiveInt(url.searchParams.get('line'));
+    const context = Math.max(12, Math.min(80, this.parsePositiveInt(url.searchParams.get('context')) || 28));
+    const rawContent = await fs.readFile(absolutePath, 'utf-8');
+    const lines = rawContent.split('\n');
+
+    const anchorLine = lineParam ? Math.min(lineParam, lines.length) : undefined;
+    const startLine = anchorLine ? Math.max(1, anchorLine - context) : 1;
+    const endLine = anchorLine
+      ? Math.min(lines.length, anchorLine + context)
+      : Math.min(lines.length, context * 2);
+
+    return {
+      path: relativePath,
+      language: file.language,
+      focusLine: anchorLine,
+      startLine,
+      endLine,
+      totalLines: lines.length,
+      truncated: startLine > 1 || endLine < lines.length,
+      snippet: lines.slice(startLine - 1, endLine).join('\n'),
+    };
   }
 
   /**
@@ -534,6 +618,9 @@ export class DashboardServer {
    */
   private async getContributors(url?: URL): Promise<object> {
     const { limit } = url ? this.getPaginationParams(url, 50) : { limit: 50 };
+    const cacheKey = `contributors::${this.currentRepoRoot}::${limit}`;
+    const cached = this.resultCache.get<object>(cacheKey);
+    if (cached !== undefined) return cached;
     try {
       // Get all commits with author info
       const log = await this.git.log({ maxCount: 1000 });
@@ -595,11 +682,13 @@ export class DashboardServer {
       
       const contributors = limit === Infinity ? allContributors : allContributors.slice(0, limit);
 
-      return {
+      const result = {
         contributors,
         totalContributors: contributorMap.size,
         activeContributors: allContributors.filter(c => c.isActive).length,
       };
+      this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
+      return result;
     } catch (error) {
       console.error('Error getting contributors:', error);
       return { contributors: [], totalContributors: 0, activeContributors: 0 };
@@ -692,6 +781,9 @@ export class DashboardServer {
    * Get commit activity over time (for heatmap/calendar)
    */
   private async getCommitActivity(): Promise<object> {
+    const cacheKey = `commit-activity::${this.currentRepoRoot}`;
+    const cached = this.resultCache.get<object>(cacheKey);
+    if (cached !== undefined) return cached;
     try {
       const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
       const log = await this.git.log({
@@ -737,7 +829,7 @@ export class DashboardServer {
       const peakHour = activityByHour.reduce((max, curr) => curr.count > max.count ? curr : max);
       const peakDay = activityByDayOfWeek.reduce((max, curr) => curr.count > max.count ? curr : max);
 
-      return {
+      const result = {
         activityByDate,
         activityByHour,
         activityByDayOfWeek,
@@ -746,6 +838,8 @@ export class DashboardServer {
         peakDay: peakDay.day,
         averagePerDay: (log.all.length / 365).toFixed(1),
       };
+      this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
+      return result;
     } catch (error) {
       console.error('Error getting activity:', error);
       return {
@@ -765,6 +859,9 @@ export class DashboardServer {
    */
   private async getFileOwnership(url?: URL): Promise<object> {
     const { limit } = url ? this.getPaginationParams(url, 200) : { limit: 200 };
+    const cacheKey = `ownership::${this.currentRepoRoot}::${limit}`;
+    const cached = this.resultCache.get<object>(cacheKey);
+    if (cached !== undefined) return cached;
     try {
       const files = this.engine.getFiles();
       const ownershipData: Array<{
@@ -780,11 +877,21 @@ export class DashboardServer {
       // Analyze all files (increased from 100)
       const filePaths = Array.from(files.keys());
 
-      for (const filePath of filePaths) {
+      type FileOwnershipEntry = {
+        file: string;
+        primaryOwner: string;
+        ownerEmail: string;
+        ownership: number;
+        contributors: number;
+        lastModified: string;
+        busFactor: number;
+      } | null;
+
+      const fileOwnershipResults = await processInBatches<string, FileOwnershipEntry>(filePaths, 20, async (filePath) => {
         try {
           const log = await this.git.log({ file: filePath, maxCount: 100 });
-          
-          if (log.all.length === 0) continue;
+
+          if (log.all.length === 0) return null;
 
           // Count commits per author
           const authorCommits = new Map<string, { name: string; email: string; count: number }>();
@@ -807,7 +914,7 @@ export class DashboardServer {
           const primaryOwner = sorted[0];
           const totalCommits = log.all.length;
           const ownership = primaryOwner ? Math.round((primaryOwner.count / totalCommits) * 100) : 0;
-          
+
           // Bus factor: number of people needed to cover 50% of commits
           let busFactor = 0;
           let covered = 0;
@@ -817,7 +924,7 @@ export class DashboardServer {
             if (covered >= totalCommits * 0.5) break;
           }
 
-          ownershipData.push({
+          return {
             file: filePath,
             primaryOwner: primaryOwner?.name || 'Unknown',
             ownerEmail: primaryOwner?.email || '',
@@ -825,10 +932,15 @@ export class DashboardServer {
             contributors: authorCommits.size,
             lastModified: new Date(log.all[0].date).toISOString(),
             busFactor,
-          });
+          };
         } catch {
           // Skip files with errors
+          return null;
         }
+      });
+
+      for (const entry of fileOwnershipResults) {
+        if (entry !== null) ownershipData.push(entry);
       }
 
       // Find high-risk files (single owner with 80%+ ownership)
@@ -863,16 +975,18 @@ export class DashboardServer {
       const highRiskFiles = limit === Infinity ? allHighRiskFiles : allHighRiskFiles.slice(0, limit);
       const ownersByFiles = limit === Infinity ? allOwnersByFiles : allOwnersByFiles.slice(0, Math.min(limit, 20));
 
-      return {
+      const result = {
         files: filesResult,
         highRiskFiles,
         ownersByFiles,
         totalFiles: ownershipData.length,
         totalHighRiskFiles: allHighRiskFiles.length,
-        averageBusFactor: ownershipData.length > 0 
+        averageBusFactor: ownershipData.length > 0
           ? (ownershipData.reduce((sum, f) => sum + f.busFactor, 0) / ownershipData.length).toFixed(1)
           : '0',
       };
+      this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
+      return result;
     } catch (error) {
       console.error('Error getting ownership:', error);
       return { files: [], highRiskFiles: [], ownersByFiles: [], totalFiles: 0, totalHighRiskFiles: 0, averageBusFactor: '0' };
@@ -998,6 +1112,9 @@ export class DashboardServer {
    * Get velocity metrics from git history
    */
   private async getVelocityMetrics(): Promise<object> {
+    const cacheKey = `velocity::${this.currentRepoRoot}`;
+    const cached = this.resultCache.get<object>(cacheKey);
+    if (cached !== undefined) return cached;
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -1053,7 +1170,7 @@ export class DashboardServer {
       const days = Object.keys(dailyCommits).sort().slice(-14);
       const commitsByDay = days.map(d => ({ date: d, count: dailyCommits[d] || 0 }));
       
-      return {
+      const result = {
         summary: {
           totalCommits30d: log.all.length,
           avgCommitsPerWeek: Math.round(avgCommitsPerWeek),
@@ -1068,6 +1185,8 @@ export class DashboardServer {
           .slice(0, 5)
           .map(([email, data]) => ({ email, ...data })),
       };
+      this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
+      return result;
     } catch (error) {
       console.error('Error getting velocity metrics:', error);
       return {
@@ -1334,8 +1453,11 @@ export class DashboardServer {
   }
 
   private isRateLimited(req: http.IncomingMessage): boolean {
-    const key = this.getClientKey(req);
     const now = Date.now();
+    for (const [k, v] of this.rateLimitBuckets) {
+      if (v.resetAt < now) this.rateLimitBuckets.delete(k);
+    }
+    const key = this.getClientKey(req);
     const bucket = this.rateLimitBuckets.get(key);
 
     if (!bucket || now > bucket.resetAt) {
@@ -1784,6 +1906,7 @@ ${reportJson}`;
       jira: this.jira,
     });
     this.addRecentRepo(resolved);
+    this.resultCache.invalidate('');
 
     return {
       repoRoot: this.currentRepoRoot,

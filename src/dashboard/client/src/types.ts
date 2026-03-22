@@ -53,17 +53,62 @@ export interface GraphData {
   nodes: Array<{
     id: string;
     label: string;
-    type: 'file' | 'package';
+    kind: 'repo' | 'directory' | 'file' | 'community' | 'process' | 'class' | 'interface' | 'function' | 'method' | 'property' | 'variable' | 'type' | 'enum' | 'namespace';
+    path: string;
+    parentId?: string;
+    depth: number;
+    degree: number;
+    line?: number;
+    language?: string;
+    exported?: boolean;
+    metrics: {
+      lines?: number;
+      imports?: number;
+      importedBy?: number;
+      symbols?: number;
+      exports?: number;
+    };
+    details?: {
+      description?: string;
+      cohesion?: number;
+      memberCount?: number;
+      processType?: 'entry' | 'pipeline' | 'cross-cutting';
+      stepCount?: number;
+      communities?: string[];
+    };
   }>;
   edges: Array<{
+    id: string;
     source: string;
     target: string;
+    kind: 'contains' | 'defines' | 'imports' | 'uses' | 'calls' | 'extends' | 'implements' | 'member_of' | 'step_in_process';
+    weight: number;
   }>;
   stats: {
     totalNodes: number;
     totalEdges: number;
-    avgConnections: number;
+    maxDepth: number;
+    byKind: Record<string, number>;
+    byEdgeKind: Record<string, number>;
+    topConnected: Array<{
+      id: string;
+      label: string;
+      kind: GraphData['nodes'][number]['kind'];
+      degree: number;
+      path: string;
+    }>;
   };
+}
+
+export interface GraphFileData {
+  path: string;
+  language?: string;
+  focusLine?: number;
+  startLine: number;
+  endLine: number;
+  totalLines: number;
+  truncated: boolean;
+  snippet: string;
 }
 
 export interface Signal {

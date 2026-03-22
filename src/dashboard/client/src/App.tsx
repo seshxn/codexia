@@ -1,16 +1,28 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
-import { RefreshCw, Code2 } from 'lucide-react';
+import { RefreshCw, Code2, Network, LayoutDashboard, Workflow } from 'lucide-react';
 import { useApi } from './hooks/useApi';
 import { fetchRepoContext } from './api';
 import { Card } from './components/Card';
 import { EngineeringDashboard } from './components/EngineeringDashboard';
 import { JiraSprintAnalysis } from './components/JiraSprintAnalysis';
+import { KnowledgeGraphDashboard } from './components/KnowledgeGraphDashboard';
 import { RepoSelector } from './components/RepoSelector';
 import { RepositoryDashboard } from './components/RepositoryDashboard';
 
 const TAB_TRANSITION_MS = 180;
 
-type DashboardTab = 'engineering' | 'repository' | 'jira';
+type DashboardTab = 'engineering' | 'repository' | 'graph' | 'jira';
+
+const NAV_ITEMS: Array<{
+  id: DashboardTab;
+  label: string;
+  icon: typeof LayoutDashboard;
+}> = [
+  { id: 'engineering', label: 'Engineering', icon: Code2 },
+  { id: 'repository', label: 'Overview', icon: LayoutDashboard },
+  { id: 'graph', label: 'Knowledge Graph', icon: Network },
+  { id: 'jira', label: 'Jira', icon: Workflow },
+];
 
 const App = () => {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -45,7 +57,7 @@ const App = () => {
   }, [repoContextRefetch]);
 
   const getTabButtonClass = (tab: DashboardTab): string => (
-    `rounded-md px-4 py-2 text-sm font-medium transition-all duration-200 ${
+    `inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
       activeTab === tab
         ? 'bg-white text-black shadow-sm'
         : 'text-neutral-300 hover:text-white hover:bg-neutral-800/60'
@@ -55,22 +67,53 @@ const App = () => {
   const tabPanelClassName = `tab-panel ${isTabTransitioning ? 'tab-panel-exit' : 'tab-panel-enter'}`;
   const tabPanelStyle: CSSProperties = { '--tab-transition-ms': `${TAB_TRANSITION_MS}ms` } as CSSProperties;
   const repoName = repoContext.data?.repoName || 'Repository';
+  const isGraphPage = visibleTab === 'graph';
+  const activeTabDetails =
+    visibleTab === 'engineering'
+      ? {
+          title: 'Engineering Intelligence',
+          subtitle: 'Cross-team delivery, DORA trends, and operational health.',
+        }
+      : visibleTab === 'repository'
+        ? {
+            title: 'Repository Overview',
+            subtitle: 'Operational metrics, hotspots, ownership, and team activity.',
+          }
+        : {
+            title: 'Jira Sprint Intelligence',
+            subtitle: 'Sprint health, scope changes, and board-level delivery integrity.',
+          };
 
   return (
     <div className="min-h-screen bg-black">
       <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-neutral-800">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-gradient-to-br from-sky-500 to-violet-600">
-                  <Code2 className="w-5 h-5 text-white" />
+        <div className={`${isGraphPage ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-6 py-4 space-y-4`}>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-gradient-to-br from-sky-500 to-violet-600">
+                    <Code2 className="w-5 h-5 text-white" />
+                  </div>
+                  <h1 className="text-xl font-semibold text-white tracking-tight">Codexia</h1>
                 </div>
-                <h1 className="text-xl font-semibold text-white tracking-tight">Codexia</h1>
+                <div className="h-5 w-px bg-neutral-800" />
+                <span className="text-neutral-400 text-sm font-medium">{repoName}</span>
               </div>
-              <div className="h-5 w-px bg-neutral-800" />
-              <span className="text-neutral-400 text-sm font-medium">{repoName}</span>
+
+              <nav className="flex flex-wrap gap-2">
+                {NAV_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button key={item.id} onClick={() => setActiveTab(item.id)} className={getTabButtonClass(item.id)}>
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
+
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-xs text-neutral-500">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -86,31 +129,37 @@ const App = () => {
               </button>
             </div>
           </div>
+
+          {!isGraphPage && (
+            <div className="rounded-2xl border border-neutral-800/70 bg-neutral-950/70 px-4 py-3">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-white">{activeTabDetails.title}</p>
+                  <p className="text-sm text-neutral-500">{activeTabDetails.subtitle}</p>
+                </div>
+                <div className="hidden rounded-full border border-neutral-800 bg-black/40 px-3 py-1 text-xs text-neutral-400 md:block">
+                  {repoName}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 animate-fade-in">
-        <Card
-          title="Repository Context"
-          subtitle="Run Codexia as a standalone app and switch local Git repos"
-          className="mb-8"
-        >
-          <RepoSelector onRepoSwitched={refreshAll} />
-        </Card>
-
-        <div className="mb-8">
-          <div className="inline-flex rounded-lg border border-neutral-800 bg-neutral-900/60 p-1">
-            <button onClick={() => setActiveTab('engineering')} className={getTabButtonClass('engineering')}>
-              Engineering
-            </button>
-            <button onClick={() => setActiveTab('repository')} className={getTabButtonClass('repository')}>
-              Repository
-            </button>
-            <button onClick={() => setActiveTab('jira')} className={getTabButtonClass('jira')}>
-              Jira
-            </button>
+      <main className={`${isGraphPage ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-6 py-8 animate-fade-in`}>
+        {isGraphPage ? (
+          <div className="mb-6 rounded-2xl border border-neutral-800/70 bg-neutral-950/60 px-4 py-3">
+            <RepoSelector onRepoSwitched={refreshAll} />
           </div>
-        </div>
+        ) : (
+          <Card
+            title="Repository Context"
+            subtitle="Run Codexia as a standalone app and switch local Git repos"
+            className="mb-8"
+          >
+            <RepoSelector onRepoSwitched={refreshAll} />
+          </Card>
+        )}
 
         <section
           className={tabPanelClassName}
@@ -121,6 +170,8 @@ const App = () => {
               <EngineeringDashboard refreshKey={refreshKey} />
             ) : visibleTab === 'repository' ? (
               <RepositoryDashboard refreshKey={refreshKey} />
+            ) : visibleTab === 'graph' ? (
+              <KnowledgeGraphDashboard refreshKey={refreshKey} />
             ) : (
               <Card
                 title="Jira Sprint Intelligence"
