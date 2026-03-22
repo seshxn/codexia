@@ -3,18 +3,19 @@ import { RefreshCw, Code2 } from 'lucide-react';
 import { useApi } from './hooks/useApi';
 import { fetchRepoContext } from './api';
 import { Card } from './components/Card';
+import { EngineeringDashboard } from './components/EngineeringDashboard';
 import { JiraSprintAnalysis } from './components/JiraSprintAnalysis';
 import { RepoSelector } from './components/RepoSelector';
 import { RepositoryDashboard } from './components/RepositoryDashboard';
 
 const TAB_TRANSITION_MS = 180;
 
-type DashboardTab = 'repository' | 'jira';
+type DashboardTab = 'engineering' | 'repository' | 'jira';
 
 const App = () => {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [activeTab, setActiveTab] = useState<DashboardTab>('repository');
-  const [visibleTab, setVisibleTab] = useState<DashboardTab>('repository');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('engineering');
+  const [visibleTab, setVisibleTab] = useState<DashboardTab>('engineering');
   const [isTabTransitioning, setIsTabTransitioning] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date>(new Date());
 
@@ -99,6 +100,9 @@ const App = () => {
 
         <div className="mb-8">
           <div className="inline-flex rounded-lg border border-neutral-800 bg-neutral-900/60 p-1">
+            <button onClick={() => setActiveTab('engineering')} className={getTabButtonClass('engineering')}>
+              Engineering
+            </button>
             <button onClick={() => setActiveTab('repository')} className={getTabButtonClass('repository')}>
               Repository
             </button>
@@ -113,7 +117,9 @@ const App = () => {
           style={tabPanelStyle}
         >
           <div key={visibleTab} className="tab-content">
-            {visibleTab === 'repository' ? (
+            {visibleTab === 'engineering' ? (
+              <EngineeringDashboard refreshKey={refreshKey} />
+            ) : visibleTab === 'repository' ? (
               <RepositoryDashboard refreshKey={refreshKey} />
             ) : (
               <Card
@@ -137,7 +143,7 @@ const App = () => {
               <span className="text-sm font-medium text-neutral-400">Codexia</span>
             </div>
             <p className="text-sm text-neutral-600">
-              Engineering Intelligence Layer for Repositories
+              Engineering Intelligence Layer for Teams and Repositories
             </p>
           </div>
         </div>

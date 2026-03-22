@@ -1,0 +1,30 @@
+teams:
+  - name: Platform
+    repos:
+      - acme/api
+      - acme/web
+    github:
+      org: acme
+      team: platform
+    jira:
+      boardIds:
+        - 12
+      projectKeys:
+        - PLAT
+    deployments:
+      environments:
+        - production
+      workflows:
+        - deploy-api
+        - deploy-web
+      branches:
+        - main
+    incidents:
+      projectKeys:
+        - OPS
+      issueTypes:
+        - Incident
+      labels:
+        - sev1
+        - production
+      jql: project = OPS

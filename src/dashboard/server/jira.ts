@@ -1,3 +1,5 @@
+import { computeJiraFlowMetrics, type JiraFlowIssue } from './jira-flow.js';
+
 interface JiraApiBoard {
   id: number;
   name: string;
@@ -229,6 +231,46 @@ export interface JiraBoardHistoryReport {
   }>;
 }
 
+export interface JiraFlowWorkItem {
+  id: string;
+  key: string;
+  title: string;
+  projectKey: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  cycleTimeHours: number;
+  leadTimeHours: number;
+  blockedHours: number;
+  reopened: boolean;
+}
+
+export interface JiraFlowReport {
+  generatedAt: string;
+  projectKeys: string[];
+  issueCount: number;
+  summary: ReturnType<typeof computeJiraFlowMetrics>['summary'];
+  queueVsActive: ReturnType<typeof computeJiraFlowMetrics>['queueVsActive'];
+  issueTypes: ReturnType<typeof computeJiraFlowMetrics>['issueTypes'];
+  trends: ReturnType<typeof computeJiraFlowMetrics>['trends'];
+  workItems: JiraFlowWorkItem[];
+}
+
+export interface JiraIncidentReportItem {
+  id: string;
+  key: string;
+  summary: string;
+  createdAt: string;
+  resolvedAt?: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  issueKeys: string[];
+  labels: string[];
+  source: 'jira_incident' | 'heuristic';
+  confidence: 'high' | 'medium' | 'low';
+}
+
 class JiraConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -359,6 +401,19 @@ export class JiraAnalyticsService {
     return {
       boards: mapped,
       total: mapped.length,
+    };
+  }
+
+  async getBoard(boardId: number): Promise<JiraBoardSummary> {
+    this.ensureConfigured();
+
+    const board = await this.requestAgile<JiraApiBoard>(`/board/${boardId}`);
+    return {
+      id: board.id,
+      name: board.name,
+      type: board.type || 'unknown',
+      projectKey: board.location?.projectKey || null,
+      projectName: board.location?.projectName || null,
     };
   }
 
@@ -552,6 +607,64 @@ export class JiraAnalyticsService {
     } finally {
       this.boardHistoryInFlight.delete(historyCacheKey);
     }
+  }
+
+  async getFlowSnapshot(input: {
+    projectKeys?: string[];
+    boardIds?: number[];
+    lookbackDays?: number;
+  }): Promise<JiraFlowReport> {
+    this.ensureConfigured();
+
+    const lookbackDays = this.clamp(input.lookbackDays || 90, 7, 365);
+    const projectKeys = await this.resolveProjectKeys(input.projectKeys, input.boardIds);
+    if (projectKeys.length === 0) {
+      throw new Error('BadRequest: Jira flow analytics requires at least one project key or board ID.');
+    }
+
+    const issues = await this.searchIssues(
+      this.buildProjectIssueJql(projectKeys, lookbackDays),
+      ['summary', 'status', 'resolutiondate', 'created', 'updated', 'issuetype', 'labels', 'project'],
+      true,
+    );
+
+    const flowIssues = issues.issues.map((issue) => this.mapIssueToFlowIssue(issue));
+    const metrics = computeJiraFlowMetrics(flowIssues, { lookbackDays });
+
+    return {
+      generatedAt: new Date().toISOString(),
+      projectKeys,
+      issueCount: flowIssues.length,
+      summary: metrics.summary,
+      queueVsActive: metrics.queueVsActive,
+      issueTypes: metrics.issueTypes,
+      trends: metrics.trends,
+      workItems: flowIssues.map((issue) => this.toFlowWorkItem(issue)),
+    };
+  }
+
+  async getIncidentSnapshot(input: {
+    projectKeys?: string[];
+    issueTypes?: string[];
+    labels?: string[];
+    jql?: string;
+    lookbackDays?: number;
+  }): Promise<JiraIncidentReportItem[]> {
+    this.ensureConfigured();
+
+    const lookbackDays = this.clamp(input.lookbackDays || 90, 7, 365);
+    const jql = this.buildIncidentJql(input, lookbackDays);
+    if (!jql) {
+      return [];
+    }
+
+    const issues = await this.searchIssues(
+      jql,
+      ['summary', 'status', 'resolutiondate', 'created', 'issuetype', 'labels'],
+      false,
+    );
+
+    return issues.issues.map((issue) => this.mapIssueToIncident(issue));
   }
 
   private async buildSprintReport(board: JiraApiBoard, sprint: JiraApiSprint): Promise<JiraSprintReport> {
@@ -1860,6 +1973,216 @@ export class JiraAnalyticsService {
   private round(value: number, decimals = 0): number {
     const factor = 10 ** decimals;
     return Math.round(value * factor) / factor;
+  }
+
+  private async resolveProjectKeys(projectKeys?: string[], boardIds?: number[]): Promise<string[]> {
+    const results = new Set((projectKeys || []).map((key) => key.trim().toUpperCase()).filter(Boolean));
+    for (const boardId of boardIds || []) {
+      const board = await this.getBoard(boardId);
+      if (board.projectKey) {
+        results.add(board.projectKey.toUpperCase());
+      }
+    }
+    return [...results];
+  }
+
+  private buildProjectIssueJql(projectKeys: string[], lookbackDays: number): string {
+    const projectClause = projectKeys.length === 1
+      ? `project = "${projectKeys[0]}"`
+      : `project in (${projectKeys.map((key) => `"${key}"`).join(', ')})`;
+    return `${projectClause} AND updated >= -${lookbackDays}d ORDER BY updated DESC`;
+  }
+
+  private buildIncidentJql(input: {
+    projectKeys?: string[];
+    issueTypes?: string[];
+    labels?: string[];
+    jql?: string;
+  }, lookbackDays: number): string | null {
+    const clauses: string[] = [];
+
+    if (input.projectKeys && input.projectKeys.length > 0) {
+      clauses.push(
+        input.projectKeys.length === 1
+          ? `project = "${input.projectKeys[0]}"`
+          : `project in (${input.projectKeys.map((key) => `"${key}"`).join(', ')})`,
+      );
+    }
+
+    if (input.issueTypes && input.issueTypes.length > 0) {
+      clauses.push(
+        input.issueTypes.length === 1
+          ? `issuetype = "${input.issueTypes[0]}"`
+          : `issuetype in (${input.issueTypes.map((type) => `"${type}"`).join(', ')})`,
+      );
+    }
+
+    if (input.labels && input.labels.length > 0) {
+      clauses.push(`labels in (${input.labels.map((label) => `"${label}"`).join(', ')})`);
+    }
+
+    if (input.jql) {
+      clauses.push(`(${input.jql})`);
+    }
+
+    if (clauses.length === 0) {
+      return null;
+    }
+
+    clauses.push(`created >= -${lookbackDays}d`);
+    return `${clauses.join(' AND ')} ORDER BY created DESC`;
+  }
+
+  private mapIssueToFlowIssue(issue: JiraIssue): JiraFlowIssue {
+    const status = this.getIssueStatusName(issue.fields);
+    const createdAt = typeof issue.fields.created === 'string' ? issue.fields.created : new Date().toISOString();
+    const resolvedAt = typeof issue.fields.resolutiondate === 'string' ? issue.fields.resolutiondate : undefined;
+    const labels = Array.isArray(issue.fields.labels)
+      ? issue.fields.labels.filter((label): label is string => typeof label === 'string')
+      : [];
+
+    return {
+      key: issue.key,
+      projectKey: this.getProjectKey(issue),
+      issueType: this.getIssueTypeName(issue.fields),
+      status,
+      createdAt,
+      resolvedAt,
+      labels,
+      changelog: this.extractStatusChanges(issue),
+    };
+  }
+
+  private toFlowWorkItem(issue: JiraFlowIssue): JiraFlowWorkItem {
+    const startedAt = issue.changelog.find((change) => this.isActiveStatus(change.to))?.at;
+    const blockedHours = this.computeBlockedHours(issue);
+    const reopened = issue.changelog.some((change) => this.isDoneStatus(change.from) && !this.isDoneStatus(change.to));
+
+    return {
+      id: issue.key,
+      key: issue.key,
+      title: issue.key,
+      projectKey: issue.projectKey,
+      type: issue.issueType,
+      status: issue.status,
+      createdAt: issue.createdAt,
+      startedAt,
+      completedAt: issue.resolvedAt,
+      cycleTimeHours: this.round(startedAt && issue.resolvedAt ? this.diffHours(startedAt, issue.resolvedAt) : 0, 1),
+      leadTimeHours: this.round(issue.resolvedAt ? this.diffHours(issue.createdAt, issue.resolvedAt) : 0, 1),
+      blockedHours: this.round(blockedHours, 1),
+      reopened,
+    };
+  }
+
+  private mapIssueToIncident(issue: JiraIssue): JiraIncidentReportItem {
+    const labels = Array.isArray(issue.fields.labels)
+      ? issue.fields.labels.filter((label): label is string => typeof label === 'string')
+      : [];
+    const summary = typeof issue.fields.summary === 'string' ? issue.fields.summary : issue.key;
+
+    return {
+      id: issue.key,
+      key: issue.key,
+      summary,
+      createdAt: typeof issue.fields.created === 'string' ? issue.fields.created : new Date().toISOString(),
+      resolvedAt: typeof issue.fields.resolutiondate === 'string' ? issue.fields.resolutiondate : undefined,
+      severity: this.deriveIncidentSeverity(labels, summary),
+      issueKeys: this.extractIssueKeys(summary),
+      labels,
+      source: 'jira_incident',
+      confidence: 'high',
+    };
+  }
+
+  private extractStatusChanges(issue: JiraIssue): JiraFlowIssue['changelog'] {
+    return (issue.changelog?.histories || [])
+      .flatMap((history) =>
+        history.items
+          .filter((item) => item.field.toLowerCase() === 'status')
+          .map((item) => ({
+            from: item.fromString || item.from || undefined,
+            to: item.toString || item.to || undefined,
+            at: history.created,
+          })),
+      )
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  }
+
+  private getProjectKey(issue: JiraIssue): string {
+    const project = issue.fields.project as { key?: string } | undefined;
+    if (project?.key) {
+      return project.key;
+    }
+    return issue.key.split('-')[0] || 'UNKNOWN';
+  }
+
+  private getIssueTypeName(fields: Record<string, unknown>): string {
+    const issueType = fields.issuetype as { name?: string } | undefined;
+    return issueType?.name || 'Unknown';
+  }
+
+  private getIssueStatusName(fields: Record<string, unknown>): string {
+    const status = fields.status as { name?: string } | undefined;
+    return status?.name || 'Unknown';
+  }
+
+  private computeBlockedHours(issue: JiraFlowIssue): number {
+    let blockedAt: string | null = null;
+    let total = 0;
+
+    for (const change of issue.changelog) {
+      if (!blockedAt && this.isBlockedStatus(change.to)) {
+        blockedAt = change.at;
+        continue;
+      }
+
+      if (blockedAt && !this.isBlockedStatus(change.to)) {
+        total += this.diffHours(blockedAt, change.at);
+        blockedAt = null;
+      }
+    }
+
+    if (blockedAt && issue.resolvedAt) {
+      total += this.diffHours(blockedAt, issue.resolvedAt);
+    }
+
+    return total;
+  }
+
+  private isActiveStatus(value?: string): boolean {
+    return /(in progress|progress|review|testing|qa|develop)/i.test(value || '');
+  }
+
+  private isBlockedStatus(value?: string): boolean {
+    return /(blocked|waiting|hold)/i.test(value || '');
+  }
+
+  private isDoneStatus(value?: string): boolean {
+    return /(done|closed|resolved)/i.test(value || '');
+  }
+
+  private diffHours(start: string, end: string): number {
+    return Math.max(0, (Date.parse(end) - Date.parse(start)) / (1000 * 60 * 60));
+  }
+
+  private deriveIncidentSeverity(labels: string[], summary: string): JiraIncidentReportItem['severity'] {
+    const combined = `${labels.join(' ')} ${summary}`.toLowerCase();
+    if (combined.includes('sev1') || combined.includes('critical')) {
+      return 'critical';
+    }
+    if (combined.includes('sev2') || combined.includes('high')) {
+      return 'high';
+    }
+    if (combined.includes('sev3') || combined.includes('medium')) {
+      return 'medium';
+    }
+    return 'low';
+  }
+
+  private extractIssueKeys(text: string): string[] {
+    const matches = text.match(/\b([A-Z][A-Z0-9]+-\d+)\b/g);
+    return matches ? [...new Set(matches)] : [];
   }
 
   private average(values: number[]): number {
