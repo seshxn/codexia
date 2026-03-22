@@ -31,7 +31,11 @@ temp/
 
 # User-specific config (use example files as templates)
 codexia.invariants.yaml
+codexia.teams.yaml
 
 # Generated CodeGraph state
 .codexia/index-cache.json
 .codexia/codegraph/
+
+# Local git worktrees
+.worktrees/

@@ -216,6 +216,26 @@ export class RepoIndexer {
       }
     }
 
+    const patterns = this.languageRegistry.getAllPatterns();
+    const ignorePatterns = this.languageRegistry.getIgnorePatterns();
+    const discoveredFiles = await glob(patterns, {
+      cwd: this.repoRoot,
+      ignore: ignorePatterns,
+      absolute: false,
+    });
+    const cachedPaths = Object.keys(cache.files);
+
+    if (discoveredFiles.length !== cachedPaths.length) {
+      return null;
+    }
+
+    const discoveredSet = new Set(discoveredFiles);
+    for (const cachedPath of cachedPaths) {
+      if (!discoveredSet.has(cachedPath)) {
+        return null;
+      }
+    }
+
     return cache;
   }
 

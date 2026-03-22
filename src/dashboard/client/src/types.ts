@@ -453,3 +453,195 @@ export interface JiraAiInsightsData {
   questions: string[];
   raw: string;
 }
+
+export interface ConfidenceMetricData {
+  value: number;
+  source: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface EngineeringConfigData {
+  enabled: boolean;
+  teamConfig: {
+    enabled: boolean;
+    path: string;
+    message: string;
+    teamsConfigured: number;
+  };
+  providers: {
+    github: {
+      enabled: boolean;
+      apiUrl: string | null;
+      message: string;
+    };
+    jira: {
+      enabled: boolean;
+      baseUrl: string | null;
+      authMode: 'none' | 'basic' | 'bearer';
+      message: string;
+    };
+  };
+}
+
+export interface EngineeringTeamSummary {
+  name: string;
+  repos: string[];
+}
+
+export interface EngineeringTeamsData {
+  teams: EngineeringTeamSummary[];
+  total: number;
+}
+
+export interface FlowIssueTypeData {
+  issueType: string;
+  throughput: number;
+  medianCycleTimeHours: number;
+  medianLeadTimeHours: number;
+}
+
+export interface FlowMetricsData {
+  summary: {
+    throughput: number;
+    unplannedWorkRatio: number;
+    reopenRate: number;
+    blockedAgingHours: number;
+  };
+  queueVsActive: {
+    queueHours: number;
+    activeHours: number;
+  };
+  issueTypes: FlowIssueTypeData[];
+  trends: {
+    forecastReliability: number;
+  };
+}
+
+export interface TeamReportData {
+  team: {
+    name: string;
+    repos: string[];
+  };
+  dora: {
+    deploymentFrequency: ConfidenceMetricData;
+    leadTimeHours: ConfidenceMetricData;
+    changeFailureRate: ConfidenceMetricData;
+    meanTimeToRestoreHours: ConfidenceMetricData;
+  };
+  pullRequestFunnel: {
+    total: number;
+    merged: number;
+    open: number;
+    reviewed: number;
+    averageReviewLatencyHours: number;
+  };
+  githubLinkageCoverage: ConfidenceMetricData;
+  incidents: {
+    total: number;
+    active: number;
+    failedChanges: number;
+  };
+  prHealth: {
+    averagePickupTimeHours: number;
+    averageMergeTimeHours: number;
+    averageReviewRounds: number;
+    averagePrSize: number;
+    largePrRate: number;
+    staleOpen: number;
+    hotfixRate: number;
+    mergeRate: number;
+  };
+  planning: {
+    flowEfficiencyPct: number;
+    carryoverRate: number;
+    averageWipAgeHours: number;
+    blockedWorkRate: number;
+    forecastReliability: number;
+  };
+  reliability: {
+    severityDistribution: Record<'low' | 'medium' | 'high' | 'critical', number>;
+    repeatIncidentRate: number;
+    incidentLinkageCoverage: ConfidenceMetricData;
+  };
+  throughput: {
+    completedWorkItems: number;
+    deployments: number;
+    deployedRepos: number;
+    workItemsByType: Array<{
+      issueType: string;
+      throughput: number;
+    }>;
+  };
+  peopleRisk: {
+    topAuthorShare: ConfidenceMetricData;
+    topMergerShare: ConfidenceMetricData;
+    afterHoursDeploymentRate: ConfidenceMetricData;
+  };
+  linkageQuality: {
+    githubLinkageCoverage: ConfidenceMetricData;
+    deploymentTraceabilityCoverage: ConfidenceMetricData;
+    incidentLinkageCoverage: ConfidenceMetricData;
+    incidentDeploymentCoverage: ConfidenceMetricData;
+  };
+  deploymentTimeline: Array<{
+    id: string;
+    repo: string;
+    environment: string;
+    createdAt: string;
+    status: 'success' | 'failure' | 'in_progress' | 'queued' | 'unknown';
+    source: 'github_deployment' | 'workflow_run' | 'merge_heuristic';
+    confidence: 'high' | 'medium' | 'low';
+    linkedIncidentCount: number;
+  }>;
+  recentIncidents: Array<{
+    id: string;
+    key: string;
+    summary: string;
+    createdAt: string;
+    resolvedAt?: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    issueKeys: string[];
+    labels: string[];
+    source: 'jira_incident' | 'heuristic';
+    confidence: 'high' | 'medium' | 'low';
+  }>;
+  flow: FlowMetricsData;
+}
+
+export interface EngineeringOverviewData {
+  generatedAt: string;
+  teams: Array<{
+    team: {
+      name: string;
+      repos: string[];
+    };
+    dora: TeamReportData['dora'];
+    incidents: TeamReportData['incidents'];
+    githubLinkageCoverage: ConfidenceMetricData;
+  }>;
+  portfolioDora: TeamReportData['dora'];
+  activeIncidents: number;
+  failedChanges: number;
+  totalPullRequests: number;
+}
+
+export interface JiraFlowReportData extends FlowMetricsData {
+  generatedAt: string;
+  projectKeys: string[];
+  issueCount: number;
+  workItems: Array<{
+    id: string;
+    key: string;
+    title: string;
+    projectKey: string;
+    type: string;
+    status: string;
+    createdAt: string;
+    startedAt?: string;
+    completedAt?: string;
+    cycleTimeHours: number;
+    leadTimeHours: number;
+    blockedHours: number;
+    reopened: boolean;
+  }>;
+}

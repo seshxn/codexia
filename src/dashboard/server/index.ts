@@ -5,6 +5,7 @@ import { exec, execFile } from 'node:child_process';
 import { simpleGit, SimpleGit } from 'simple-git';
 import { CodexiaEngine } from '../../cli/engine.js';
 import { getAIProvider } from '../../ai/index.js';
+import { EngineeringIntelligenceService } from './engineering.js';
 import { JiraAnalyticsService, type JiraBoardHistoryReport, type JiraSprintReport } from './jira.js';
 import { buildKnowledgeGraphData } from './knowledge-graph.js';
 
@@ -89,6 +90,7 @@ export class DashboardServer {
   private rateLimitMax: number = Number(process.env.CODEXIA_DASHBOARD_RATE_LIMIT_MAX || 120);
   private rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
   private jira: JiraAnalyticsService;
+  private engineering: EngineeringIntelligenceService;
   private currentRepoRoot: string;
   private recentRepoRoots: string[] = [];
   private static readonly MAX_RECENT_REPOS = 10;
@@ -103,6 +105,10 @@ export class DashboardServer {
     this.currentRepoRoot = path.resolve(repoRoot || process.cwd());
     this.git = simpleGit(this.currentRepoRoot);
     this.jira = new JiraAnalyticsService();
+    this.engineering = new EngineeringIntelligenceService({
+      repoRoot: this.currentRepoRoot,
+      jira: this.jira,
+    });
     this.addRecentRepo(this.currentRepoRoot);
   }
 
@@ -288,8 +294,26 @@ export class DashboardServer {
         case '/api/jira/board-report':
           data = await this.getJiraBoardReport(url);
           break;
+        case '/api/jira/flow-report':
+          data = await this.getJiraFlowReport(url);
+          break;
         case '/api/ai/jira-insights':
           data = await this.getJiraInsights(url);
+          break;
+        case '/api/engineering/config':
+          data = await this.getEngineeringConfig();
+          break;
+        case '/api/engineering/overview':
+          data = await this.getEngineeringOverview(url);
+          break;
+        case '/api/engineering/teams':
+          data = await this.getEngineeringTeams();
+          break;
+        case '/api/engineering/team-report':
+          data = await this.getEngineeringTeamReport(url);
+          break;
+        case '/api/engineering/repo-report':
+          data = await this.getEngineeringRepoReport(url);
           break;
         default:
           res.writeHead(404);
@@ -1530,6 +1554,58 @@ export class DashboardServer {
     return this.jira.getBoardHistoryReport(boardId, maxSprints);
   }
 
+  private async getJiraFlowReport(url: URL): Promise<object> {
+    const lookbackDays = this.parsePositiveInt(url.searchParams.get('lookbackDays')) || 90;
+    const boardIds = url.searchParams.getAll('boardId').map((value) => Number.parseInt(value, 10)).filter((value) => Number.isFinite(value) && value > 0);
+    const projectKeys = url.searchParams
+      .getAll('projectKey')
+      .map((value) => this.normalizeProjectKey(value) || '')
+      .filter(Boolean);
+
+    return this.jira.getFlowSnapshot({
+      boardIds,
+      projectKeys,
+      lookbackDays,
+    });
+  }
+
+  private async getEngineeringConfig(): Promise<object> {
+    return this.engineering.getConfig();
+  }
+
+  private async getEngineeringOverview(url: URL): Promise<object> {
+    const lookbackDays = this.parsePositiveInt(url.searchParams.get('lookbackDays')) || 90;
+    return this.engineering.getOverview(lookbackDays);
+  }
+
+  private async getEngineeringTeams(): Promise<object> {
+    const teams = await this.engineering.getTeams();
+    return {
+      teams,
+      total: teams.length,
+    };
+  }
+
+  private async getEngineeringTeamReport(url: URL): Promise<object> {
+    const teamName = url.searchParams.get('team');
+    if (!teamName) {
+      throw new Error('BadRequest: Missing team query parameter.');
+    }
+
+    const lookbackDays = this.parsePositiveInt(url.searchParams.get('lookbackDays')) || 90;
+    return this.engineering.getTeamReport(teamName, lookbackDays);
+  }
+
+  private async getEngineeringRepoReport(url: URL): Promise<object> {
+    const repo = url.searchParams.get('repo');
+    if (!repo) {
+      throw new Error('BadRequest: Missing repo query parameter.');
+    }
+
+    const lookbackDays = this.parsePositiveInt(url.searchParams.get('lookbackDays')) || 90;
+    return this.engineering.getRepoReport(repo, lookbackDays);
+  }
+
   private async getJiraInsights(url: URL): Promise<object> {
     const boardId = this.parsePositiveInt(url.searchParams.get('boardId'));
     if (!boardId) {
@@ -1825,6 +1901,10 @@ ${reportJson}`;
     this.engine = newEngine;
     this.git = newGit;
     this.currentRepoRoot = resolved;
+    this.engineering = new EngineeringIntelligenceService({
+      repoRoot: this.currentRepoRoot,
+      jira: this.jira,
+    });
     this.addRecentRepo(resolved);
     this.resultCache.invalidate('');
 

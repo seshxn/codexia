@@ -24,6 +24,11 @@ import type {
   JiraSprintReportData,
   JiraBoardHistoryReportData,
   JiraAiInsightsData,
+  JiraFlowReportData,
+  EngineeringConfigData,
+  EngineeringTeamsData,
+  EngineeringOverviewData,
+  TeamReportData,
 } from './types';
 
 const API_BASE = '/api';
@@ -219,4 +224,50 @@ export const fetchJiraAiInsights = async (params: {
   maxSprints?: number;
 }): Promise<JiraAiInsightsData> => {
   return fetchJson<JiraAiInsightsData>('/ai/jira-insights', params);
+};
+
+export const fetchJiraFlowReport = async (params?: {
+  projectKeys?: string[];
+  boardIds?: number[];
+  lookbackDays?: number;
+}): Promise<JiraFlowReportData> => {
+  const query = new URLSearchParams();
+  for (const projectKey of params?.projectKeys || []) {
+    query.append('projectKey', projectKey);
+  }
+  for (const boardId of params?.boardIds || []) {
+    query.append('boardId', String(boardId));
+  }
+  if (params?.lookbackDays) {
+    query.set('lookbackDays', String(params.lookbackDays));
+  }
+
+  const endpoint = query.toString() ? `/jira/flow-report?${query.toString()}` : '/jira/flow-report';
+  return fetchJson<JiraFlowReportData>(endpoint);
+};
+
+export const fetchEngineeringConfig = async (): Promise<EngineeringConfigData> => {
+  return fetchJson<EngineeringConfigData>('/engineering/config');
+};
+
+export const fetchEngineeringOverview = async (params?: { lookbackDays?: number }): Promise<EngineeringOverviewData> => {
+  return fetchJson<EngineeringOverviewData>('/engineering/overview', params);
+};
+
+export const fetchEngineeringTeams = async (): Promise<EngineeringTeamsData> => {
+  return fetchJson<EngineeringTeamsData>('/engineering/teams');
+};
+
+export const fetchEngineeringTeamReport = async (team: string, params?: { lookbackDays?: number }): Promise<TeamReportData> => {
+  return fetchJson<TeamReportData>('/engineering/team-report', {
+    team,
+    lookbackDays: params?.lookbackDays,
+  });
+};
+
+export const fetchEngineeringRepoReport = async (repo: string, params?: { lookbackDays?: number }): Promise<TeamReportData> => {
+  return fetchJson<TeamReportData>('/engineering/repo-report', {
+    repo,
+    lookbackDays: params?.lookbackDays,
+  });
 };

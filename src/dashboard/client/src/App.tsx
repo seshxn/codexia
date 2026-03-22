@@ -3,6 +3,7 @@ import { RefreshCw, Code2, Network, LayoutDashboard, Workflow } from 'lucide-rea
 import { useApi } from './hooks/useApi';
 import { fetchRepoContext } from './api';
 import { Card } from './components/Card';
+import { EngineeringDashboard } from './components/EngineeringDashboard';
 import { JiraSprintAnalysis } from './components/JiraSprintAnalysis';
 import { KnowledgeGraphDashboard } from './components/KnowledgeGraphDashboard';
 import { RepoSelector } from './components/RepoSelector';
@@ -10,13 +11,14 @@ import { RepositoryDashboard } from './components/RepositoryDashboard';
 
 const TAB_TRANSITION_MS = 180;
 
-type DashboardTab = 'repository' | 'graph' | 'jira';
+type DashboardTab = 'engineering' | 'repository' | 'graph' | 'jira';
 
 const NAV_ITEMS: Array<{
   id: DashboardTab;
   label: string;
   icon: typeof LayoutDashboard;
 }> = [
+  { id: 'engineering', label: 'Engineering', icon: Code2 },
   { id: 'repository', label: 'Overview', icon: LayoutDashboard },
   { id: 'graph', label: 'Knowledge Graph', icon: Network },
   { id: 'jira', label: 'Jira', icon: Workflow },
@@ -24,8 +26,8 @@ const NAV_ITEMS: Array<{
 
 const App = () => {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [activeTab, setActiveTab] = useState<DashboardTab>('repository');
-  const [visibleTab, setVisibleTab] = useState<DashboardTab>('repository');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('engineering');
+  const [visibleTab, setVisibleTab] = useState<DashboardTab>('engineering');
   const [isTabTransitioning, setIsTabTransitioning] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState<Date>(new Date());
 
@@ -66,6 +68,21 @@ const App = () => {
   const tabPanelStyle: CSSProperties = { '--tab-transition-ms': `${TAB_TRANSITION_MS}ms` } as CSSProperties;
   const repoName = repoContext.data?.repoName || 'Repository';
   const isGraphPage = visibleTab === 'graph';
+  const activeTabDetails =
+    visibleTab === 'engineering'
+      ? {
+          title: 'Engineering Intelligence',
+          subtitle: 'Cross-team delivery, DORA trends, and operational health.',
+        }
+      : visibleTab === 'repository'
+        ? {
+            title: 'Repository Overview',
+            subtitle: 'Operational metrics, hotspots, ownership, and team activity.',
+          }
+        : {
+            title: 'Jira Sprint Intelligence',
+            subtitle: 'Sprint health, scope changes, and board-level delivery integrity.',
+          };
 
   return (
     <div className="min-h-screen bg-black">
@@ -117,14 +134,8 @@ const App = () => {
             <div className="rounded-2xl border border-neutral-800/70 bg-neutral-950/70 px-4 py-3">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-white">
-                    {activeTab === 'repository' ? 'Repository Overview' : 'Jira Sprint Intelligence'}
-                  </p>
-                  <p className="text-sm text-neutral-500">
-                    {activeTab === 'repository'
-                      ? 'Operational metrics, hotspots, ownership, and team activity.'
-                      : 'Sprint health, scope changes, and board-level delivery integrity.'}
-                  </p>
+                  <p className="text-sm font-medium text-white">{activeTabDetails.title}</p>
+                  <p className="text-sm text-neutral-500">{activeTabDetails.subtitle}</p>
                 </div>
                 <div className="hidden rounded-full border border-neutral-800 bg-black/40 px-3 py-1 text-xs text-neutral-400 md:block">
                   {repoName}
@@ -155,7 +166,9 @@ const App = () => {
           style={tabPanelStyle}
         >
           <div key={visibleTab} className="tab-content">
-            {visibleTab === 'repository' ? (
+            {visibleTab === 'engineering' ? (
+              <EngineeringDashboard refreshKey={refreshKey} />
+            ) : visibleTab === 'repository' ? (
               <RepositoryDashboard refreshKey={refreshKey} />
             ) : visibleTab === 'graph' ? (
               <KnowledgeGraphDashboard refreshKey={refreshKey} />
@@ -181,7 +194,7 @@ const App = () => {
               <span className="text-sm font-medium text-neutral-400">Codexia</span>
             </div>
             <p className="text-sm text-neutral-600">
-              Engineering Intelligence Layer for Repositories
+              Engineering Intelligence Layer for Teams and Repositories
             </p>
           </div>
         </div>
