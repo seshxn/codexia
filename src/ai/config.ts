@@ -56,7 +56,7 @@ export const getAIConfig = (): AIConfig | null => {
 const getDefaultModel = (provider: AIConfig['provider']): string => {
   switch (provider) {
     case 'openai':
-      return 'gpt-4o';
+      return 'gpt-5.4';
     case 'anthropic':
       return 'claude-3-5-sonnet-20241022';
     case 'ollama':
@@ -66,7 +66,7 @@ const getDefaultModel = (provider: AIConfig['provider']): string => {
     case 'bedrock':
       return 'anthropic.claude-3-5-sonnet-20240620-v1:0';
     default:
-      return 'gpt-4o';
+      return 'gpt-5.4';
   }
 };
 

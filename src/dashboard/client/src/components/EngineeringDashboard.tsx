@@ -123,12 +123,12 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
     return <ErrorDisplay message={`Failed to load engineering config: ${config.error.message}`} onRetry={config.refetch} />;
   }
 
-  if (!config.data?.teamConfig.enabled) {
+  if (!config.data?.enabled) {
     return (
       <div className="space-y-6">
-        <Card title="Engineering Intelligence" subtitle="Multi-repo team analytics requires team mappings">
+        <Card title="Engineering Intelligence" subtitle="Connect GitHub or Jira to unlock engineering analytics">
           <div className="space-y-4 text-sm text-neutral-300">
-            <p>{config.data?.teamConfig.message || 'Create codexia.teams.yaml to enable team analytics.'}</p>
+            <p>{config.data?.teamConfig.message || 'Set CODEXIA_DASHBOARD_TEAMS_JSON to enable team analytics.'}</p>
             <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
               <p className="text-xs uppercase tracking-wide text-neutral-500">Provider Status</p>
               <div className="mt-3 grid gap-3 md:grid-cols-2">

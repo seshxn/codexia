@@ -11,6 +11,29 @@ const okJson = (body: unknown, headers: Record<string, string> = {}): Response =
   });
 
 describe('GitHubAnalyticsService', () => {
+  it('uses the current recommended GitHub REST headers', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const service = new GitHubAnalyticsService(
+      {
+        CODEXIA_GITHUB_TOKEN: 'ghp_test',
+      } as NodeJS.ProcessEnv,
+      async (input, init) => {
+        calls.push({ url: String(input), init });
+        return okJson([]);
+      },
+    );
+
+    await service.getDeployments('acme/api', 90);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('https://api.github.com/repos/acme/api/deployments?per_page=100');
+    expect(calls[0].init?.headers).toMatchObject({
+      Accept: 'application/vnd.github+json',
+      Authorization: 'Bearer ghp_test',
+      'X-GitHub-Api-Version': '2026-03-10',
+    });
+  });
+
   it('paginates pull requests until no next page remains', async () => {
     const calls: string[] = [];
     const service = new GitHubAnalyticsService(
@@ -20,7 +43,11 @@ describe('GitHubAnalyticsService', () => {
       async (input) => {
         const url = String(input);
         calls.push(url);
-        if (calls.length === 1) {
+        if (url.includes('/pulls?state=open')) {
+          return okJson([]);
+        }
+
+        if (url.includes('/pulls?state=closed') && calls.length === 2) {
           return okJson(
             [
               {
@@ -103,7 +130,7 @@ describe('GitHubAnalyticsService', () => {
     const pulls = await service.getPullRequests('acme/api', 90);
 
     expect(pulls).toHaveLength(2);
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(7);
     expect(pulls.map((pull) => pull.issueKeys)).toEqual([['PLAT-12'], ['PLAT-13']]);
     expect(pulls[0]).toMatchObject({
       firstReviewAt: '2026-01-01T10:30:00Z',
@@ -117,6 +144,81 @@ describe('GitHubAnalyticsService', () => {
     expect(pulls[1].mergedBy).toBe('lead-two');
   });
 
+  it('includes open pull requests alongside recently updated closed pull requests', async () => {
+    const calls: string[] = [];
+    const service = new GitHubAnalyticsService(
+      {
+        CODEXIA_GITHUB_TOKEN: 'ghp_test',
+      } as NodeJS.ProcessEnv,
+      async (input) => {
+        const url = String(input);
+        calls.push(url);
+
+        if (url.includes('/pulls?state=open')) {
+          return okJson([
+            {
+              number: 3,
+              state: 'open',
+              title: 'PLAT-14 Active work',
+              user: { login: 'sesh' },
+              created_at: '2026-01-03T09:00:00Z',
+              updated_at: '2026-01-03T12:00:00Z',
+              draft: false,
+              head: { ref: 'feature/plat-14', sha: 'ghi789' },
+              base: { ref: 'main' },
+            },
+          ]);
+        }
+
+        if (url.includes('/pulls?state=closed')) {
+          return okJson([
+            {
+              number: 4,
+              state: 'closed',
+              title: 'PLAT-15 Completed work',
+              user: { login: 'sesh' },
+              created_at: '2026-01-04T09:00:00Z',
+              updated_at: '2026-01-04T12:00:00Z',
+              merged_at: '2026-01-04T12:00:00Z',
+              closed_at: '2026-01-04T12:00:00Z',
+              draft: false,
+              merged_by: { login: 'maintainer' },
+              head: { ref: 'feature/plat-15', sha: 'jkl012' },
+              base: { ref: 'main' },
+            },
+          ]);
+        }
+
+        if (url.endsWith('/pulls/3')) {
+          return okJson({ additions: 20, deletions: 5, changed_files: 2 });
+        }
+
+        if (url.endsWith('/pulls/4')) {
+          return okJson({ additions: 40, deletions: 10, changed_files: 3, merged_by: { login: 'lead-two' } });
+        }
+
+        if (url.endsWith('/pulls/3/reviews?per_page=100')) {
+          return okJson([]);
+        }
+
+        if (url.endsWith('/pulls/4/reviews?per_page=100')) {
+          return okJson([]);
+        }
+
+        throw new Error(`Unexpected URL ${url}`);
+      },
+    );
+
+    const pulls = await service.getPullRequests('acme/api', 90);
+
+    expect(calls.some((url) => url.includes('/pulls?state=open'))).toBe(true);
+    expect(calls.some((url) => url.includes('/pulls?state=closed'))).toBe(true);
+    expect(pulls.map((pull) => ({ number: pull.number, state: pull.state }))).toEqual([
+      { number: 3, state: 'open' },
+      { number: 4, state: 'merged' },
+    ]);
+  });
+
   it('throws a rate-limit error when GitHub returns 429', async () => {
     const service = new GitHubAnalyticsService(
       {
@@ -126,6 +228,40 @@ describe('GitHubAnalyticsService', () => {
         new Response(JSON.stringify({ message: 'slow down' }), {
           status: 429,
           headers: { 'content-type': 'application/json' },
+        }),
+    );
+
+    await expect(service.getPullRequests('acme/api', 90)).rejects.toThrow(/rate limit/i);
+  });
+
+  it('treats 403 permission failures as request errors, not rate limits', async () => {
+    const service = new GitHubAnalyticsService(
+      {
+        CODEXIA_GITHUB_TOKEN: 'ghp_test',
+      } as NodeJS.ProcessEnv,
+      async () =>
+        new Response(JSON.stringify({ message: 'Resource not accessible by integration' }), {
+          status: 403,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+
+    await expect(service.getPullRequests('acme/api', 90)).rejects.toThrow(/403/);
+    await expect(service.getPullRequests('acme/api', 90)).rejects.not.toThrow(/rate limit/i);
+  });
+
+  it('treats 403 secondary rate limits as rate-limit errors', async () => {
+    const service = new GitHubAnalyticsService(
+      {
+        CODEXIA_GITHUB_TOKEN: 'ghp_test',
+      } as NodeJS.ProcessEnv,
+      async () =>
+        new Response(JSON.stringify({ message: 'You have exceeded a secondary rate limit.' }), {
+          status: 403,
+          headers: {
+            'content-type': 'application/json',
+            'x-ratelimit-remaining': '0',
+          },
         }),
     );
 

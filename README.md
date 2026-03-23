@@ -285,14 +285,21 @@ Set your preferred AI provider via environment variables:
 
 ```bash
 # OpenAI
-export OPENAI_API_KEY=sk-...
+export CODEXIA_AI_PROVIDER=openai
+export CODEXIA_AI_API_KEY=sk-...
 
 # Anthropic
-export ANTHROPIC_API_KEY=sk-ant-...
+export CODEXIA_AI_PROVIDER=anthropic
+export CODEXIA_AI_API_KEY=sk-ant-...
 
 # Ollama (local, free)
-export OLLAMA_HOST=http://localhost:11434
+export CODEXIA_AI_PROVIDER=ollama
+export CODEXIA_AI_BASE_URL=http://localhost:11434
+# Optional:
+export CODEXIA_AI_MODEL=llama3
 ```
+
+For `CODEXIA_AI_PROVIDER=openai`, Codexia now uses OpenAI's Responses API on the default OpenAI endpoint. If you set a custom `CODEXIA_AI_BASE_URL` for an OpenAI-compatible service, Codexia keeps the older Chat Completions fallback for compatibility.
 
 ### Features
 
@@ -303,6 +310,24 @@ AI integration enables:
 - **Natural language queries** about your codebase
 
 The system gracefully falls back if no API keys are configured—all core analysis features work without AI.
+
+Engineering dashboard setup is now zero-admin for a single GitHub repo when the checked-out repository has a Git remote that resolves to an `owner/name` slug:
+
+```bash
+export CODEXIA_GITHUB_TOKEN=ghp_...
+```
+
+For multi-repo grouping, use env-first team mappings:
+
+```bash
+export CODEXIA_DASHBOARD_TEAMS_JSON='{"teams":[{"name":"Platform","repos":["acme/api","acme/web"]}]}'
+export CODEXIA_GITHUB_TOKEN=ghp_...
+export CODEXIA_JIRA_BASE_URL=https://your-company.atlassian.net
+export CODEXIA_JIRA_EMAIL=you@company.com
+export CODEXIA_JIRA_API_TOKEN=...
+```
+
+`CODEXIA_DASHBOARD_TEAMS_JSON` is optional and mainly for multi-repo grouping. `codexia.teams.yaml` is still supported as a legacy fallback, but the env var is the preferred setup when you need explicit team mappings.
 
 ---
 
