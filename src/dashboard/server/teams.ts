@@ -38,24 +38,41 @@ export interface TeamConfigStatus {
 }
 
 const CONFIG_FILE = 'codexia.teams.yaml';
+const ENV_CONFIG_KEY = 'CODEXIA_DASHBOARD_TEAMS_JSON';
 
 export class TeamConfigLoader {
-  constructor(private readonly repoRoot: string) {}
+  constructor(
+    private readonly repoRoot: string,
+    private readonly env: NodeJS.ProcessEnv = process.env,
+  ) {}
 
   async load(): Promise<TeamConfigStatus> {
     const filePath = path.join(this.repoRoot, CONFIG_FILE);
+    const envConfig = this.env[ENV_CONFIG_KEY]?.trim();
+
+    if (envConfig) {
+      const teams = this.parseTeams(envConfig, 'environment');
+
+      return {
+        enabled: teams.length > 0,
+        path: ENV_CONFIG_KEY,
+        message: teams.length > 0
+          ? `Loaded ${teams.length} team mapping${teams.length === 1 ? '' : 's'} from environment variable ${ENV_CONFIG_KEY}.`
+          : `No teams are defined in environment variable ${ENV_CONFIG_KEY}.`,
+        teams,
+      };
+    }
 
     try {
       const raw = await fs.readFile(filePath, 'utf8');
-      const parsed = parse(raw) as TeamConfigFile | null;
-      const teams = this.normalizeTeams(parsed?.teams || []);
+      const teams = this.parseTeams(raw, CONFIG_FILE, true);
 
       return {
         enabled: teams.length > 0,
         path: filePath,
         message: teams.length > 0
-          ? `Loaded ${teams.length} team mapping${teams.length === 1 ? '' : 's'}.`
-          : 'No teams are defined in codexia.teams.yaml.',
+          ? `Loaded ${teams.length} team mapping${teams.length === 1 ? '' : 's'} from ${CONFIG_FILE}.`
+          : `No teams are defined in ${CONFIG_FILE}.`,
         teams,
       };
     } catch (error) {
@@ -63,13 +80,29 @@ export class TeamConfigLoader {
         return {
           enabled: false,
           path: filePath,
-          message: 'Create codexia.teams.yaml to enable multi-team engineering intelligence.',
+          message: `Set ${ENV_CONFIG_KEY} or create ${CONFIG_FILE} to enable multi-team engineering intelligence.`,
           teams: [],
         };
       }
 
       throw error;
     }
+  }
+
+  private parseTeams(raw: string, source: string, isYaml = false): TeamConfig[] {
+    const parsed = isYaml
+      ? parse(raw)
+      : JSON.parse(raw);
+
+    const teamEntries = Array.isArray(parsed)
+      ? parsed
+      : (parsed as TeamConfigFile | null)?.teams || [];
+
+    if (!Array.isArray(teamEntries)) {
+      throw new Error(`Invalid team configuration in ${source}. Expected an array or { teams: [...] } object.`);
+    }
+
+    return this.normalizeTeams(teamEntries);
   }
 
   private normalizeTeams(input: unknown[]): TeamConfig[] {

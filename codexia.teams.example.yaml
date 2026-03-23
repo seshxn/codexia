@@ -1,3 +1,5 @@
+# Legacy fallback example.
+# Preferred setup: put the same structure into CODEXIA_DASHBOARD_TEAMS_JSON in .env.
 teams:
   - name: Platform
     repos:

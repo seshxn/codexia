@@ -22,6 +22,8 @@ export interface GitHubPullRequest {
   headBranch: string;
   isDraft: boolean;
   mergedBy?: string;
+  headSha?: string;
+  mergeCommitSha?: string;
   additions?: number;
   deletions?: number;
   changedFiles?: number;
@@ -72,6 +74,7 @@ interface GitHubPullDetailResponse {
   additions?: number;
   deletions?: number;
   changed_files?: number;
+  merge_commit_sha?: string;
   merged_by?: {
     login?: string;
   };
@@ -97,6 +100,7 @@ interface GitHubDeploymentStatusResponse {
 }
 
 const ISSUE_KEY_PATTERN = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
+const GITHUB_API_VERSION = '2026-03-10';
 
 export class GitHubAnalyticsService {
   private readonly token: string | null;
@@ -130,12 +134,17 @@ export class GitHubAnalyticsService {
     const [owner, name] = this.parseRepo(repo);
     const since = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
 
-    const pulls = await this.paginate<GitHubPullResponse>(`/repos/${owner}/${name}/pulls?state=closed&sort=updated&direction=desc&per_page=100`);
-    const filtered = pulls
+    const [openPulls, closedPulls] = await Promise.all([
+      this.paginate<GitHubPullResponse>(`/repos/${owner}/${name}/pulls?state=open&sort=updated&direction=desc&per_page=100`),
+      this.paginate<GitHubPullResponse>(`/repos/${owner}/${name}/pulls?state=closed&sort=updated&direction=desc&per_page=100`),
+    ]);
+
+    const filtered = [...openPulls, ...closedPulls]
       .filter((pull) => {
         const updatedAt = Date.parse(pull.updated_at || pull.created_at);
         return Number.isFinite(updatedAt) && updatedAt >= since;
-      });
+      })
+      .filter((pull, index, all) => all.findIndex((candidate) => candidate.number === pull.number) === index);
 
     return Promise.all(filtered.map(async (pull) => {
       const merged = Boolean(pull.merged_at);
@@ -160,10 +169,12 @@ export class GitHubAnalyticsService {
         state: merged ? 'merged' : pull.state === 'open' ? 'open' : 'closed',
         baseBranch: pull.base?.ref || 'main',
         headBranch: pull.head?.ref || '',
+        headSha: pull.head?.sha || undefined,
         firstCommitAt: pull.created_at,
         firstReviewAt,
         isDraft: Boolean(pull.draft),
         mergedBy: detail.merged_by?.login || pull.merged_by?.login,
+        mergeCommitSha: detail.merge_commit_sha || undefined,
         additions: detail.additions ?? 0,
         deletions: detail.deletions ?? 0,
         changedFiles: detail.changed_files ?? 0,
@@ -259,18 +270,36 @@ export class GitHubAnalyticsService {
       headers: {
         Accept: 'application/vnd.github+json',
         Authorization: `Bearer ${this.token}`,
-        'X-GitHub-Api-Version': '2022-11-28',
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
       },
     });
 
     if (!response.ok) {
-      if (response.status === 429 || response.status === 403) {
+      const error = await response.text();
+      if (this.isRateLimitResponse(response, error)) {
         throw new Error('GitHub API rate limit reached.');
       }
-      throw new Error(`GitHub API request failed with ${response.status}.`);
+      throw new Error(`GitHub API request failed with ${response.status}: ${error}`);
     }
 
     return response;
+  }
+
+  private isRateLimitResponse(response: Response, errorText: string): boolean {
+    if (response.status === 429) {
+      return true;
+    }
+
+    if (response.status !== 403) {
+      return false;
+    }
+
+    const remaining = response.headers.get('x-ratelimit-remaining');
+    if (remaining === '0') {
+      return true;
+    }
+
+    return /rate limit/i.test(errorText);
   }
 
   private parseRepo(repo: string): [string, string] {

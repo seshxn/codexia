@@ -1,3 +1,5 @@
+import * as path from 'node:path';
+import { simpleGit } from 'simple-git';
 import { computeJiraFlowMetrics } from './jira-flow.js';
 import { GitHubAnalyticsService, type GitHubDeployment, type GitHubPullRequest } from './github.js';
 import { TeamConfigLoader } from './teams.js';
@@ -29,6 +31,8 @@ export interface EngineeringPullRequest {
   headBranch: string;
   isDraft: boolean;
   mergedBy?: string;
+  headSha?: string;
+  mergeCommitSha?: string;
   additions?: number;
   deletions?: number;
   changedFiles?: number;
@@ -211,6 +215,7 @@ interface EngineeringIntelligenceServiceOptions {
   github?: GitHubAnalyticsService;
   jira?: JiraAnalyticsService;
   teamConfigLoader?: TeamConfigLoader;
+  fallbackRepoSlug?: string;
 }
 
 export const computeDoraMetrics = ({
@@ -415,18 +420,22 @@ export const buildEngineeringOverview = (
 export type { TeamConfig } from './teams.js';
 
 export class EngineeringIntelligenceService {
+  private readonly repoRoot: string;
   private readonly teamConfigLoader: TeamConfigLoader;
   private readonly github: GitHubAnalyticsService;
   private readonly jira: JiraAnalyticsService | null;
+  private readonly fallbackRepoSlug?: string;
 
   constructor(options: EngineeringIntelligenceServiceOptions) {
+    this.repoRoot = options.repoRoot;
     this.teamConfigLoader = options.teamConfigLoader || new TeamConfigLoader(options.repoRoot);
     this.github = options.github || new GitHubAnalyticsService();
     this.jira = options.jira || null;
+    this.fallbackRepoSlug = options.fallbackRepoSlug;
   }
 
   async getConfig(): Promise<EngineeringConfigStatus> {
-    const teamConfig = await this.teamConfigLoader.load();
+    const teamConfig = await this.resolveTeamConfig();
     const github = this.github.getConfig();
     const jira = this.jira?.getConfig() || {
       enabled: false,
@@ -451,7 +460,7 @@ export class EngineeringIntelligenceService {
   }
 
   async getTeams(): Promise<Array<{ name: string; repos: string[] }>> {
-    const config = await this.teamConfigLoader.load();
+    const config = await this.resolveTeamConfig();
     return config.teams.map((team) => ({
       name: team.name,
       repos: team.repos,
@@ -459,13 +468,13 @@ export class EngineeringIntelligenceService {
   }
 
   async getOverview(lookbackDays = 90): Promise<EngineeringOverview> {
-    const config = await this.teamConfigLoader.load();
+    const config = await this.resolveTeamConfig();
     const reports = await Promise.all(config.teams.map((team) => this.getReportForTeam(team, lookbackDays)));
     return buildEngineeringOverview(reports);
   }
 
   async getTeamReport(teamName: string, lookbackDays = 90): Promise<TeamReport> {
-    const config = await this.teamConfigLoader.load();
+    const config = await this.resolveTeamConfig();
     const team = config.teams.find((item) => item.name.toLowerCase() === teamName.toLowerCase());
     if (!team) {
       throw new Error(`BadRequest: Unknown engineering team "${teamName}".`);
@@ -475,7 +484,7 @@ export class EngineeringIntelligenceService {
   }
 
   async getRepoReport(repo: string, lookbackDays = 90): Promise<TeamReport> {
-    const config = await this.teamConfigLoader.load();
+    const config = await this.resolveTeamConfig();
     const team = config.teams.find((item) => item.repos.includes(repo));
     if (!team) {
       throw new Error(`BadRequest: No engineering team is mapped to repo "${repo}".`);
@@ -485,6 +494,57 @@ export class EngineeringIntelligenceService {
       ...team,
       repos: [repo],
     }, lookbackDays);
+  }
+
+  private async resolveTeamConfig() {
+    const explicitConfig = await this.teamConfigLoader.load();
+    if (explicitConfig.teams.length > 0) {
+      return explicitConfig;
+    }
+
+    const fallbackRepoSlug = await this.resolveFallbackRepoSlug();
+    if (!fallbackRepoSlug) {
+      return explicitConfig;
+    }
+
+    const repoName = path.basename(this.repoRoot);
+    return {
+      enabled: true,
+      path: this.repoRoot,
+      message: `No team mappings configured. Using current repository ${repoName} (${fallbackRepoSlug}) for single-repo engineering intelligence.`,
+      teams: [
+        {
+          name: repoName,
+          repos: [fallbackRepoSlug],
+        },
+      ],
+    };
+  }
+
+  private async resolveFallbackRepoSlug(): Promise<string | null> {
+    if (this.fallbackRepoSlug) {
+      return this.fallbackRepoSlug;
+    }
+
+    try {
+      const git = simpleGit(this.repoRoot);
+      const remotes = await git.getRemotes(true);
+      const candidates = remotes
+        .sort((a, b) => (a.name === 'origin' ? -1 : b.name === 'origin' ? 1 : a.name.localeCompare(b.name)))
+        .flatMap((remote) => [remote.refs.fetch, remote.refs.push])
+        .filter((value): value is string => Boolean(value));
+
+      for (const remote of candidates) {
+        const slug = extractGitHubRepoSlug(remote);
+        if (slug) {
+          return slug;
+        }
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
   }
 
   private async getReportForTeam(team: TeamConfig, lookbackDays: number): Promise<TeamReport> {
@@ -532,7 +592,13 @@ export class EngineeringIntelligenceService {
           environments: team.deployments?.environments,
         });
         if (deployments.length > 0) {
-          return deployments.map((deployment) => this.mapDeployment(deployment));
+          const repoPullSet = repoPulls.filter((pull) => pull.repo === repo);
+          return deployments.map((deployment) => this.mapDeployment({
+            ...deployment,
+            linkedPullRequestIds: deployment.linkedPullRequestIds.length > 0
+              ? deployment.linkedPullRequestIds
+              : this.linkDeploymentToPullRequests(deployment, repoPullSet),
+          }));
         }
 
         return createMergeHeuristicDeployments(
@@ -609,6 +675,8 @@ export class EngineeringIntelligenceService {
     headBranch: pull.headBranch,
     isDraft: pull.isDraft,
     mergedBy: pull.mergedBy,
+    headSha: pull.headSha,
+    mergeCommitSha: pull.mergeCommitSha,
     additions: pull.additions,
     deletions: pull.deletions,
     changedFiles: pull.changedFiles,
@@ -658,7 +726,39 @@ export class EngineeringIntelligenceService {
     source: incident.source,
     confidence: incident.confidence,
   });
+
+  private linkDeploymentToPullRequests(
+    deployment: GitHubDeployment,
+    pullRequests: EngineeringPullRequest[],
+  ): string[] {
+    if (!deployment.sha) {
+      return [];
+    }
+
+    return pullRequests
+      .filter((pull) => pull.state === 'merged' && (pull.mergeCommitSha === deployment.sha || pull.headSha === deployment.sha))
+      .map((pull) => pull.id);
+  }
 }
+
+const extractGitHubRepoSlug = (remote: string): string | null => {
+  const sshMatch = remote.match(/^[^@]+@[^:]+:([^/]+\/[^/]+?)(?:\.git)?$/);
+  if (sshMatch) {
+    return sshMatch[1];
+  }
+
+  try {
+    const url = new URL(remote);
+    const segments = url.pathname.replace(/^\/+/, '').replace(/\.git$/, '').split('/').filter(Boolean);
+    if (segments.length >= 2) {
+      return `${segments[segments.length - 2]}/${segments[segments.length - 1]}`;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
 
 const computeAggregateDora = (metrics: DoraMetrics[]): DoraMetrics => ({
   deploymentFrequency: aggregateMetric(metrics.map((item) => item.deploymentFrequency), 'aggregate'),
