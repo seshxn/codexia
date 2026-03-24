@@ -58,3 +58,23 @@ Tool names:
 - `list_graph_stats_tool`
 
 Use this to inspect graph freshness and semantic-index health before relying on graph-driven workflows.
+
+## Refactor Plan
+
+Tool names:
+
+- `codexia/refactor-plan`
+
+Input:
+
+```json
+{
+  "type": "rename-symbol",
+  "file": "src/modules/impact-analyzer.ts",
+  "targetSymbol": "analyze",
+  "newSymbolName": "analyzeImpact",
+  "depth": 4
+}
+```
+
+This is simulation-only. It returns blast radius, a compilable step-by-step migration sequence, per-step test gates, and extraction advice.

@@ -22,3 +22,18 @@ export { MonorepoDetector, MonorepoAnalyzer, analyzeMonorepo, type MonorepoAnaly
 
 // Smart test prioritization
 export { SmartTestPrioritizer, type PrioritizedTest, type TestPrioritizationResult } from './smart-test-prioritizer.js';
+
+// Refactor planning
+export {
+  RefactorCartographer,
+  type RefactorOperationType,
+  type RefactorPlanRequest,
+  type RefactorPlanningContext,
+  type RefactorPlanResult,
+  type RefactorBlastRadius,
+  type RefactorStepPlan,
+  type RefactorStepTestGate,
+  type RefactorWhatIfAnalysis,
+  type RenamePropagationPlan,
+  type ModuleExtractionAdvice,
+} from './refactor-cartographer.js';

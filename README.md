@@ -456,6 +456,7 @@ Codexia exposes a Model Context Protocol server for AI assistants:
 | `semantic_search` | Hybrid lexical and semantic search across files and symbols |
 | `impact` | Return dependency blast radius grouped by depth |
 | `review_context` | Token-efficient review context with changed symbols, snippets, and blast radius guidance |
+| `codexia/refactor-plan` | Simulation-only refactor cartography with sequenced migration steps and per-step test gates |
 | `context` | Structural and temporal context for a file or symbol |
 | `detect_changes` | Map working tree changes to graph entities |
 | `cypher` | Run read-only Cypher against the persisted graph |
