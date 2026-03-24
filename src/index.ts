@@ -21,6 +21,7 @@ export {
   MonorepoAnalyzer,
   analyzeMonorepo,
   SmartTestPrioritizer,
+  RefactorCartographer,
 } from './modules/index.js';
 
 // MCP Server for AI integration

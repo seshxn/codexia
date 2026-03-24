@@ -24,6 +24,9 @@ import {
   MonorepoAnalyzer,
   MonorepoDetector,
   SmartTestPrioritizer,
+  RefactorCartographer,
+  type RefactorPlanRequest,
+  type RefactorPlanResult,
   DriftRadar,
   type DriftSignal,
 } from '../modules/index.js';
@@ -1628,6 +1631,41 @@ export class CodexiaEngine {
     return this.testPrioritizer.prioritize(diff, files, impact);
   }
 
+  /**
+   * Build a simulation-only refactor migration plan.
+   */
+  async planRefactor(options: RefactorPlanRequest): Promise<RefactorPlanResult> {
+    await this.initialize();
+
+    const files = this.indexer.getFiles();
+    const rootCandidates = this.resolveRefactorSeedFiles(options, files);
+    if (rootCandidates.length === 0) {
+      throw new Error('No refactor target resolved from file/targetSymbol inputs.');
+    }
+
+    const maxDepth = options.depth ?? 6;
+    const neighborhood = this.expandRefactorNeighborhood(rootCandidates, maxDepth);
+    const fileContents = await this.readExistingFileContents(Array.from(neighborhood));
+
+    const complexity = await this.buildNeighborhoodComplexity(files, neighborhood, fileContents);
+    const coChangeClusters = await this.buildNeighborhoodCoChangeClusters(neighborhood);
+
+    const planner = new RefactorCartographer(
+      this.depGraph,
+      this.symbolMap,
+      new ImpactAnalyzer(this.depGraph),
+      this.testPrioritizer
+    );
+
+    return planner.plan(options, {
+      files,
+      fileContents,
+      complexity,
+      coChangeClusters,
+      maxDepth,
+    });
+  }
+
   // ============================================
   // Dashboard Support Methods
   // ============================================
@@ -1698,6 +1736,114 @@ export class CodexiaEngine {
     }
     
     return complexityEngine.analyzeAll(files, contents, dependencyInfo);
+  }
+
+  private resolveRefactorSeedFiles(
+    options: RefactorPlanRequest,
+    files: Map<string, FileInfo>
+  ): string[] {
+    const seeds = new Set<string>();
+
+    if (typeof options.file === 'string' && options.file.length > 0) {
+      seeds.add(options.file);
+    }
+    if (typeof options.destinationFile === 'string' && options.destinationFile.length > 0) {
+      seeds.add(options.destinationFile);
+    }
+
+    if (typeof options.targetSymbol === 'string' && options.targetSymbol.length > 0) {
+      const symbolMatches = this.symbolMap.findByName(options.targetSymbol);
+      for (const symbol of symbolMatches) {
+        if (!options.file || symbol.filePath === options.file) {
+          seeds.add(symbol.filePath);
+        }
+      }
+    }
+
+    return Array.from(seeds).filter((file) => files.has(file));
+  }
+
+  private expandRefactorNeighborhood(seedFiles: string[], maxDepth: number): Set<string> {
+    const neighborhood = new Set(seedFiles);
+    const queue: Array<{ file: string; depth: number }> = seedFiles.map((file) => ({ file, depth: 0 }));
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current.depth >= maxDepth) {
+        continue;
+      }
+
+      for (const dependent of this.depGraph.getDependents(current.file)) {
+        if (neighborhood.has(dependent)) {
+          continue;
+        }
+        neighborhood.add(dependent);
+        queue.push({ file: dependent, depth: current.depth + 1 });
+      }
+
+      for (const dependency of this.depGraph.getDependencies(current.file)) {
+        if (neighborhood.has(dependency)) {
+          continue;
+        }
+        neighborhood.add(dependency);
+        queue.push({ file: dependency, depth: current.depth + 1 });
+      }
+    }
+
+    return neighborhood;
+  }
+
+  private async readExistingFileContents(paths: string[]): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    for (const filePath of paths) {
+      try {
+        const content = await fs.readFile(path.join(this.repoRoot, filePath), 'utf-8');
+        result.set(filePath, content);
+      } catch {
+        // Missing files are valid during simulation (e.g., destination files not yet created).
+      }
+    }
+    return result;
+  }
+
+  private async buildNeighborhoodComplexity(
+    files: Map<string, FileInfo>,
+    neighborhood: Set<string>,
+    fileContents: Map<string, string>
+  ): Promise<Map<string, import('../modules/complexity-engine.js').FileComplexity>> {
+    const { ComplexityEngine } = await import('../modules/complexity-engine.js');
+    const complexityEngine = new ComplexityEngine();
+
+    const scopedFiles = new Map<string, FileInfo>();
+    const dependencyInfo = new Map<string, { imports: number; importedBy: number }>();
+    for (const [filePath, fileInfo] of files) {
+      if (!neighborhood.has(filePath)) {
+        continue;
+      }
+      scopedFiles.set(filePath, fileInfo);
+      const node = this.depGraph.getNodes().get(filePath);
+      if (node) {
+        dependencyInfo.set(filePath, {
+          imports: node.imports.length,
+          importedBy: node.importedBy.length,
+        });
+      }
+    }
+
+    return complexityEngine.analyzeAll(scopedFiles, fileContents, dependencyInfo);
+  }
+
+  private async buildNeighborhoodCoChangeClusters(neighborhood: Set<string>): Promise<import('../modules/temporal-analyzer.js').FileCoChange[][] | undefined> {
+    const files = Array.from(neighborhood).slice(0, 120);
+    if (files.length === 0) {
+      return undefined;
+    }
+
+    try {
+      return await this.temporalAnalyzer.findCoChangeClusters(files);
+    } catch {
+      return undefined;
+    }
   }
 
   /**

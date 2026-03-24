@@ -261,6 +261,49 @@ export class CodexiaMCPServer {
         },
       },
       {
+        name: 'codexia/refactor-plan',
+        description: 'Simulate a multi-file refactor and return blast radius, sequenced migration steps, and per-step test gates',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              description: 'Refactor operation type',
+              enum: ['extract-module', 'split-class', 'move-function', 'rename-symbol'],
+            },
+            file: {
+              type: 'string',
+              description: 'Primary file containing the target refactor surface',
+            },
+            targetSymbol: {
+              type: 'string',
+              description: 'Symbol name for rename-symbol or move-function planning',
+            },
+            newSymbolName: {
+              type: 'string',
+              description: 'New symbol name when type=rename-symbol',
+            },
+            destinationFile: {
+              type: 'string',
+              description: 'Target destination file for extract-module/move-function/split-class',
+            },
+            depth: {
+              type: 'number',
+              description: 'Maximum dependency depth for blast radius traversal',
+            },
+            staged: {
+              type: 'boolean',
+              description: 'Reserved for parity with change-analysis tools',
+            },
+            base: {
+              type: 'string',
+              description: 'Reserved for parity with change-analysis tools',
+            },
+          },
+          required: ['type'],
+        },
+      },
+      {
         name: 'codexia/memory',
         description: 'Access project memory - architecture, conventions, invariants, ADRs',
         inputSchema: {
@@ -661,6 +704,9 @@ export class CodexiaMCPServer {
           break;
         case 'codexia/complexity':
           result = await this.handleComplexity(params);
+          break;
+        case 'codexia/refactor-plan':
+          result = await this.handleRefactorPlan(params);
           break;
         case 'codexia/memory':
           result = await this.handleMemory(params);
@@ -1099,6 +1145,26 @@ export class CodexiaMCPServer {
     };
   }
 
+  private async handleRefactorPlan(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const result = await this.engine.planRefactor({
+      type: params.type as 'extract-module' | 'split-class' | 'move-function' | 'rename-symbol',
+      file: params.file as string | undefined,
+      targetSymbol: params.targetSymbol as string | undefined,
+      newSymbolName: params.newSymbolName as string | undefined,
+      destinationFile: params.destinationFile as string | undefined,
+      depth: params.depth as number | undefined,
+      staged: params.staged as boolean | undefined,
+      base: params.base as string | undefined,
+    });
+
+    return {
+      content: [{
+        type: 'json',
+        json: result,
+      }],
+    };
+  }
+
   private async handleMemory(_params: Record<string, unknown>): Promise<MCPToolResult> {
     const memory = await this.engine.getMemory();
 
@@ -1346,6 +1412,9 @@ export class CodexiaMCPServer {
     }
     if (typeof params.symbol === 'string' && params.symbol.trim().length > 0) {
       return `Inspect symbol ${params.symbol}`;
+    }
+    if (typeof params.targetSymbol === 'string' && params.targetSymbol.trim().length > 0) {
+      return `Refactor planning for symbol ${params.targetSymbol}`;
     }
     if (typeof params.file === 'string' && params.file.trim().length > 0) {
       return `Inspect file ${params.file}`;
