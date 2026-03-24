@@ -312,6 +312,47 @@ export interface VelocityData {
   }>;
 }
 
+export interface DriftData {
+  generatedAt: string;
+  composite: {
+    score: number;
+  };
+  components: {
+    boundary: { score: number; weightedPoints: number; violationCount: number };
+    naming: { score: number; weightedPoints: number; violationCount: number };
+    structural: { score: number; weightedPoints: number; violationCount: number };
+    dependency: { score: number; weightedPoints: number; violationCount: number };
+  };
+  heatmap: {
+    layers: Array<{
+      layer: string;
+      score: number;
+      files: number;
+      violations: number;
+    }>;
+  };
+  trajectory: {
+    points: Array<{
+      commit: string;
+      date: string;
+      message: string;
+      score: number;
+    }>;
+    velocity: {
+      delta: number;
+      slopePerCommit: number;
+      direction: 'converging' | 'diverging' | 'stable';
+    };
+  };
+  emergentConventions: Array<{
+    target: 'Files';
+    pattern: string;
+    confidence: number;
+    evidenceCount: number;
+    layer?: string;
+  }>;
+}
+
 // Jira analytics types
 export interface JiraConfigData {
   enabled: boolean;

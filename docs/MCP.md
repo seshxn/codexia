@@ -58,3 +58,17 @@ Tool names:
 - `list_graph_stats_tool`
 
 Use this to inspect graph freshness and semantic-index health before relying on graph-driven workflows.
+
+## Drift Radar
+
+Tool name:
+
+- `codexia/drift`
+
+Input:
+
+```json
+{ "commits": 30 }
+```
+
+Returns composite drift score (0-100), component breakdown (boundary/naming/structural/dependency), drift trajectory + velocity, layer heatmap, and emergent convention candidates.

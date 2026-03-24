@@ -267,6 +267,9 @@ export class DashboardServer {
         case '/api/velocity':
           data = await this.getVelocityMetrics();
           break;
+        case '/api/drift':
+          data = await this.getDrift(url);
+          break;
         case '/api/repo/context':
           data = this.getRepoContext();
           break;
@@ -1194,6 +1197,45 @@ export class DashboardServer {
         weeklyTrend: [],
         dailyActivity: [],
         topContributors: [],
+      };
+    }
+  }
+
+  /**
+   * Get architecture drift metrics and trajectory.
+   */
+  private async getDrift(url?: URL): Promise<object> {
+    const commits = url ? this.parsePositiveInt(url.searchParams.get('commits')) || 20 : 20;
+    const safeCommits = Math.max(1, Math.min(200, commits));
+    const cacheKey = `drift::${this.currentRepoRoot}::${safeCommits}`;
+    const cached = this.resultCache.get<object>(cacheKey);
+    if (cached !== undefined) return cached;
+
+    try {
+      const drift = await this.engine.analyzeDrift({ commits: safeCommits });
+      this.resultCache.set(cacheKey, drift, this.CACHE_TTL_MS);
+      return drift;
+    } catch (error) {
+      console.error('Error getting drift metrics:', error);
+      return {
+        generatedAt: new Date().toISOString(),
+        composite: { score: 0 },
+        components: {
+          boundary: { score: 0, weightedPoints: 0, violationCount: 0 },
+          naming: { score: 0, weightedPoints: 0, violationCount: 0 },
+          structural: { score: 0, weightedPoints: 0, violationCount: 0 },
+          dependency: { score: 0, weightedPoints: 0, violationCount: 0 },
+        },
+        heatmap: { layers: [] },
+        trajectory: {
+          points: [],
+          velocity: {
+            delta: 0,
+            slopePerCommit: 0,
+            direction: 'stable',
+          },
+        },
+        emergentConventions: [],
       };
     }
   }

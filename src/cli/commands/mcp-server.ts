@@ -26,6 +26,7 @@ Available MCP Tools:
   - hotpaths      Analyze critical code paths
   - complexity    Get complexity metrics
   - memory        Access project memory
+  - drift         Analyze architecture drift and velocity
 `)
   .action(async (options, command) => {
     const globalOpts = command.parent?.opts() || {};

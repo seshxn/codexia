@@ -18,6 +18,7 @@ import type {
   OwnershipData,
   CodeHealthData,
   VelocityData,
+  DriftData,
   JiraConfigData,
   JiraBoardsData,
   JiraSprintsData,
@@ -191,6 +192,10 @@ export const fetchCodeHealth = async (params?: PaginationParams): Promise<CodeHe
 
 export const fetchVelocity = async (params?: PaginationParams): Promise<VelocityData> => {
   return fetchJson<VelocityData>('/velocity', params);
+};
+
+export const fetchDrift = async (params?: { commits?: number }): Promise<DriftData> => {
+  return fetchJson<DriftData>('/drift', params);
 };
 
 export const fetchJiraConfig = async (): Promise<JiraConfigData> => {
