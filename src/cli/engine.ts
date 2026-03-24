@@ -22,6 +22,8 @@ import {
   MonorepoAnalyzer,
   MonorepoDetector,
   SmartTestPrioritizer,
+  DriftRadar,
+  type DriftSignal,
 } from '../modules/index.js';
 import type {
   GitDiff,
@@ -32,6 +34,7 @@ import type {
   PrReport,
   AnalysisResult,
   ProjectMemory,
+  CommitRecord,
   Symbol,
   Signal,
   FileInfo,
@@ -67,6 +70,7 @@ export class CodexiaEngine {
   private monorepoDetector: MonorepoDetector;
   private monorepoAnalyzer: MonorepoAnalyzer | null = null;
   private testPrioritizer: SmartTestPrioritizer;
+  private driftRadar: DriftRadar;
   private registry: CodeGraphRegistry;
   private sessionStore: SessionStore;
   private planner: ExecutionPlanner;
@@ -98,6 +102,7 @@ export class CodexiaEngine {
     this.changelogGenerator = new ChangelogGenerator(this.repoRoot);
     this.monorepoDetector = new MonorepoDetector(this.repoRoot);
     this.testPrioritizer = new SmartTestPrioritizer();
+    this.driftRadar = new DriftRadar();
     this.registry = new CodeGraphRegistry(this.repoRoot);
     this.sessionStore = new SessionStore(this.repoRoot);
     this.planner = new ExecutionPlanner();
@@ -1208,6 +1213,66 @@ export class CodexiaEngine {
     };
   }
 
+  /**
+   * Analyze architectural drift against declared project memory.
+   */
+  async analyzeDrift(options: {
+    commits?: number;
+  } = {}): Promise<any> {
+    await this.initialize();
+
+    const commitsWindow = Math.max(1, Math.min(200, options.commits || 20));
+    const files = this.indexer.getFiles();
+    const projectMemory = await this.memory.loadMemory();
+    const architecture = projectMemory?.architecture || {
+      layers: [],
+      boundaries: [],
+      entryPoints: [],
+      criticalPaths: [],
+    };
+
+    const localInvariantEngine = new InvariantEngine(this.repoRoot);
+    if (projectMemory?.invariants) {
+      localInvariantEngine.loadFromMemory(projectMemory.invariants);
+    }
+    await localInvariantEngine.loadFromFile();
+    const invariantResult = await localInvariantEngine.check(files);
+
+    const conventionViolations = this.conventionChecker.checkAll(files);
+
+    const signals: DriftSignal[] = [
+      ...invariantResult.violations.map((violation) => ({
+        category: this.mapInvariantToDriftCategory(violation.rule.type),
+        severity: this.mapInvariantSeverity(violation.rule.severity),
+        filePath: violation.filePath,
+        source: `invariant:${violation.rule.id}`,
+        message: violation.message,
+      })),
+      ...conventionViolations.map((violation) => ({
+        category: this.mapConventionToDriftCategory(violation),
+        severity: this.mapConventionSeverity(violation.convention.severity),
+        filePath: violation.filePath,
+        source: `convention:${violation.convention.id}`,
+        message: violation.message,
+      })),
+    ];
+
+    let recentCommits: CommitRecord[] = [];
+    if (await this.git.isGitRepo()) {
+      recentCommits = (await this.git.getRecentCommits(commitsWindow)).slice(0, commitsWindow);
+    }
+
+    return this.driftRadar.analyze({
+      files,
+      architecture,
+      dependencyNodes: this.depGraph.getNodes(),
+      signals,
+      recentCommits,
+      commitsWindow,
+      declaredNamingConventions: projectMemory?.conventions?.naming || [],
+    });
+  }
+
   // ============================================
   // NEW: Hot Path Detection Methods
   // ============================================
@@ -1574,6 +1639,50 @@ export class CodexiaEngine {
       busFactor: result.summary?.busFactor || 0,
       activeContributors: result.summary?.activeContributors || 0,
     };
+  }
+
+  private mapInvariantToDriftCategory(
+    type: string
+  ): 'boundary' | 'naming' | 'structural' | 'dependency' {
+    if (type === 'layer-boundary' || type === 'no-import' || type === 'require-import') {
+      return 'boundary';
+    }
+    if (type === 'naming-pattern') {
+      return 'naming';
+    }
+    if (type === 'max-dependencies') {
+      return 'dependency';
+    }
+    return 'structural';
+  }
+
+  private mapInvariantSeverity(
+    severity: 'critical' | 'high' | 'medium'
+  ): 'critical' | 'high' | 'medium' | 'low' {
+    return severity;
+  }
+
+  private mapConventionToDriftCategory(
+    violation: ConventionViolation
+  ): 'boundary' | 'naming' | 'structural' | 'dependency' {
+    if (violation.convention.category === 'naming' || violation.convention.id.includes('naming')) {
+      return 'naming';
+    }
+    if (violation.convention.category === 'architecture') {
+      return 'boundary';
+    }
+    if (violation.convention.category === 'imports') {
+      return 'dependency';
+    }
+    return 'structural';
+  }
+
+  private mapConventionSeverity(
+    severity: 'error' | 'warning' | 'info'
+  ): 'critical' | 'high' | 'medium' | 'low' {
+    if (severity === 'error') return 'high';
+    if (severity === 'warning') return 'medium';
+    return 'low';
   }
 
   private buildFileContext(filePath: string, fileInfo: FileInfo): Record<string, unknown> {

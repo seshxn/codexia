@@ -12,6 +12,7 @@ import {
   Shield,
   Heart,
   Zap,
+  Radar,
 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import {
@@ -27,6 +28,7 @@ import {
   fetchOwnership,
   fetchCodeHealth,
   fetchVelocity,
+  fetchDrift,
 } from '../api';
 import { Card, StatCard } from './Card';
 import { HealthScore } from './HealthScore';
@@ -45,6 +47,7 @@ import { CommitHeatmap } from './CommitHeatmap';
 import { OwnershipPanel } from './OwnershipPanel';
 import { CodeHealthPanel } from './CodeHealthPanel';
 import { VelocityPanel } from './VelocityPanel';
+import { DriftRadarPanel } from './DriftRadarPanel';
 import {
   FileDetailsModal,
   ContributorDetailsModal,
@@ -81,6 +84,7 @@ export const RepositoryDashboard = ({ refreshKey }: RepositoryDashboardProps) =>
   const ownership = useApi(useCallback(() => fetchOwnership(), [refreshKey]));
   const codeHealth = useApi(useCallback(() => fetchCodeHealth(), [refreshKey]));
   const velocity = useApi(useCallback(() => fetchVelocity(), [refreshKey]));
+  const drift = useApi(useCallback(() => fetchDrift({ commits: 30 }), [refreshKey]));
 
   if (overview.loading && !overview.data) {
     return <LoadingPage />;
@@ -156,6 +160,21 @@ export const RepositoryDashboard = ({ refreshKey }: RepositoryDashboardProps) =>
           )}
         </Card>
       </div>
+
+      <Card
+        title="Drift Radar"
+        subtitle="Architecture drift score, velocity, and emergent conventions"
+        action={<Radar className="w-5 h-5 text-cyan-400" />}
+        className="mb-8"
+      >
+        {drift.loading && !drift.data ? (
+          <LoadingCard />
+        ) : drift.error ? (
+          <ErrorDisplay message="Failed to load drift radar data" onRetry={drift.refetch} />
+        ) : (
+          <DriftRadarPanel data={drift.data!} />
+        )}
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <Card
