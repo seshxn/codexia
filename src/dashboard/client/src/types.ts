@@ -67,6 +67,7 @@ export interface GraphData {
       importedBy?: number;
       symbols?: number;
       exports?: number;
+      cognitiveLoad?: number;
     };
     details?: {
       description?: string;
@@ -153,6 +154,71 @@ export interface TemporalData {
     filesChanged: number;
   }>;
   activityByDay: Record<string, number>;
+}
+
+export interface CognitiveLoadData {
+  generatedAt: string;
+  summary: {
+    filesAnalyzed: number;
+    modulesAnalyzed: number;
+    averageScore: number;
+    highLoadFiles: number;
+    topFiles: string[];
+    topModules: string[];
+    totalFiles: number;
+    visibleFiles: number;
+  };
+  files: Array<{
+    path: string;
+    module: string;
+    score: number;
+    contextSwitchCost: number;
+    documentationScore: number;
+    complexityScore: number;
+    modificationFrequency: number;
+    onboardingWeight: number;
+    dimensions: Record<string, number>;
+  }>;
+  modules: Array<{
+    module: string;
+    score: number;
+    fileCount: number;
+    avgContextSwitchCost: number;
+    onboardingDifficulty: number;
+    topRiskFiles: string[];
+  }>;
+  functions: Array<{
+    path: string;
+    name: string;
+    kind: string;
+    line: number;
+    score: number;
+    contextSwitchCost: number;
+    dimensions: Record<string, number>;
+  }>;
+  implicitCoupling: Array<{
+    from: string;
+    to: string;
+    coChangeRatio: number;
+    coChangeCount: number;
+    score: number;
+    directDependency: boolean;
+  }>;
+  documentationGaps: Array<{
+    path: string;
+    complexityBurden: number;
+    documentationScore: number;
+    cognitiveLoadScore: number;
+    gapScore: number;
+  }>;
+  onboardingDifficulty: Array<{
+    path: string;
+    difficultyScore: number;
+    modificationFrequency: number;
+    cognitiveLoadScore: number;
+    ownershipRisk: number;
+    contextSwitchCost: number;
+  }>;
 }
 
 export interface LanguagesData {
@@ -309,6 +375,47 @@ export interface VelocityData {
     email: string;
     commits: number;
     lastWeek: number;
+  }>;
+}
+
+export interface DriftData {
+  generatedAt: string;
+  composite: {
+    score: number;
+  };
+  components: {
+    boundary: { score: number; weightedPoints: number; violationCount: number };
+    naming: { score: number; weightedPoints: number; violationCount: number };
+    structural: { score: number; weightedPoints: number; violationCount: number };
+    dependency: { score: number; weightedPoints: number; violationCount: number };
+  };
+  heatmap: {
+    layers: Array<{
+      layer: string;
+      score: number;
+      files: number;
+      violations: number;
+    }>;
+  };
+  trajectory: {
+    points: Array<{
+      commit: string;
+      date: string;
+      message: string;
+      score: number;
+    }>;
+    velocity: {
+      delta: number;
+      slopePerCommit: number;
+      direction: 'converging' | 'diverging' | 'stable';
+    };
+  };
+  emergentConventions: Array<{
+    target: 'Files';
+    pattern: string;
+    confidence: number;
+    evidenceCount: number;
+    layer?: string;
   }>;
 }
 

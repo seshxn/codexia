@@ -156,6 +156,20 @@ codexia invariants --init       # Generate example config
 codexia invariants --strict     # Fail on any violation
 ```
 
+### 📡 **Drift Radar**
+
+Continuously quantify architecture drift versus declared memory (invariants, conventions, and boundaries), including trend velocity.
+
+```bash
+codexia serve   # exposes MCP tool: codexia/drift
+```
+
+`codexia/drift` returns:
+- Composite drift score (0-100) with boundary/naming/structural/dependency breakdown
+- Drift velocity and trajectory over recent commits
+- Per-layer drift heatmap
+- Emergent convention candidates (reverse convention mining)
+
 ### 🔥 **Hot Path Detection**
 
 Identify critical code paths and their impact.
@@ -234,6 +248,7 @@ npm run dev:dashboard
 The dashboard provides:
 - **Repository Health Score** — Overall health with breakdown
 - **Complexity Heatmap** — Visual file complexity overview
+- **Drift Radar** — Architecture drift score, trajectory, layer heatmap, and emergent conventions
 - **Repository Context Switcher** — Change analyzed local Git repo at runtime (manual path or Browse folder picker)
 - **Jira Sprint Intelligence** — Sprint health, scope churn, and board integrity trends
 - **Code Signals** — Issues ranked by severity

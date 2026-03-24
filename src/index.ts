@@ -12,6 +12,7 @@ export {
   TemporalAnalyzer,
   InvariantEngine,
   HotPathDetector,
+  DriftRadar,
   CodexiaWatcher,
   startWatchMode,
   ChangelogGenerator,

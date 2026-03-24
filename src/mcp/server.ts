@@ -318,6 +318,19 @@ export class CodexiaMCPServer {
         },
       },
       {
+        name: 'codexia/drift',
+        description: 'Analyze architecture drift score, velocity, layer heatmap, and emergent conventions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            commits: {
+              type: 'number',
+              description: 'Number of recent commits for drift trajectory (default: 20)',
+            },
+          },
+        },
+      },
+      {
         name: 'query',
         description: 'Search files and symbols in the indexed repository',
         inputSchema: {
@@ -697,6 +710,9 @@ export class CodexiaMCPServer {
           break;
         case 'codexia/memory':
           result = await this.handleMemory(params);
+          break;
+        case 'codexia/drift':
+          result = await this.handleDrift(params);
           break;
         case 'query':
           result = await this.handleQuery(params);
@@ -1156,6 +1172,18 @@ export class CodexiaMCPServer {
       content: [{
         type: 'json',
         json: memory,
+      }],
+    };
+  }
+
+  private async handleDrift(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const commits = typeof params.commits === 'number' ? params.commits : undefined;
+    const drift = await this.engine.analyzeDrift({ commits });
+
+    return {
+      content: [{
+        type: 'json',
+        json: drift,
       }],
     };
   }

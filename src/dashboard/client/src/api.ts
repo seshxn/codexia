@@ -10,6 +10,7 @@ import type {
   SignalsData,
   HotPathsData,
   TemporalData,
+  CognitiveLoadData,
   LanguagesData,
   ContributorsData,
   CommitsData,
@@ -18,6 +19,7 @@ import type {
   OwnershipData,
   CodeHealthData,
   VelocityData,
+  DriftData,
   JiraConfigData,
   JiraBoardsData,
   JiraSprintsData,
@@ -161,6 +163,10 @@ export const fetchTemporal = async (): Promise<TemporalData> => {
   return fetchJson<TemporalData>('/temporal');
 };
 
+export const fetchCognitiveLoad = async (params?: PaginationParams): Promise<CognitiveLoadData> => {
+  return fetchJson<CognitiveLoadData>('/cognitive-load', params);
+};
+
 export const fetchLanguages = async (): Promise<LanguagesData> => {
   return fetchJson<LanguagesData>('/languages');
 };
@@ -191,6 +197,10 @@ export const fetchCodeHealth = async (params?: PaginationParams): Promise<CodeHe
 
 export const fetchVelocity = async (params?: PaginationParams): Promise<VelocityData> => {
   return fetchJson<VelocityData>('/velocity', params);
+};
+
+export const fetchDrift = async (params?: { commits?: number }): Promise<DriftData> => {
+  return fetchJson<DriftData>('/drift', params);
 };
 
 export const fetchJiraConfig = async (): Promise<JiraConfigData> => {

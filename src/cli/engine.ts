@@ -16,6 +16,8 @@ import {
   ConventionChecker,
   TestSuggester,
   TemporalAnalyzer,
+  CognitiveLoadAnalyzer,
+  type CognitiveLoadMapResult,
   InvariantEngine,
   HotPathDetector,
   ChangelogGenerator,
@@ -25,6 +27,8 @@ import {
   RefactorCartographer,
   type RefactorPlanRequest,
   type RefactorPlanResult,
+  DriftRadar,
+  type DriftSignal,
 } from '../modules/index.js';
 import type {
   GitDiff,
@@ -35,6 +39,7 @@ import type {
   PrReport,
   AnalysisResult,
   ProjectMemory,
+  CommitRecord,
   Symbol,
   Signal,
   FileInfo,
@@ -64,12 +69,14 @@ export class CodexiaEngine {
   private testSuggester: TestSuggester;
   private signalsEngine: SignalsEngine;
   private temporalAnalyzer: TemporalAnalyzer;
+  private cognitiveLoadAnalyzer: CognitiveLoadAnalyzer;
   private invariantEngine: InvariantEngine;
   private hotPathDetector: HotPathDetector;
   private changelogGenerator: ChangelogGenerator;
   private monorepoDetector: MonorepoDetector;
   private monorepoAnalyzer: MonorepoAnalyzer | null = null;
   private testPrioritizer: SmartTestPrioritizer;
+  private driftRadar: DriftRadar;
   private registry: CodeGraphRegistry;
   private sessionStore: SessionStore;
   private planner: ExecutionPlanner;
@@ -96,11 +103,13 @@ export class CodexiaEngine {
     
     // New advanced components
     this.temporalAnalyzer = new TemporalAnalyzer(this.repoRoot);
+    this.cognitiveLoadAnalyzer = new CognitiveLoadAnalyzer();
     this.invariantEngine = new InvariantEngine(this.repoRoot);
     this.hotPathDetector = new HotPathDetector(this.repoRoot);
     this.changelogGenerator = new ChangelogGenerator(this.repoRoot);
     this.monorepoDetector = new MonorepoDetector(this.repoRoot);
     this.testPrioritizer = new SmartTestPrioritizer();
+    this.driftRadar = new DriftRadar();
     this.registry = new CodeGraphRegistry(this.repoRoot);
     this.sessionStore = new SessionStore(this.repoRoot);
     this.planner = new ExecutionPlanner();
@@ -1177,6 +1186,162 @@ export class CodexiaEngine {
   }
 
   // ============================================
+  // NEW: Cognitive Load Mapping Methods
+  // ============================================
+
+  /**
+   * Compute holistic cognitive load scoring with implicit coupling and onboarding difficulty.
+   */
+  async getCognitiveLoadMap(options: {
+    path?: string;
+    limit?: number;
+    maxTemporalFiles?: number;
+  } = {}): Promise<CognitiveLoadMapResult> {
+    await this.initialize();
+
+    const files = this.indexer.getFiles();
+    const selectedEntries = Array.from(files.entries())
+      .filter(([filePath]) => !options.path || filePath.includes(options.path));
+    const selectedFiles = new Map(selectedEntries);
+
+    const contents = new Map<string, string>();
+    const dependencyInfo = new Map<string, { imports: number; importedBy: number }>();
+    const directDependencies = new Map<string, Set<string>>();
+
+    for (const [filePath] of selectedEntries) {
+      try {
+        const absolutePath = path.join(this.repoRoot, filePath);
+        const content = await fs.readFile(absolutePath, 'utf-8');
+        contents.set(filePath, content);
+      } catch {
+        contents.set(filePath, '');
+      }
+
+      const node = this.depGraph.getNodes().get(filePath);
+      if (node) {
+        dependencyInfo.set(filePath, {
+          imports: node.imports.length,
+          importedBy: node.importedBy.length,
+        });
+        directDependencies.set(filePath, new Set(node.imports));
+      } else {
+        directDependencies.set(filePath, new Set());
+      }
+    }
+
+    const { ComplexityEngine } = await import('../modules/complexity-engine.js');
+    const complexityEngine = new ComplexityEngine();
+    const complexity = complexityEngine.analyzeAll(selectedFiles, contents, dependencyInfo);
+
+    const complexityRisk = new Map(
+      Array.from(complexity.entries()).map(([filePath, entry]) => [filePath, 100 - (entry.score?.overall || 50)])
+    );
+
+    const temporalCandidates = [...selectedEntries]
+      .sort((left, right) => right[1].lines - left[1].lines)
+      .slice(0, Math.max(1, options.maxTemporalFiles || 120))
+      .map(([filePath]) => filePath);
+    const temporalAnalysis = await this.temporalAnalyzer.analyzeAll(temporalCandidates, complexityRisk);
+
+    const namingViolationsByFile = new Map<string, number>();
+    const violations = this.conventionChecker.checkAll(selectedFiles);
+    for (const violation of violations) {
+      if (violation.convention.category !== 'naming' && !violation.convention.id.includes('naming')) {
+        continue;
+      }
+      namingViolationsByFile.set(
+        violation.filePath,
+        (namingViolationsByFile.get(violation.filePath) || 0) + 1
+      );
+    }
+
+    const semanticDispersionByFile = await this.getSemanticDispersionScores(selectedEntries.map(([filePath]) => filePath));
+
+    const result = this.cognitiveLoadAnalyzer.analyze({
+      files: selectedFiles,
+      complexity,
+      temporal: temporalAnalysis.files,
+      namingViolationsByFile,
+      coChangeClusters: temporalAnalysis.coChangeClusters,
+      semanticDispersionByFile,
+      directDependencies,
+    });
+
+    if (!options.limit || options.limit <= 0) {
+      return result;
+    }
+
+    const allowed = new Set(result.files.slice(0, options.limit).map((entry) => entry.path));
+    const filteredFiles = result.files.filter((entry) => allowed.has(entry.path));
+    const filteredModules = result.modules
+      .filter((module) => module.topRiskFiles.some((filePath) => allowed.has(filePath)));
+    const filteredFunctions = result.functions.filter((entry) => allowed.has(entry.path));
+    const filteredCoupling = result.implicitCoupling
+      .filter((entry) => allowed.has(entry.from) || allowed.has(entry.to));
+    const filteredDocsGaps = result.documentationGaps.filter((entry) => allowed.has(entry.path));
+    const filteredOnboarding = result.onboardingDifficulty.filter((entry) => allowed.has(entry.path));
+
+    return {
+      ...result,
+      files: filteredFiles,
+      modules: filteredModules,
+      functions: filteredFunctions,
+      implicitCoupling: filteredCoupling,
+      documentationGaps: filteredDocsGaps,
+      onboardingDifficulty: filteredOnboarding,
+      summary: {
+        filesAnalyzed: filteredFiles.length,
+        modulesAnalyzed: filteredModules.length,
+        averageScore: filteredFiles.length > 0
+          ? Number((filteredFiles.reduce((sum, file) => sum + file.score, 0) / filteredFiles.length).toFixed(1))
+          : 0,
+        highLoadFiles: filteredFiles.filter((file) => file.score >= 70).length,
+        topFiles: filteredFiles.slice(0, 5).map((entry) => entry.path),
+        topModules: filteredModules.slice(0, 5).map((entry) => entry.module),
+      },
+    };
+  }
+
+  private async getSemanticDispersionScores(filePaths: string[]): Promise<Map<string, number>> {
+    const dispersion = new Map<string, number>();
+    const maxFiles = 180;
+
+    for (const filePath of filePaths) {
+      dispersion.set(filePath, 0);
+    }
+
+    for (const filePath of filePaths.slice(0, maxFiles)) {
+      const basename = path.posix.basename(filePath, path.posix.extname(filePath)).replace(/[-_]/g, ' ').trim();
+      if (!basename) {
+        continue;
+      }
+
+      try {
+        const hits = await this.semanticIndex.search(basename, 6);
+        if (hits.length === 0) {
+          continue;
+        }
+
+        const uniqueRoots = new Set(
+          hits.map((hit) => {
+            const root = hit.path.split('/').filter(Boolean)[0];
+            return root || '.';
+          })
+        );
+        const selfHits = hits.filter((hit) => hit.path === filePath).length;
+        const crossHitsRatio = Math.max(0, hits.length - selfHits) / Math.max(1, hits.length);
+        const rootSpread = Math.max(0, uniqueRoots.size - 1) / Math.max(1, uniqueRoots.size);
+        const score = Math.max(0, Math.min(1, rootSpread * 0.7 + crossHitsRatio * 0.3));
+        dispersion.set(filePath, Number(score.toFixed(3)));
+      } catch {
+        // Keep default score when semantic index cannot answer this query.
+      }
+    }
+
+    return dispersion;
+  }
+
+  // ============================================
   // NEW: Invariant Checking Methods
   // ============================================
 
@@ -1209,6 +1374,66 @@ export class CodexiaEngine {
         suggestion: v.suggestion,
       })),
     };
+  }
+
+  /**
+   * Analyze architectural drift against declared project memory.
+   */
+  async analyzeDrift(options: {
+    commits?: number;
+  } = {}): Promise<any> {
+    await this.initialize();
+
+    const commitsWindow = Math.max(1, Math.min(200, options.commits || 20));
+    const files = this.indexer.getFiles();
+    const projectMemory = await this.memory.loadMemory();
+    const architecture = projectMemory?.architecture || {
+      layers: [],
+      boundaries: [],
+      entryPoints: [],
+      criticalPaths: [],
+    };
+
+    const localInvariantEngine = new InvariantEngine(this.repoRoot);
+    if (projectMemory?.invariants) {
+      localInvariantEngine.loadFromMemory(projectMemory.invariants);
+    }
+    await localInvariantEngine.loadFromFile();
+    const invariantResult = await localInvariantEngine.check(files);
+
+    const conventionViolations = this.conventionChecker.checkAll(files);
+
+    const signals: DriftSignal[] = [
+      ...invariantResult.violations.map((violation) => ({
+        category: this.mapInvariantToDriftCategory(violation.rule.type),
+        severity: this.mapInvariantSeverity(violation.rule.severity),
+        filePath: violation.filePath,
+        source: `invariant:${violation.rule.id}`,
+        message: violation.message,
+      })),
+      ...conventionViolations.map((violation) => ({
+        category: this.mapConventionToDriftCategory(violation),
+        severity: this.mapConventionSeverity(violation.convention.severity),
+        filePath: violation.filePath,
+        source: `convention:${violation.convention.id}`,
+        message: violation.message,
+      })),
+    ];
+
+    let recentCommits: CommitRecord[] = [];
+    if (await this.git.isGitRepo()) {
+      recentCommits = (await this.git.getRecentCommits(commitsWindow)).slice(0, commitsWindow);
+    }
+
+    return this.driftRadar.analyze({
+      files,
+      architecture,
+      dependencyNodes: this.depGraph.getNodes(),
+      signals,
+      recentCommits,
+      commitsWindow,
+      declaredNamingConventions: projectMemory?.conventions?.naming || [],
+    });
   }
 
   // ============================================
@@ -1720,6 +1945,50 @@ export class CodexiaEngine {
       busFactor: result.summary?.busFactor || 0,
       activeContributors: result.summary?.activeContributors || 0,
     };
+  }
+
+  private mapInvariantToDriftCategory(
+    type: string
+  ): 'boundary' | 'naming' | 'structural' | 'dependency' {
+    if (type === 'layer-boundary' || type === 'no-import' || type === 'require-import') {
+      return 'boundary';
+    }
+    if (type === 'naming-pattern') {
+      return 'naming';
+    }
+    if (type === 'max-dependencies') {
+      return 'dependency';
+    }
+    return 'structural';
+  }
+
+  private mapInvariantSeverity(
+    severity: 'critical' | 'high' | 'medium'
+  ): 'critical' | 'high' | 'medium' | 'low' {
+    return severity;
+  }
+
+  private mapConventionToDriftCategory(
+    violation: ConventionViolation
+  ): 'boundary' | 'naming' | 'structural' | 'dependency' {
+    if (violation.convention.category === 'naming' || violation.convention.id.includes('naming')) {
+      return 'naming';
+    }
+    if (violation.convention.category === 'architecture') {
+      return 'boundary';
+    }
+    if (violation.convention.category === 'imports') {
+      return 'dependency';
+    }
+    return 'structural';
+  }
+
+  private mapConventionSeverity(
+    severity: 'error' | 'warning' | 'info'
+  ): 'critical' | 'high' | 'medium' | 'low' {
+    if (severity === 'error') return 'high';
+    if (severity === 'warning') return 'medium';
+    return 'low';
   }
 
   private buildFileContext(filePath: string, fileInfo: FileInfo): Record<string, unknown> {

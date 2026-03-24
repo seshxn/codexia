@@ -78,3 +78,17 @@ Input:
 ```
 
 This is simulation-only. It returns blast radius, a compilable step-by-step migration sequence, per-step test gates, and extraction advice.
+
+## Drift Radar
+
+Tool name:
+
+- `codexia/drift`
+
+Input:
+
+```json
+{ "commits": 30 }
+```
+
+Returns composite drift score (0-100), component breakdown (boundary/naming/structural/dependency), drift trajectory + velocity, layer heatmap, and emergent convention candidates.

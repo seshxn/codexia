@@ -7,9 +7,29 @@ export { TestSuggester } from './test-suggester.js';
 // Advanced analysis modules
 export { Visualizer, type VisualizationFormat, type GraphData, type VisualizationOptions } from './visualizer.js';
 export { ComplexityEngine, type ComplexityScore, type FileComplexity, type SymbolComplexity } from './complexity-engine.js';
+export {
+  CognitiveLoadAnalyzer,
+  type CognitiveLoadMapResult,
+  type CognitiveLoadDimensions,
+  type CognitiveFileScore,
+  type CognitiveFunctionScore,
+  type CognitiveModuleScore,
+  type ImplicitCouplingPair,
+  type DocumentationGap,
+  type OnboardingDifficulty,
+} from './cognitive-load-map.js';
 export { TemporalAnalyzer, type TemporalInsights, type ContributorInsight, type ChangePattern } from './temporal-analyzer.js';
 export { InvariantEngine, type InvariantRule, type InvariantViolation, type InvariantCheckResult } from './invariant-engine.js';
 export { HotPathDetector, type HotPath, type HotPathNode, type HotPathAnalysis } from './hot-path-detector.js';
+export {
+  DriftRadar,
+  type DriftSignal,
+  type DriftRadarInput,
+  type DriftRadarReport,
+  type DriftVelocity,
+  type DriftTrajectoryPoint,
+  type EmergentConventionCandidate,
+} from './drift-radar.js';
 
 // Live analysis
 export { CodexiaWatcher, startWatchMode, type WatchEvent, type WatchOptions } from './watcher.js';

@@ -228,6 +228,9 @@ export class DashboardServer {
         case '/api/complexity':
           data = await this.getComplexity(url);
           break;
+        case '/api/cognitive-load':
+          data = await this.getCognitiveLoad(url);
+          break;
         case '/api/graph':
           data = await this.getGraph(url);
           break;
@@ -266,6 +269,9 @@ export class DashboardServer {
           break;
         case '/api/velocity':
           data = await this.getVelocityMetrics();
+          break;
+        case '/api/drift':
+          data = await this.getDrift(url);
           break;
         case '/api/repo/context':
           data = this.getRepoContext();
@@ -404,6 +410,32 @@ export class DashboardServer {
   }
 
   /**
+   * Get holistic cognitive load insights.
+   */
+  private async getCognitiveLoad(url?: URL): Promise<object> {
+    const { limit, offset } = url ? this.getPaginationParams(url, 80) : { limit: 80, offset: 0 };
+    const report = await this.engine.getCognitiveLoadMap({});
+    const allFiles = report.files;
+    const files = limit === Infinity ? allFiles : allFiles.slice(offset, offset + limit);
+    const visiblePaths = new Set(files.map((file) => file.path));
+
+    return {
+      generatedAt: report.generatedAt,
+      summary: {
+        ...report.summary,
+        totalFiles: allFiles.length,
+        visibleFiles: files.length,
+      },
+      files,
+      modules: report.modules.filter((module) => module.topRiskFiles.some((filePath) => visiblePaths.has(filePath))),
+      functions: report.functions.filter((entry) => visiblePaths.has(entry.path)).slice(0, 200),
+      implicitCoupling: report.implicitCoupling.filter((pair) => visiblePaths.has(pair.from) || visiblePaths.has(pair.to)),
+      documentationGaps: report.documentationGaps.filter((gap) => visiblePaths.has(gap.path)),
+      onboardingDifficulty: report.onboardingDifficulty.filter((item) => visiblePaths.has(item.path)),
+    };
+  }
+
+  /**
    * Get dependency graph data
    */
   private async getGraph(url: URL): Promise<object> {
@@ -425,7 +457,11 @@ export class DashboardServer {
       }
       files = new Map([...files].filter(([p]) => relevantPaths.has(p)));
     }
-    const result = await buildKnowledgeGraphData(this.currentRepoRoot, files, graphData.edges);
+    const cognitiveLoad = await this.engine.getCognitiveLoadMap({ maxTemporalFiles: 120 });
+    const cognitiveLoadByFile = new Map(cognitiveLoad.files.map((entry) => [entry.path, entry.score]));
+    const result = await buildKnowledgeGraphData(this.currentRepoRoot, files, graphData.edges, {
+      cognitiveLoadByFile,
+    });
     this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
     return result;
   }
@@ -1194,6 +1230,45 @@ export class DashboardServer {
         weeklyTrend: [],
         dailyActivity: [],
         topContributors: [],
+      };
+    }
+  }
+
+  /**
+   * Get architecture drift metrics and trajectory.
+   */
+  private async getDrift(url?: URL): Promise<object> {
+    const commits = url ? this.parsePositiveInt(url.searchParams.get('commits')) || 20 : 20;
+    const safeCommits = Math.max(1, Math.min(200, commits));
+    const cacheKey = `drift::${this.currentRepoRoot}::${safeCommits}`;
+    const cached = this.resultCache.get<object>(cacheKey);
+    if (cached !== undefined) return cached;
+
+    try {
+      const drift = await this.engine.analyzeDrift({ commits: safeCommits });
+      this.resultCache.set(cacheKey, drift, this.CACHE_TTL_MS);
+      return drift;
+    } catch (error) {
+      console.error('Error getting drift metrics:', error);
+      return {
+        generatedAt: new Date().toISOString(),
+        composite: { score: 0 },
+        components: {
+          boundary: { score: 0, weightedPoints: 0, violationCount: 0 },
+          naming: { score: 0, weightedPoints: 0, violationCount: 0 },
+          structural: { score: 0, weightedPoints: 0, violationCount: 0 },
+          dependency: { score: 0, weightedPoints: 0, violationCount: 0 },
+        },
+        heatmap: { layers: [] },
+        trajectory: {
+          points: [],
+          velocity: {
+            delta: 0,
+            slopePerCommit: 0,
+            direction: 'stable',
+          },
+        },
+        emergentConventions: [],
       };
     }
   }

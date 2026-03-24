@@ -39,6 +39,7 @@ export interface KnowledgeGraphNode {
     importedBy?: number;
     symbols?: number;
     exports?: number;
+    cognitiveLoad?: number;
   };
   details?: {
     description?: string;
@@ -75,6 +76,10 @@ export interface KnowledgeGraphData {
       path: string;
     }>;
   };
+}
+
+export interface BuildKnowledgeGraphOptions {
+  cognitiveLoadByFile?: Map<string, number>;
 }
 
 interface SymbolRange {
@@ -349,7 +354,8 @@ const getTopProcessCandidates = (
 export const buildKnowledgeGraphData = async (
   repoRoot: string,
   files: Map<string, FileInfo>,
-  dependencyEdges: DependencyEdge[]
+  dependencyEdges: DependencyEdge[],
+  options: BuildKnowledgeGraphOptions = {}
 ): Promise<KnowledgeGraphData> => {
   const nodes = new Map<string, KnowledgeGraphNode>();
   const edges = new Map<string, KnowledgeGraphEdge>();
@@ -465,6 +471,7 @@ export const buildKnowledgeGraphData = async (
         importedBy: importedByCount.get(relativePath) || 0,
         symbols: fileInfo.symbols.length,
         exports: fileInfo.exports.length,
+        cognitiveLoad: options.cognitiveLoadByFile?.get(relativePath),
       },
     });
 
@@ -809,6 +816,55 @@ export const buildKnowledgeGraphData = async (
     }
     if (target) {
       target.degree += 1;
+    }
+  }
+
+  const averageCognitiveLoad = (fileNodeIds: string[]): number | undefined => {
+    const values = fileNodeIds
+      .map((id) => nodes.get(id)?.metrics.cognitiveLoad)
+      .filter((value): value is number => typeof value === 'number');
+    if (values.length === 0) return undefined;
+    return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1));
+  };
+
+  for (const node of nodes.values()) {
+    if (node.kind !== 'directory' && node.kind !== 'repo') {
+      continue;
+    }
+    const descendantFileIds = collectDescendants(node.id).filter((id) => nodes.get(id)?.kind === 'file');
+    const avg = averageCognitiveLoad(descendantFileIds);
+    if (avg !== undefined) {
+      node.metrics.cognitiveLoad = avg;
+    }
+  }
+
+  const communityFileMembers = new Map<string, string[]>();
+  const processFileMembers = new Map<string, string[]>();
+  for (const edge of edges.values()) {
+    if (edge.kind === 'member_of' && edge.source.startsWith('file:')) {
+      const list = communityFileMembers.get(edge.target) || [];
+      list.push(edge.source);
+      communityFileMembers.set(edge.target, list);
+    }
+    if (edge.kind === 'step_in_process' && edge.source.startsWith('file:')) {
+      const list = processFileMembers.get(edge.target) || [];
+      list.push(edge.source);
+      processFileMembers.set(edge.target, list);
+    }
+  }
+
+  for (const node of nodes.values()) {
+    if (node.kind === 'community') {
+      const avg = averageCognitiveLoad(communityFileMembers.get(node.id) || []);
+      if (avg !== undefined) {
+        node.metrics.cognitiveLoad = avg;
+      }
+    }
+    if (node.kind === 'process') {
+      const avg = averageCognitiveLoad(processFileMembers.get(node.id) || []);
+      if (avg !== undefined) {
+        node.metrics.cognitiveLoad = avg;
+      }
     }
   }
 
