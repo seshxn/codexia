@@ -220,6 +220,39 @@ const rgba = (hex: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+const mixColor = (from: string, to: string, ratio: number): string => {
+  const parse = (hex: string) => {
+    const value = hex.replace('#', '');
+    return {
+      r: Number.parseInt(value.slice(0, 2), 16),
+      g: Number.parseInt(value.slice(2, 4), 16),
+      b: Number.parseInt(value.slice(4, 6), 16),
+    };
+  };
+  const left = parse(from);
+  const right = parse(to);
+  const clampRatio = Math.max(0, Math.min(1, ratio));
+  const r = Math.round(left.r + (right.r - left.r) * clampRatio);
+  const g = Math.round(left.g + (right.g - left.g) * clampRatio);
+  const b = Math.round(left.b + (right.b - left.b) * clampRatio);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+};
+
+const cognitiveLoadColor = (score: number): string => {
+  const normalized = Math.max(0, Math.min(100, score));
+  if (normalized <= 50) {
+    return mixColor('#22c55e', '#f59e0b', normalized / 50);
+  }
+  return mixColor('#f59e0b', '#ef4444', (normalized - 50) / 50);
+};
+
+const getNodeColor = (node: GraphNode): string => {
+  if (typeof node.metrics.cognitiveLoad === 'number') {
+    return cognitiveLoadColor(node.metrics.cognitiveLoad);
+  }
+  return NODE_COLORS[node.kind];
+};
+
 const buildSigmaGraph = (nodes: GraphNode[], edges: GraphEdge[]): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> => {
   const graph = new Graph<SigmaNodeAttributes, SigmaEdgeAttributes>({
     multi: true,
@@ -232,7 +265,7 @@ const buildSigmaGraph = (nodes: GraphNode[], edges: GraphEdge[]): Graph<SigmaNod
       x: point.x,
       y: point.y,
       size: getNodeRadius(node),
-      color: NODE_COLORS[node.kind],
+      color: getNodeColor(node),
       label: node.label,
       kind: node.kind,
       degree: node.degree,

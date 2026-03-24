@@ -154,7 +154,13 @@ describe('buildKnowledgeGraphData', () => {
           to: 'src/lib/util.ts',
           kind: 'static',
         },
-      ]);
+      ], {
+        cognitiveLoadByFile: new Map([
+          ['src/app.ts', 78],
+          ['src/lib/math.ts', 32],
+          ['src/lib/util.ts', 28],
+        ]),
+      });
 
       expect(graph.nodes.some((node) => node.kind === 'repo')).toBe(true);
       expect(graph.nodes.some((node) => node.kind === 'directory' && node.path === 'src/lib')).toBe(true);
@@ -181,6 +187,12 @@ describe('buildKnowledgeGraphData', () => {
 
       expect(graph.edges.some((edge) => edge.kind === 'member_of')).toBe(true);
       expect(graph.edges.some((edge) => edge.kind === 'step_in_process')).toBe(true);
+
+      const appNode = graph.nodes.find((node) => node.id === 'file:src/app.ts');
+      expect(appNode?.metrics.cognitiveLoad).toBe(78);
+
+      const srcDirNode = graph.nodes.find((node) => node.id === 'dir:src');
+      expect(srcDirNode?.metrics.cognitiveLoad).toBeGreaterThan(40);
     } finally {
       await fs.rm(repoRoot, { recursive: true, force: true });
     }

@@ -228,6 +228,9 @@ export class DashboardServer {
         case '/api/complexity':
           data = await this.getComplexity(url);
           break;
+        case '/api/cognitive-load':
+          data = await this.getCognitiveLoad(url);
+          break;
         case '/api/graph':
           data = await this.getGraph(url);
           break;
@@ -404,6 +407,32 @@ export class DashboardServer {
   }
 
   /**
+   * Get holistic cognitive load insights.
+   */
+  private async getCognitiveLoad(url?: URL): Promise<object> {
+    const { limit, offset } = url ? this.getPaginationParams(url, 80) : { limit: 80, offset: 0 };
+    const report = await this.engine.getCognitiveLoadMap({});
+    const allFiles = report.files;
+    const files = limit === Infinity ? allFiles : allFiles.slice(offset, offset + limit);
+    const visiblePaths = new Set(files.map((file) => file.path));
+
+    return {
+      generatedAt: report.generatedAt,
+      summary: {
+        ...report.summary,
+        totalFiles: allFiles.length,
+        visibleFiles: files.length,
+      },
+      files,
+      modules: report.modules.filter((module) => module.topRiskFiles.some((filePath) => visiblePaths.has(filePath))),
+      functions: report.functions.filter((entry) => visiblePaths.has(entry.path)).slice(0, 200),
+      implicitCoupling: report.implicitCoupling.filter((pair) => visiblePaths.has(pair.from) || visiblePaths.has(pair.to)),
+      documentationGaps: report.documentationGaps.filter((gap) => visiblePaths.has(gap.path)),
+      onboardingDifficulty: report.onboardingDifficulty.filter((item) => visiblePaths.has(item.path)),
+    };
+  }
+
+  /**
    * Get dependency graph data
    */
   private async getGraph(url: URL): Promise<object> {
@@ -425,7 +454,11 @@ export class DashboardServer {
       }
       files = new Map([...files].filter(([p]) => relevantPaths.has(p)));
     }
-    const result = await buildKnowledgeGraphData(this.currentRepoRoot, files, graphData.edges);
+    const cognitiveLoad = await this.engine.getCognitiveLoadMap({ maxTemporalFiles: 120 });
+    const cognitiveLoadByFile = new Map(cognitiveLoad.files.map((entry) => [entry.path, entry.score]));
+    const result = await buildKnowledgeGraphData(this.currentRepoRoot, files, graphData.edges, {
+      cognitiveLoadByFile,
+    });
     this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
     return result;
   }
