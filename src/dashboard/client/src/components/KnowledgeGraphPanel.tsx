@@ -863,7 +863,10 @@ export const KnowledgeGraphPanel = ({ data }: KnowledgeGraphPanelProps) => {
     }
 
     if (selectedNode.kind === 'file') {
-      return `${selectedNode.label} imports ${selectedNode.metrics.imports || 0} modules, is imported by ${selectedNode.metrics.importedBy || 0}, and hosts ${selectedNode.metrics.symbols || 0} indexed symbols.`;
+      const cognitive = typeof selectedNode.metrics.cognitiveLoad === 'number'
+        ? ` Cognitive load score: ${selectedNode.metrics.cognitiveLoad.toFixed(1)}.`
+        : '';
+      return `${selectedNode.label} imports ${selectedNode.metrics.imports || 0} modules, is imported by ${selectedNode.metrics.importedBy || 0}, and hosts ${selectedNode.metrics.symbols || 0} indexed symbols.${cognitive}`;
     }
 
     if (selectedNode.kind === 'directory') {
@@ -1178,6 +1181,14 @@ export const KnowledgeGraphPanel = ({ data }: KnowledgeGraphPanelProps) => {
                             <span>{formatKind(kind)}</span>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-3 rounded-2xl border border-neutral-800 bg-black/25 p-3">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Cognitive load heat</p>
+                        <div className="mt-2 h-2 rounded-full bg-[linear-gradient(90deg,#22c55e_0%,#f59e0b_50%,#ef4444_100%)]" />
+                        <div className="mt-1 flex items-center justify-between text-[10px] text-neutral-500">
+                          <span>Low</span>
+                          <span>High</span>
+                        </div>
                       </div>
                     </div>
                   </div>

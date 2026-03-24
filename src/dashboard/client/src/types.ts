@@ -67,6 +67,7 @@ export interface GraphData {
       importedBy?: number;
       symbols?: number;
       exports?: number;
+      cognitiveLoad?: number;
     };
     details?: {
       description?: string;
@@ -153,6 +154,71 @@ export interface TemporalData {
     filesChanged: number;
   }>;
   activityByDay: Record<string, number>;
+}
+
+export interface CognitiveLoadData {
+  generatedAt: string;
+  summary: {
+    filesAnalyzed: number;
+    modulesAnalyzed: number;
+    averageScore: number;
+    highLoadFiles: number;
+    topFiles: string[];
+    topModules: string[];
+    totalFiles: number;
+    visibleFiles: number;
+  };
+  files: Array<{
+    path: string;
+    module: string;
+    score: number;
+    contextSwitchCost: number;
+    documentationScore: number;
+    complexityScore: number;
+    modificationFrequency: number;
+    onboardingWeight: number;
+    dimensions: Record<string, number>;
+  }>;
+  modules: Array<{
+    module: string;
+    score: number;
+    fileCount: number;
+    avgContextSwitchCost: number;
+    onboardingDifficulty: number;
+    topRiskFiles: string[];
+  }>;
+  functions: Array<{
+    path: string;
+    name: string;
+    kind: string;
+    line: number;
+    score: number;
+    contextSwitchCost: number;
+    dimensions: Record<string, number>;
+  }>;
+  implicitCoupling: Array<{
+    from: string;
+    to: string;
+    coChangeRatio: number;
+    coChangeCount: number;
+    score: number;
+    directDependency: boolean;
+  }>;
+  documentationGaps: Array<{
+    path: string;
+    complexityBurden: number;
+    documentationScore: number;
+    cognitiveLoadScore: number;
+    gapScore: number;
+  }>;
+  onboardingDifficulty: Array<{
+    path: string;
+    difficultyScore: number;
+    modificationFrequency: number;
+    cognitiveLoadScore: number;
+    ownershipRisk: number;
+    contextSwitchCost: number;
+  }>;
 }
 
 export interface LanguagesData {

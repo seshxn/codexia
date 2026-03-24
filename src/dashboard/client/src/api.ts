@@ -10,6 +10,7 @@ import type {
   SignalsData,
   HotPathsData,
   TemporalData,
+  CognitiveLoadData,
   LanguagesData,
   ContributorsData,
   CommitsData,
@@ -160,6 +161,10 @@ export const fetchHotPaths = async (): Promise<HotPathsData> => {
 
 export const fetchTemporal = async (): Promise<TemporalData> => {
   return fetchJson<TemporalData>('/temporal');
+};
+
+export const fetchCognitiveLoad = async (params?: PaginationParams): Promise<CognitiveLoadData> => {
+  return fetchJson<CognitiveLoadData>('/cognitive-load', params);
 };
 
 export const fetchLanguages = async (): Promise<LanguagesData> => {
