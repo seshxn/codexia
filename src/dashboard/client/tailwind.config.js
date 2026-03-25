@@ -37,7 +37,10 @@ export default {
           950: '#0a0a0a',
         },
 
-        // ── Accent colors (no opacity modifiers needed) ───────────────────────
+        // ── Brand accent ──────────────────────────────────────────────────────
+        brand: 'var(--accent-brand)', // emerald — reinforces "health" concept
+
+        // ── Semantic accent colors ────────────────────────────────────────────
         accent: {
           blue:   '#0ea5e9',
           purple: '#a855f7',

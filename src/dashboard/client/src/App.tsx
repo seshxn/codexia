@@ -92,9 +92,7 @@ const App = () => {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-gradient-to-br from-sky-500 to-violet-600">
-                    <Code2 className="w-5 h-5 text-white" />
-                  </div>
+                  <Code2 className="w-5 h-5 text-brand" />
                   <h1 className="text-xl font-semibold text-ink tracking-tight">Codexia</h1>
                 </div>
                 <div className="h-5 w-px bg-edge" />
@@ -116,7 +114,7 @@ const App = () => {
 
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-xs text-ink-faint">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
                 <span>Updated {lastRefreshAt.toLocaleTimeString()}</span>
               </div>
               <button
@@ -188,9 +186,7 @@ const App = () => {
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-1 rounded bg-gradient-to-br from-sky-500 to-violet-600">
-                <Code2 className="w-3.5 h-3.5 text-ink" />
-              </div>
+              <Code2 className="w-3.5 h-3.5 text-brand" />
               <span className="text-sm font-medium text-ink-secondary">Codexia</span>
             </div>
             <p className="text-sm text-ink-faint">

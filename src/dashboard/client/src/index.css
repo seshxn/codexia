@@ -17,15 +17,15 @@
    * In Tailwind: use as bg-surface, bg-surface/50, etc.
    */
 
-  /* Surfaces */
-  --surface-page:    0 0 0;       /* #000000 — page background */
-  --surface-subtle:  10 10 10;    /* #0a0a0a — secondary background */
-  --surface-ui:      17 17 17;    /* #111111 — UI element backgrounds */
-  --surface-raised:  23 23 23;    /* #171717 — elevated cards */
+  /* Surfaces — zinc-tinted dark (subtle cool undertone, signals precision) */
+  --surface-page:    9 9 11;      /* #09090b — zinc-950 */
+  --surface-subtle:  12 12 15;    /* #0c0c0f — zinc-adjacent secondary */
+  --surface-ui:      18 18 22;    /* #121216 — UI element backgrounds */
+  --surface-raised:  25 25 30;    /* #19191e — elevated cards */
 
-  /* Edges / Borders */
-  --edge-subtle:     38 38 38;    /* #262626 — standard borders */
-  --edge-moderate:   51 51 51;    /* #333333 — stronger borders / dividers */
+  /* Edges / Borders — zinc-tinted for consistency */
+  --edge-subtle:     38 38 44;    /* #26262c — standard borders */
+  --edge-moderate:   54 54 62;    /* #36363e — stronger borders / dividers */
 
   /* Ink / Text */
   --ink-primary:     250 250 250; /* #fafafa — primary text */
@@ -35,6 +35,9 @@
   /* Scrollbar */
   --scrollbar-thumb:       51 51 51;  /* #333333 */
   --scrollbar-thumb-hover: 68 68 68;  /* #444444 */
+
+  /* Brand accent — emerald reinforces the "health" concept central to the product */
+  --accent-brand:  #10b981; /* emerald-500 */
 
   /* Semantic accent colors (kept as hex — no opacity modifiers needed) */
   --accent-blue:   #0ea5e9;
