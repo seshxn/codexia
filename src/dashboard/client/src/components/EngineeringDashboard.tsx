@@ -127,18 +127,18 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
     return (
       <div className="space-y-6">
         <Card title="Engineering Intelligence" subtitle="Connect GitHub or Jira to unlock engineering analytics">
-          <div className="space-y-4 text-sm text-neutral-300">
+          <div className="space-y-4 text-sm text-ink-secondary">
             <p>{config.data?.teamConfig.message || 'Set CODEXIA_DASHBOARD_TEAMS_JSON to enable team analytics.'}</p>
             <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <p className="text-xs uppercase tracking-wide text-neutral-500">Provider Status</p>
+              <p className="text-xs uppercase tracking-wide text-ink-faint">Provider Status</p>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-3">
-                  <p className="text-xs text-neutral-500">GitHub</p>
-                  <p className="mt-1 text-sm text-white">{config.data?.providers.github.message}</p>
+                  <p className="text-xs text-ink-faint">GitHub</p>
+                  <p className="mt-1 text-sm text-ink">{config.data?.providers.github.message}</p>
                 </div>
                 <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-3">
-                  <p className="text-xs text-neutral-500">Jira</p>
-                  <p className="mt-1 text-sm text-white">{config.data?.providers.jira.message}</p>
+                  <p className="text-xs text-ink-faint">Jira</p>
+                  <p className="mt-1 text-sm text-ink">{config.data?.providers.jira.message}</p>
                 </div>
               </div>
             </div>
@@ -155,28 +155,28 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           title="Deployments (90d)"
           value={overview.data ? formatMetric(overview.data.portfolioDora.deploymentFrequency) : '...'}
           subtitle={overview.data ? `${overview.data.teams.length} teams tracked` : undefined}
-          icon={<Layers3 className="w-5 h-5 text-white" />}
+          icon={<Layers3 className="w-5 h-5 text-ink" />}
           color="blue"
         />
         <StatCard
           title="Lead Time"
           value={overview.data ? formatMetric(overview.data.portfolioDora.leadTimeHours, 'hours') : '...'}
           subtitle={overview.data ? overview.data.portfolioDora.leadTimeHours.source : undefined}
-          icon={<TrendingUp className="w-5 h-5 text-white" />}
+          icon={<TrendingUp className="w-5 h-5 text-ink" />}
           color="green"
         />
         <StatCard
           title="Change Failure Rate"
           value={overview.data ? formatMetric(overview.data.portfolioDora.changeFailureRate, 'percent') : '...'}
           subtitle={overview.data ? `${overview.data.failedChanges} failed changes` : undefined}
-          icon={<ShieldAlert className="w-5 h-5 text-white" />}
+          icon={<ShieldAlert className="w-5 h-5 text-ink" />}
           color="yellow"
         />
         <StatCard
           title="MTTR"
           value={overview.data ? formatMetric(overview.data.portfolioDora.meanTimeToRestoreHours, 'hours') : '...'}
           subtitle={overview.data ? `${overview.data.activeIncidents} active incidents` : undefined}
-          icon={<TimerReset className="w-5 h-5 text-white" />}
+          icon={<TimerReset className="w-5 h-5 text-ink" />}
           color="red"
         />
       </div>
@@ -185,11 +185,12 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
         <Card title="Scope" subtitle="Select a team or drill into one mapped repo" className="xl:col-span-1">
           <div className="space-y-4">
             <div>
-              <p className="text-xs uppercase tracking-wide text-neutral-500">Team</p>
+              <label htmlFor="team-select" className="text-xs font-medium text-ink-faint uppercase tracking-wide">Team</label>
               <select
+                id="team-select"
                 value={selectedTeam}
                 onChange={(event) => setSelectedTeam(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-lg border border-edge-moderate bg-surface-raised px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 {(teams.data?.teams || []).map((team) => (
                   <option key={team.name} value={team.name}>
@@ -199,11 +200,12 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
               </select>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-neutral-500">Repo Drill-down</p>
+              <label htmlFor="repo-select" className="text-xs font-medium text-ink-faint uppercase tracking-wide">Repo Drill-down</label>
               <select
+                id="repo-select"
                 value={selectedRepo}
                 onChange={(event) => setSelectedRepo(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
+                className="mt-2 w-full rounded-lg border border-edge-moderate bg-surface-raised px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <option value="">All team repos</option>
                 {(selectedTeamEntry?.repos || []).map((repo) => (
@@ -213,11 +215,11 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
                 ))}
               </select>
             </div>
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-xs text-neutral-400">
+            <p className="text-xs text-ink-faint border-t border-edge pt-3">
               {config.data.providers.github.enabled ? 'GitHub connected.' : config.data.providers.github.message}
-              <br />
+              {' · '}
               {config.data.providers.jira.enabled ? 'Jira connected.' : config.data.providers.jira.message}
-            </div>
+            </p>
           </div>
         </Card>
 
@@ -227,30 +229,30 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           ) : overview.error ? (
             <ErrorDisplay message="Failed to load engineering overview" onRetry={overview.refetch} />
           ) : (
-            <div className="space-y-3">
+            <div className="divide-y divide-edge">
               {overview.data!.teams.map((team) => (
-                <div key={team.team.name} className="grid grid-cols-1 gap-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 lg:grid-cols-6">
+                <dl key={team.team.name} className="grid grid-cols-1 gap-x-4 gap-y-1 py-3 first:pt-0 last:pb-0 lg:grid-cols-6">
                   <div className="lg:col-span-2">
-                    <p className="text-sm font-medium text-white">{team.team.name}</p>
-                    <p className="text-xs text-neutral-500">{team.team.repos.length} repos</p>
+                    <p className="text-sm font-semibold text-ink">{team.team.name}</p>
+                    <p className="text-xs text-ink-faint">{team.team.repos.length} repos</p>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500">Deploys</p>
-                    <p className="mt-1 text-sm text-white">{formatMetric(team.dora.deploymentFrequency)}</p>
+                    <dt className="text-xs text-ink-faint">Deploys</dt>
+                    <dd className="text-sm text-ink nums">{formatMetric(team.dora.deploymentFrequency)}</dd>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500">Lead Time</p>
-                    <p className="mt-1 text-sm text-white">{formatMetric(team.dora.leadTimeHours, 'hours')}</p>
+                    <dt className="text-xs text-ink-faint">Lead Time</dt>
+                    <dd className="text-sm text-ink nums">{formatMetric(team.dora.leadTimeHours, 'hours')}</dd>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500">Failure Rate</p>
-                    <p className="mt-1 text-sm text-white">{formatMetric(team.dora.changeFailureRate, 'percent')}</p>
+                    <dt className="text-xs text-ink-faint">Failure Rate</dt>
+                    <dd className="text-sm text-ink nums">{formatMetric(team.dora.changeFailureRate, 'percent')}</dd>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500">Active Incidents</p>
-                    <p className="mt-1 text-sm text-white">{team.incidents.active}</p>
+                    <dt className="text-xs text-ink-faint">Active Incidents</dt>
+                    <dd className="text-sm text-ink nums">{team.incidents.active}</dd>
                   </div>
-                </div>
+                </dl>
               ))}
             </div>
           )}
@@ -264,27 +266,25 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           ) : reportError ? (
             <ErrorDisplay message={reportError} />
           ) : report ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
               {[
                 { label: 'Deployments', metric: report.dora.deploymentFrequency },
                 { label: 'Lead Time', metric: report.dora.leadTimeHours, unit: 'hours' as const },
                 { label: 'Failure Rate', metric: report.dora.changeFailureRate, unit: 'percent' as const },
                 { label: 'MTTR', metric: report.dora.meanTimeToRestoreHours, unit: 'hours' as const },
               ].map((entry) => (
-                <div key={entry.label} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-neutral-500">{entry.label}</p>
-                      <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(entry.metric, entry.unit)}</p>
-                      <p className="mt-1 text-xs text-neutral-500">{entry.metric.source}</p>
-                    </div>
-                    <span className={`rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-wide ${confidenceClass(entry.metric.confidence)}`}>
+                <div key={entry.label}>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">{entry.label}</dt>
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${confidenceClass(entry.metric.confidence)}`}>
                       {entry.metric.confidence}
                     </span>
                   </div>
+                  <dd className="text-2xl font-semibold text-ink nums">{formatMetric(entry.metric, entry.unit)}</dd>
+                  <p className="mt-0.5 text-xs text-ink-faint">{entry.metric.source}</p>
                 </div>
               ))}
-            </div>
+            </dl>
           ) : null}
         </Card>
 
@@ -292,24 +292,24 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Total PRs</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.pullRequestFunnel.total}</p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Total PRs</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.pullRequestFunnel.total}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Merged</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.pullRequestFunnel.merged}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Merged</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.pullRequestFunnel.merged}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Reviewed</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.pullRequestFunnel.reviewed}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Reviewed</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.pullRequestFunnel.reviewed}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Avg Review Latency</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.pullRequestFunnel.averageReviewLatencyHours.toFixed(1)}h</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Avg Review Latency</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.pullRequestFunnel.averageReviewLatencyHours.toFixed(1)}h</dd>
               </div>
-            </div>
+            </dl>
           ) : null}
         </Card>
       </div>
@@ -319,33 +319,33 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Pickup Time</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.prHealth.averagePickupTimeHours, 'hours')}</p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Pickup Time</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.prHealth.averagePickupTimeHours, 'hours')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Merge Time</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.prHealth.averageMergeTimeHours, 'hours')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Merge Time</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.prHealth.averageMergeTimeHours, 'hours')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Avg Review Rounds</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.prHealth.averageReviewRounds)}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Avg Review Rounds</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.prHealth.averageReviewRounds)}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Avg PR Size</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.prHealth.averagePrSize)}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Avg PR Size</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.prHealth.averagePrSize)}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Large PR Rate</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.prHealth.largePrRate, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Large PR Rate</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.prHealth.largePrRate, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Stale Open PRs</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.prHealth.staleOpen}</p>
-                <p className="mt-1 text-xs text-neutral-500">Hotfix rate: {formatNumber(report.prHealth.hotfixRate, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Stale Open PRs</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.prHealth.staleOpen}</dd>
+                <p className="mt-0.5 text-xs text-ink-faint">Hotfix rate: {formatNumber(report.prHealth.hotfixRate, 'percent')}</p>
               </div>
-            </div>
+            </dl>
           ) : null}
         </Card>
 
@@ -353,37 +353,34 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Flow Efficiency</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.planning.flowEfficiencyPct, 'percent')}</p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Flow Efficiency</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.planning.flowEfficiencyPct, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Forecast Reliability</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.planning.forecastReliability, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Forecast Reliability</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.planning.forecastReliability, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Carryover</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.planning.carryoverRate, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Carryover</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.planning.carryoverRate, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Avg WIP Age</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.planning.averageWipAgeHours, 'hours')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Avg WIP Age</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.planning.averageWipAgeHours, 'hours')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Blocked Work Rate</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.planning.blockedWorkRate, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Blocked Work Rate</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.planning.blockedWorkRate, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Queue vs Active</p>
-                <p className="mt-2 text-sm text-white">
-                  {formatNumber(report.flow.queueVsActive.queueHours, 'hours')} queue
-                </p>
-                <p className="mt-1 text-sm text-white">
-                  {formatNumber(report.flow.queueVsActive.activeHours, 'hours')} active
-                </p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Queue vs Active</dt>
+                <dd className="mt-1 text-sm text-ink nums">
+                  {formatNumber(report.flow.queueVsActive.queueHours, 'hours')} queue · {formatNumber(report.flow.queueVsActive.activeHours, 'hours')} active
+                </dd>
               </div>
-            </div>
+            </dl>
           ) : null}
         </Card>
       </div>
@@ -393,26 +390,26 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="space-y-3">
+            <div className="divide-y divide-edge">
               {report.deploymentTimeline.slice(0, 8).map((deployment) => (
-                <div key={deployment.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div key={deployment.id} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-white">{deployment.repo}</p>
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-sm font-semibold text-ink">{deployment.repo}</p>
+                      <p className="text-xs text-ink-faint">
                         {deployment.environment} · {new Date(deployment.createdAt).toLocaleString()}
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <span className={`rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-wide ${deploymentStatusClass(deployment.status)}`}>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${deploymentStatusClass(deployment.status)}`}>
                         {deployment.status}
                       </span>
-                      <span className={`rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-wide ${confidenceClass(deployment.confidence)}`}>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${confidenceClass(deployment.confidence)}`}>
                         {deployment.confidence}
                       </span>
                     </div>
                   </div>
-                  <p className="mt-3 text-xs text-neutral-400">
+                  <p className="mt-1 text-xs text-ink-faint">
                     Source: {deployment.source} · Linked incidents: {deployment.linkedIncidentCount}
                   </p>
                 </div>
@@ -425,22 +422,22 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="space-y-3">
+            <div className="divide-y divide-edge">
               {report.recentIncidents.length === 0 ? (
-                <p className="text-sm text-neutral-500">No incidents found in the current window.</p>
+                <p className="text-sm text-ink-faint">No incidents found in the current window.</p>
               ) : (
                 report.recentIncidents.map((incident) => (
-                  <div key={incident.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div key={incident.id} className="py-3 first:pt-0 last:pb-0">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium text-white">{incident.key}</p>
-                        <p className="text-xs text-neutral-500">{incident.summary}</p>
+                        <p className="text-sm font-semibold text-ink">{incident.key}</p>
+                        <p className="text-xs text-ink-faint">{incident.summary}</p>
                       </div>
-                      <span className={`rounded-full border px-2 py-1 text-[10px] font-medium uppercase tracking-wide ${severityClass(incident.severity)}`}>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${severityClass(incident.severity)}`}>
                         {incident.severity}
                       </span>
                     </div>
-                    <p className="mt-3 text-xs text-neutral-400">
+                    <p className="mt-1 text-xs text-ink-faint">
                       Created {new Date(incident.createdAt).toLocaleString()}
                       {incident.resolvedAt ? ` · Resolved ${new Date(incident.resolvedAt).toLocaleString()}` : ' · Still active'}
                     </p>
@@ -457,29 +454,26 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Repeat Incident Rate</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatNumber(report.reliability.repeatIncidentRate, 'percent')}</p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Repeat Incident Rate</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatNumber(report.reliability.repeatIncidentRate, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Incident Linkage</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(report.reliability.incidentLinkageCoverage, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Incident Linkage</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatMetric(report.reliability.incidentLinkageCoverage, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Severity Mix</p>
-                <p className="mt-2 text-sm text-white">
-                  Critical {report.reliability.severityDistribution.critical} · High {report.reliability.severityDistribution.high}
-                </p>
-                <p className="mt-1 text-sm text-white">
-                  Medium {report.reliability.severityDistribution.medium} · Low {report.reliability.severityDistribution.low}
-                </p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Severity Mix</dt>
+                <dd className="mt-1 text-sm text-ink nums">
+                  {report.reliability.severityDistribution.critical}C · {report.reliability.severityDistribution.high}H · {report.reliability.severityDistribution.medium}M · {report.reliability.severityDistribution.low}L
+                </dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Failed Changes</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.incidents.failedChanges}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Failed Changes</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.incidents.failedChanges}</dd>
               </div>
-            </div>
+            </dl>
           ) : null}
         </Card>
 
@@ -487,26 +481,26 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Completed Items</p>
-                  <p className="mt-2 text-2xl font-semibold text-white nums">{report.throughput.completedWorkItems}</p>
+            <div className="space-y-5">
+              <dl className="grid grid-cols-3 gap-x-6">
+                <div>
+                  <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Completed Items</dt>
+                  <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.throughput.completedWorkItems}</dd>
                 </div>
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Deployments</p>
-                  <p className="mt-2 text-2xl font-semibold text-white nums">{report.throughput.deployments}</p>
+                <div>
+                  <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Deployments</dt>
+                  <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.throughput.deployments}</dd>
                 </div>
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Deployed Repos</p>
-                  <p className="mt-2 text-2xl font-semibold text-white nums">{report.throughput.deployedRepos}</p>
+                <div>
+                  <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Deployed Repos</dt>
+                  <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.throughput.deployedRepos}</dd>
                 </div>
-              </div>
-              <div className="space-y-2">
+              </dl>
+              <div className="divide-y divide-edge border-t border-edge">
                 {report.throughput.workItemsByType.map((item) => (
-                  <div key={item.issueType} className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-950/40 px-4 py-3">
-                    <span className="text-sm text-white">{item.issueType}</span>
-                    <span className="text-sm text-neutral-300">{item.throughput}</span>
+                  <div key={item.issueType} className="flex items-center justify-between py-2">
+                    <span className="text-sm text-ink">{item.issueType}</span>
+                    <span className="text-sm text-ink-secondary nums">{item.throughput}</span>
                   </div>
                 ))}
               </div>
@@ -518,24 +512,24 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Throughput</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.flow.summary.throughput}</p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Throughput</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.flow.summary.throughput}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Unplanned Work</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.flow.summary.unplannedWorkRatio.toFixed(1)}%</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Unplanned Work</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.flow.summary.unplannedWorkRatio.toFixed(1)}%</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Reopen Rate</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.flow.summary.reopenRate.toFixed(1)}%</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Reopen Rate</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.flow.summary.reopenRate.toFixed(1)}%</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Forecast Reliability</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{report.flow.trends.forecastReliability.toFixed(1)}%</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Forecast Reliability</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{report.flow.trends.forecastReliability.toFixed(1)}%</dd>
               </div>
-            </div>
+            </dl>
           ) : null}
         </Card>
 
@@ -543,25 +537,25 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="space-y-3">
+            <div className="divide-y divide-edge">
               {report.flow.issueTypes.map((issueType) => (
-                <div key={issueType.issueType} className="grid grid-cols-1 gap-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 md:grid-cols-4">
+                <dl key={issueType.issueType} className="grid grid-cols-1 gap-x-4 py-3 first:pt-0 last:pb-0 md:grid-cols-4">
                   <div>
-                    <p className="text-sm font-medium text-white">{issueType.issueType}</p>
+                    <p className="text-sm font-semibold text-ink">{issueType.issueType}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500">Throughput</p>
-                    <p className="mt-1 text-sm text-white">{issueType.throughput}</p>
+                    <dt className="text-xs text-ink-faint">Throughput</dt>
+                    <dd className="text-sm text-ink nums">{issueType.throughput}</dd>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500">Cycle Time</p>
-                    <p className="mt-1 text-sm text-white">{issueType.medianCycleTimeHours.toFixed(1)}h</p>
+                    <dt className="text-xs text-ink-faint">Cycle Time</dt>
+                    <dd className="text-sm text-ink nums">{issueType.medianCycleTimeHours.toFixed(1)}h</dd>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500">Lead Time</p>
-                    <p className="mt-1 text-sm text-white">{issueType.medianLeadTimeHours.toFixed(1)}h</p>
+                    <dt className="text-xs text-ink-faint">Lead Time</dt>
+                    <dd className="text-sm text-ink nums">{issueType.medianLeadTimeHours.toFixed(1)}h</dd>
                   </div>
-                </div>
+                </dl>
               ))}
             </div>
           ) : null}
@@ -573,20 +567,20 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Top Author Share</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(report.peopleRisk.topAuthorShare, 'percent')}</p>
+            <dl className="grid grid-cols-3 gap-x-6">
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Top Author Share</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatMetric(report.peopleRisk.topAuthorShare, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Top Merger Share</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(report.peopleRisk.topMergerShare, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Top Merger Share</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatMetric(report.peopleRisk.topMergerShare, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">After-Hours Deploys</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(report.peopleRisk.afterHoursDeploymentRate, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">After-Hours Deploys</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatMetric(report.peopleRisk.afterHoursDeploymentRate, 'percent')}</dd>
               </div>
-            </div>
+            </dl>
           ) : null}
         </Card>
 
@@ -594,24 +588,24 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           {reportLoading && !report ? (
             <LoadingCard />
           ) : report ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">GitHub to Jira</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(report.linkageQuality.githubLinkageCoverage, 'percent')}</p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">GitHub to Jira</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatMetric(report.linkageQuality.githubLinkageCoverage, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Deploy Traceability</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(report.linkageQuality.deploymentTraceabilityCoverage, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Deploy Traceability</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatMetric(report.linkageQuality.deploymentTraceabilityCoverage, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Incident Linkage</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(report.linkageQuality.incidentLinkageCoverage, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Incident Linkage</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatMetric(report.linkageQuality.incidentLinkageCoverage, 'percent')}</dd>
               </div>
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">Incident to Deploy</p>
-                <p className="mt-2 text-2xl font-semibold text-white nums">{formatMetric(report.linkageQuality.incidentDeploymentCoverage, 'percent')}</p>
+              <div>
+                <dt className="text-xs font-medium text-ink-faint uppercase tracking-wide">Incident to Deploy</dt>
+                <dd className="mt-1 text-2xl font-semibold text-ink nums">{formatMetric(report.linkageQuality.incidentDeploymentCoverage, 'percent')}</dd>
               </div>
-            </div>
+            </dl>
           ) : null}
         </Card>
       </div>
