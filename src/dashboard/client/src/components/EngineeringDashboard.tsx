@@ -150,7 +150,7 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Deployments (90d)"
           value={overview.data ? formatMetric(overview.data.portfolioDora.deploymentFrequency) : '...'}
@@ -231,8 +231,8 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
           ) : (
             <div className="divide-y divide-edge">
               {overview.data!.teams.map((team) => (
-                <dl key={team.team.name} className="grid grid-cols-1 gap-x-4 gap-y-1 py-3 first:pt-0 last:pb-0 lg:grid-cols-6">
-                  <div className="lg:col-span-2">
+                <dl key={team.team.name} className="grid grid-cols-2 gap-x-4 gap-y-3 py-3 first:pt-0 last:pb-0 md:grid-cols-4 lg:grid-cols-6">
+                  <div className="col-span-2 md:col-span-4 lg:col-span-2">
                     <p className="text-sm font-semibold text-ink">{team.team.name}</p>
                     <p className="text-xs text-ink-faint">{team.team.repos.length} repos</p>
                   </div>

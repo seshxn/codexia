@@ -139,7 +139,7 @@ export const RepoSelector = ({ onRepoSwitched }: RepoSelectorProps) => {
                 onClick={() => void switchRepo(repo.path)}
                 disabled={switching || picking || repo.current}
                 aria-current={repo.current ? 'true' : undefined}
-                className="rounded-full border border-edge bg-surface-raised px-3 py-1.5 text-xs text-ink-secondary hover:text-ink hover:border-edge-moderate disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                className="rounded-full border border-edge bg-surface-raised px-3 py-2 text-xs text-ink-secondary hover:text-ink hover:border-edge-moderate disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand min-h-[44px] sm:min-h-0 sm:py-1.5"
               >
                 {repo.current ? `${repo.name} (current)` : repo.name}
               </button>

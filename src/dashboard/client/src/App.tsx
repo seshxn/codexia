@@ -66,7 +66,7 @@ const App = () => {
   }, [repoContextRefetch]);
 
   const getTabButtonClass = (tab: DashboardTab): string => (
-    `inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+    `inline-flex items-center gap-2 rounded-xl px-4 py-2 min-h-[44px] sm:min-h-0 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
       activeTab === tab
         ? 'bg-ink text-surface shadow-sm'
         : 'text-ink-secondary hover:text-ink hover:bg-surface-raised/60'
@@ -137,7 +137,7 @@ const App = () => {
                 onClick={refreshAll}
                 disabled={repoContext.loading}
                 aria-label={repoContext.loading ? 'Refreshing data…' : 'Refresh all data'}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-ink hover:bg-ink/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-surface transition-all duration-200 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-0 bg-ink hover:bg-ink/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-surface transition-all duration-200 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               >
                 <RefreshCw className={`w-4 h-4 ${repoContext.loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                 Refresh
