@@ -1,13 +1,22 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { RefreshCw, Code2, Network, LayoutDashboard, Workflow } from 'lucide-react';
 import { useApi } from './hooks/useApi';
 import { fetchRepoContext } from './api';
 import { Card } from './components/Card';
 import { EngineeringDashboard } from './components/EngineeringDashboard';
-import { JiraSprintAnalysis } from './components/JiraSprintAnalysis';
-import { KnowledgeGraphDashboard } from './components/KnowledgeGraphDashboard';
+import { LoadingCard } from './components/Loading';
 import { RepoSelector } from './components/RepoSelector';
 import { RepositoryDashboard } from './components/RepositoryDashboard';
+
+// Lazy-load heavy tabs to keep initial bundle small:
+// - KnowledgeGraphDashboard pulls in sigma + graphology (~400 kB minified)
+// - JiraSprintAnalysis is only relevant to teams with Jira configured
+const KnowledgeGraphDashboard = lazy(() =>
+  import('./components/KnowledgeGraphDashboard').then((m) => ({ default: m.KnowledgeGraphDashboard }))
+);
+const JiraSprintAnalysis = lazy(() =>
+  import('./components/JiraSprintAnalysis').then((m) => ({ default: m.JiraSprintAnalysis }))
+);
 
 const TAB_TRANSITION_MS = 180;
 
@@ -180,13 +189,17 @@ const App = () => {
             ) : visibleTab === 'repository' ? (
               <RepositoryDashboard refreshKey={refreshKey} />
             ) : visibleTab === 'graph' ? (
-              <KnowledgeGraphDashboard refreshKey={refreshKey} />
+              <Suspense fallback={<LoadingCard />}>
+                <KnowledgeGraphDashboard refreshKey={refreshKey} />
+              </Suspense>
             ) : (
               <Card
                 title="Jira Sprint Intelligence"
                 subtitle="Sprint health, scope changes, and board-level delivery integrity"
               >
-                <JiraSprintAnalysis refreshKey={refreshKey} />
+                <Suspense fallback={<LoadingCard />}>
+                  <JiraSprintAnalysis refreshKey={refreshKey} />
+                </Suspense>
               </Card>
             )}
           </div>
