@@ -150,7 +150,7 @@ export const MetricCard = ({ label, value, icon, color = 'blue', subtitle }: Met
         {icon}
         <span className="text-xs text-ink-faint uppercase tracking-wider font-medium">{label}</span>
       </div>
-      <p className="text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="text-2xl font-semibold tracking-tight nums">{value}</p>
       {subtitle && <p className="text-xs text-ink-faint mt-1">{subtitle}</p>}
     </div>
   );

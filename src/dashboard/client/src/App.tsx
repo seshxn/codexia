@@ -95,7 +95,7 @@ const App = () => {
                   <div className="p-1.5 rounded-lg bg-gradient-to-br from-sky-500 to-violet-600">
                     <Code2 className="w-5 h-5 text-white" />
                   </div>
-                  <h1 className="text-xl font-semibold text-white tracking-tight">Codexia</h1>
+                  <h1 className="text-xl font-semibold text-ink tracking-tight">Codexia</h1>
                 </div>
                 <div className="h-5 w-px bg-edge" />
                 <span className="text-ink-secondary text-sm font-medium">{repoName}</span>

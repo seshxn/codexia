@@ -54,7 +54,7 @@ export const StatCard = ({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-ink-faint">{title}</p>
-          <p className="text-3xl font-semibold text-ink mt-2 tracking-tight">{value}</p>
+          <p className="text-3xl font-semibold text-ink mt-2 tracking-tight nums">{value}</p>
           {subtitle && <p className="text-sm text-ink-faint mt-1">{subtitle}</p>}
         </div>
         {icon && (
