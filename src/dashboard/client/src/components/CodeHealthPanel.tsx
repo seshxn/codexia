@@ -59,7 +59,7 @@ const getGradeColor = (grade: string): string => {
     case 'C': return 'text-amber-400';
     case 'D': return 'text-orange-400';
     case 'F': return 'text-red-400';
-    default: return 'text-neutral-400';
+    default: return 'text-ink-faint';
   }
 };
 
@@ -70,7 +70,7 @@ const getGradeBg = (grade: string): string => {
     case 'C': return 'bg-amber-500/10 border-amber-500/30';
     case 'D': return 'bg-orange-500/10 border-orange-500/30';
     case 'F': return 'bg-red-500/10 border-red-500/30';
-    default: return 'bg-neutral-500/10 border-neutral-500/30';
+    default: return 'bg-surface-subtle/10 border-edge';
   }
 };
 
@@ -85,24 +85,24 @@ const ScoringGuideModal = ({ onClose }: { onClose: () => void }) => {
     >
       <div className="space-y-6">
         <div>
-          <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.maintainability.title}</h3>
-          <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.maintainability.description}</p>
+          <h3 className="text-sm font-semibold text-ink mb-1">{SCORING_GUIDE.maintainability.title}</h3>
+          <p className="text-xs text-ink-faint mb-3">{SCORING_GUIDE.maintainability.description}</p>
           <div className="grid gap-2">
             {SCORING_GUIDE.maintainability.grades.map(g => (
               <div key={g.grade} className="flex items-center gap-3 text-xs">
                 <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${getGradeBg(g.grade)} ${getGradeColor(g.grade)}`}>
                   {g.grade}
                 </span>
-                <span className="text-neutral-500 w-16">{g.range}</span>
-                <span className="text-neutral-300">{g.meaning}</span>
+                <span className="text-ink-faint w-16">{g.range}</span>
+                <span className="text-ink-secondary">{g.meaning}</span>
               </div>
             ))}
           </div>
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.complexity.title}</h3>
-          <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.complexity.description}</p>
+          <h3 className="text-sm font-semibold text-ink mb-1">{SCORING_GUIDE.complexity.title}</h3>
+          <p className="text-xs text-ink-faint mb-3">{SCORING_GUIDE.complexity.description}</p>
           <div className="grid gap-2">
             {SCORING_GUIDE.complexity.thresholds.map(t => {
               let colorClasses = 'bg-emerald-500';
@@ -113,9 +113,9 @@ const ScoringGuideModal = ({ onClose }: { onClose: () => void }) => {
               return (
                 <div key={t.level} className="flex items-center gap-3 text-xs">
                   <span className={`w-3 h-3 rounded-full ${colorClasses}`} />
-                  <span className="text-neutral-300 w-20">{t.level}</span>
-                  <span className="text-neutral-500 w-12">{t.range}</span>
-                  <span className="text-neutral-400">{t.meaning}</span>
+                  <span className="text-ink-secondary w-20">{t.level}</span>
+                  <span className="text-ink-faint w-12">{t.range}</span>
+                  <span className="text-ink-faint">{t.meaning}</span>
                 </div>
               );
             })}
@@ -123,28 +123,28 @@ const ScoringGuideModal = ({ onClose }: { onClose: () => void }) => {
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-white mb-1">{SCORING_GUIDE.techDebt.title}</h3>
-          <p className="text-xs text-neutral-400 mb-3">{SCORING_GUIDE.techDebt.description}</p>
+          <h3 className="text-sm font-semibold text-ink mb-1">{SCORING_GUIDE.techDebt.title}</h3>
+          <p className="text-xs text-ink-faint mb-3">{SCORING_GUIDE.techDebt.description}</p>
           <div className="grid gap-2">
             {SCORING_GUIDE.techDebt.grades.map(g => (
               <div key={g.grade} className="flex items-center gap-3 text-xs">
                 <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${getGradeBg(g.grade)} ${getGradeColor(g.grade)}`}>
                   {g.grade}
                 </span>
-                <span className="text-neutral-500 w-20">{g.range}</span>
-                <span className="text-neutral-300">{g.meaning}</span>
+                <span className="text-ink-faint w-20">{g.range}</span>
+                <span className="text-ink-secondary">{g.meaning}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="pt-4 border-t border-neutral-800">
-          <h3 className="text-sm font-semibold text-white mb-2">Based on Industry Standards</h3>
-          <ul className="text-xs text-neutral-400 space-y-1.5">
-            <li>• <strong className="text-neutral-300">Maintainability Index:</strong> Microsoft Visual Studio metric (1991)</li>
-            <li>• <strong className="text-neutral-300">Cyclomatic Complexity:</strong> McCabe complexity (IEEE, 1976)</li>
-            <li>• <strong className="text-neutral-300">Coupling/Cohesion:</strong> SOLID principles, Clean Code (Robert C. Martin)</li>
-            <li>• <strong className="text-neutral-300">Tech Debt:</strong> SonarQube-inspired weighted scoring</li>
+        <div className="pt-4 border-t border-edge">
+          <h3 className="text-sm font-semibold text-ink mb-2">Based on Industry Standards</h3>
+          <ul className="text-xs text-ink-faint space-y-1.5">
+            <li>• <strong className="text-ink-secondary">Maintainability Index:</strong> Microsoft Visual Studio metric (1991)</li>
+            <li>• <strong className="text-ink-secondary">Cyclomatic Complexity:</strong> McCabe complexity (IEEE, 1976)</li>
+            <li>• <strong className="text-ink-secondary">Coupling/Cohesion:</strong> SOLID principles, Clean Code (Robert C. Martin)</li>
+            <li>• <strong className="text-ink-secondary">Tech Debt:</strong> SonarQube-inspired weighted scoring</li>
           </ul>
         </div>
       </div>
@@ -183,68 +183,68 @@ export const CodeHealthPanel = ({ data }: CodeHealthPanelProps) => {
         <div className={`p-3 rounded-xl border ${getGradeBg(data.maintainability.grade)}`}>
           <div className="flex items-center gap-2 mb-1">
             <Heart className={`w-4 h-4 ${getGradeColor(data.maintainability.grade)}`} />
-            <span className="text-xs text-neutral-400">Maintainability</span>
+            <span className="text-xs text-ink-faint">Maintainability</span>
           </div>
           <div className="flex items-baseline gap-2">
             <span className={`text-3xl font-bold ${getGradeColor(data.maintainability.grade)}`}>
               {data.maintainability.grade}
             </span>
-            <span className="text-sm text-neutral-500">{data.maintainability.average}/100</span>
+            <span className="text-sm text-ink-faint">{data.maintainability.average}/100</span>
           </div>
-          <p className="text-[10px] text-neutral-500 mt-1">Microsoft Maintainability Index</p>
+          <p className="text-[10px] text-ink-faint mt-1">Microsoft Maintainability Index</p>
         </div>
 
         {/* Technical Debt */}
         <div className={`p-3 rounded-xl border ${getGradeBg(data.technicalDebt.grade)}`}>
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle className={`w-4 h-4 ${getGradeColor(data.technicalDebt.grade)}`} />
-            <span className="text-xs text-neutral-400">Tech Debt</span>
+            <span className="text-xs text-ink-faint">Tech Debt</span>
           </div>
           <div className="flex items-baseline gap-2">
             <span className={`text-3xl font-bold ${getGradeColor(data.technicalDebt.grade)}`}>
               {data.technicalDebt.grade}
             </span>
-            <span className="text-sm text-neutral-500">{data.technicalDebt.score}pts</span>
+            <span className="text-sm text-ink-faint">{data.technicalDebt.score}pts</span>
           </div>
-          <p className="text-[10px] text-neutral-500 mt-1">Weighted code smell score</p>
+          <p className="text-[10px] text-ink-faint mt-1">Weighted code smell score</p>
         </div>
 
         {/* Avg Complexity */}
-        <div className="p-3 rounded-xl border border-neutral-800 bg-neutral-900/30">
+        <div className="p-3 rounded-xl border border-edge bg-surface-subtle/30">
           <div className="flex items-center gap-2 mb-1">
             <Gauge className="w-4 h-4 text-blue-400" />
-            <span className="text-xs text-neutral-400">Avg Complexity</span>
+            <span className="text-xs text-ink-faint">Avg Complexity</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">
+            <span className="text-3xl font-bold text-ink">
               {data.complexity.averageScore}
             </span>
-            <span className="text-xs text-neutral-500">per file</span>
+            <span className="text-xs text-ink-faint">per file</span>
           </div>
-          <p className="text-[10px] text-neutral-500 mt-1">McCabe cyclomatic complexity</p>
+          <p className="text-[10px] text-ink-faint mt-1">McCabe cyclomatic complexity</p>
         </div>
 
         {/* Codebase Size */}
-        <div className="p-3 rounded-xl border border-neutral-800 bg-neutral-900/30">
+        <div className="p-3 rounded-xl border border-edge bg-surface-subtle/30">
           <div className="flex items-center gap-2 mb-1">
             <Layers className="w-4 h-4 text-purple-400" />
-            <span className="text-xs text-neutral-400">Codebase</span>
+            <span className="text-xs text-ink-faint">Codebase</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white">
+            <span className="text-3xl font-bold text-ink">
               {(data.codebase.totalLines / 1000).toFixed(1)}k
             </span>
-            <span className="text-xs text-neutral-500">lines</span>
+            <span className="text-xs text-ink-faint">lines</span>
           </div>
-          <p className="text-[10px] text-neutral-500 mt-1">{data.codebase.totalFiles} files total</p>
+          <p className="text-[10px] text-ink-faint mt-1">{data.codebase.totalFiles} files total</p>
         </div>
       </div>
 
       {/* Complexity Distribution */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-neutral-300">Complexity Distribution</h3>
-          <span className="text-[10px] text-neutral-500">McCabe Cyclomatic</span>
+          <h3 className="text-sm font-medium text-ink-secondary">Complexity Distribution</h3>
+          <span className="text-[10px] text-ink-faint">McCabe Cyclomatic</span>
         </div>
         <div className="flex gap-1 h-6 rounded-lg overflow-hidden">
           {totalComplexity > 0 && (
@@ -275,27 +275,27 @@ export const CodeHealthPanel = ({ data }: CodeHealthPanelProps) => {
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-xs">
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-neutral-400">Low</span>
-            <span className="text-neutral-500 text-[10px]">(1-20)</span>
-            <span className="text-white ml-auto">{data.complexity.distribution.low}</span>
+            <span className="text-ink-faint">Low</span>
+            <span className="text-ink-faint text-[10px]">(1-20)</span>
+            <span className="text-ink ml-auto">{data.complexity.distribution.low}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-lime-500" />
-            <span className="text-neutral-400">Moderate</span>
-            <span className="text-neutral-500 text-[10px]">(21-50)</span>
-            <span className="text-white ml-auto">{data.complexity.distribution.moderate}</span>
+            <span className="text-ink-faint">Moderate</span>
+            <span className="text-ink-faint text-[10px]">(21-50)</span>
+            <span className="text-ink ml-auto">{data.complexity.distribution.moderate}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-amber-500" />
-            <span className="text-neutral-400">High</span>
-            <span className="text-neutral-500 text-[10px]">(51-80)</span>
-            <span className="text-white ml-auto">{data.complexity.distribution.high}</span>
+            <span className="text-ink-faint">High</span>
+            <span className="text-ink-faint text-[10px]">(51-80)</span>
+            <span className="text-ink ml-auto">{data.complexity.distribution.high}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="text-neutral-400">Critical</span>
-            <span className="text-neutral-500 text-[10px]">(80+)</span>
-            <span className="text-white ml-auto">{data.complexity.distribution.critical}</span>
+            <span className="text-ink-faint">Critical</span>
+            <span className="text-ink-faint text-[10px]">(80+)</span>
+            <span className="text-ink ml-auto">{data.complexity.distribution.critical}</span>
           </span>
         </div>
       </div>
@@ -303,34 +303,34 @@ export const CodeHealthPanel = ({ data }: CodeHealthPanelProps) => {
       {/* Debt Indicators */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-neutral-300">Technical Debt Indicators</h3>
-          <span className="text-[10px] text-neutral-500">Clean Code violations</span>
+          <h3 className="text-sm font-medium text-ink-secondary">Technical Debt Indicators</h3>
+          <span className="text-[10px] text-ink-faint">Clean Code violations</span>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="p-3 rounded-lg bg-neutral-900/50 border border-neutral-800 text-center" title="Files with cyclomatic complexity > 60">
+          <div className="p-3 rounded-lg bg-surface-subtle/50 border border-edge text-center" title="Files with cyclomatic complexity > 60">
             <p className="text-2xl font-bold text-orange-400">{data.technicalDebt.indicators.highComplexity}</p>
-            <p className="text-xs text-neutral-500">High Complexity</p>
-            <p className="text-[9px] text-neutral-600 mt-0.5">CC &gt; 60</p>
+            <p className="text-xs text-ink-faint">High Complexity</p>
+            <p className="text-[9px] text-ink-faint mt-0.5">CC &gt; 60</p>
           </div>
-          <div className="p-3 rounded-lg bg-neutral-900/50 border border-neutral-800 text-center" title="Modules with poor cohesion (unrelated responsibilities)">
+          <div className="p-3 rounded-lg bg-surface-subtle/50 border border-edge text-center" title="Modules with poor cohesion (unrelated responsibilities)">
             <p className="text-2xl font-bold text-amber-400">{data.technicalDebt.indicators.lowCohesion}</p>
-            <p className="text-xs text-neutral-500">Low Cohesion</p>
-            <p className="text-[9px] text-neutral-600 mt-0.5">SRP violations</p>
+            <p className="text-xs text-ink-faint">Low Cohesion</p>
+            <p className="text-[9px] text-ink-faint mt-0.5">SRP violations</p>
           </div>
-          <div className="p-3 rounded-lg bg-neutral-900/50 border border-neutral-800 text-center" title="Modules with too many dependencies">
+          <div className="p-3 rounded-lg bg-surface-subtle/50 border border-edge text-center" title="Modules with too many dependencies">
             <p className="text-2xl font-bold text-purple-400">{data.technicalDebt.indicators.highCoupling}</p>
-            <p className="text-xs text-neutral-500">High Coupling</p>
-            <p className="text-[9px] text-neutral-600 mt-0.5">&gt;10 deps</p>
+            <p className="text-xs text-ink-faint">High Coupling</p>
+            <p className="text-[9px] text-ink-faint mt-0.5">&gt;10 deps</p>
           </div>
-          <div className="p-3 rounded-lg bg-neutral-900/50 border border-neutral-800 text-center" title="Critical issues from static analysis">
+          <div className="p-3 rounded-lg bg-surface-subtle/50 border border-edge text-center" title="Critical issues from static analysis">
             <p className="text-2xl font-bold text-red-400">{data.technicalDebt.indicators.errors}</p>
-            <p className="text-xs text-neutral-500">Errors</p>
-            <p className="text-[9px] text-neutral-600 mt-0.5">Critical</p>
+            <p className="text-xs text-ink-faint">Errors</p>
+            <p className="text-[9px] text-ink-faint mt-0.5">Critical</p>
           </div>
-          <div className="p-3 rounded-lg bg-neutral-900/50 border border-neutral-800 text-center" title="Non-critical issues that should be addressed">
+          <div className="p-3 rounded-lg bg-surface-subtle/50 border border-edge text-center" title="Non-critical issues that should be addressed">
             <p className="text-2xl font-bold text-yellow-400">{data.technicalDebt.indicators.warnings}</p>
-            <p className="text-xs text-neutral-500">Warnings</p>
-            <p className="text-[9px] text-neutral-600 mt-0.5">Medium</p>
+            <p className="text-xs text-ink-faint">Warnings</p>
+            <p className="text-[9px] text-ink-faint mt-0.5">Medium</p>
           </div>
         </div>
       </div>
@@ -340,21 +340,21 @@ export const CodeHealthPanel = ({ data }: CodeHealthPanelProps) => {
         <div>
           <div className="flex items-center gap-2 mb-3">
             <FileWarning className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-medium text-neutral-300">Files Needing Attention</h3>
+            <h3 className="text-sm font-medium text-ink-secondary">Files Needing Attention</h3>
           </div>
           <div className="space-y-2">
             {displayedFiles.map((file) => (
               <div
                 key={file.file}
-                className="flex items-center gap-3 p-3 rounded-lg bg-neutral-900/50 border border-neutral-800"
+                className="flex items-center gap-3 p-3 rounded-lg bg-surface-subtle/50 border border-edge"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate font-mono">{file.file}</p>
+                  <p className="text-sm text-ink truncate font-mono">{file.file}</p>
                   <p className="text-xs text-amber-400 mt-0.5">{file.reason}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-lg font-semibold text-white">{file.score.toFixed(1)}</p>
-                  <p className="text-xs text-neutral-500">{file.lines} lines</p>
+                  <p className="text-lg font-semibold text-ink">{file.score.toFixed(1)}</p>
+                  <p className="text-xs text-ink-faint">{file.lines} lines</p>
                 </div>
               </div>
             ))}
@@ -362,7 +362,7 @@ export const CodeHealthPanel = ({ data }: CodeHealthPanelProps) => {
           {data.filesNeedingAttention.length > 5 && (
             <button
               onClick={() => setShowAllFiles(!showAllFiles)}
-              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-ink-faint hover:text-ink transition-colors"
             >
               {showAllFiles ? (
                 <>

@@ -51,7 +51,7 @@ export const HealthScore = ({ score, size = 'md', onClick }: HealthScoreProps) =
             stroke="currentColor"
             strokeWidth="6"
             fill="none"
-            className="text-neutral-800"
+            className="text-edge"
           />
           {/* Progress circle */}
           <circle

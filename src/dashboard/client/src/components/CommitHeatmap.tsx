@@ -7,7 +7,7 @@ interface CommitHeatmapProps {
 export const CommitHeatmap = ({ data }: CommitHeatmapProps) => {
   if (!data || !data.activityByDate || data.activityByDate.length === 0) {
     return (
-      <div className="flex items-center justify-center h-32 text-neutral-600">
+      <div className="flex items-center justify-center h-32 text-ink-faint">
         <p>No activity data available</p>
       </div>
     );
@@ -52,7 +52,7 @@ export const CommitHeatmap = ({ data }: CommitHeatmapProps) => {
 
   // Color function - Vercel-style emerald
   const getColor = (count: number): string => {
-    if (count === 0) return 'bg-neutral-800/50';
+    if (count === 0) return 'bg-surface-ui/50';
     const intensity = count / maxCount;
     if (intensity > 0.75) return 'bg-emerald-400';
     if (intensity > 0.5) return 'bg-emerald-500';
@@ -92,7 +92,7 @@ export const CommitHeatmap = ({ data }: CommitHeatmapProps) => {
             return (
               <div 
                 key={weekIndex} 
-                className="text-xs text-neutral-600 font-medium"
+                className="text-xs text-ink-faint font-medium"
                 style={{ width: `${cellSize + cellGap}px` }}
               >
                 {monthLabel?.label || ''}
@@ -108,7 +108,7 @@ export const CommitHeatmap = ({ data }: CommitHeatmapProps) => {
             {dayLabels.map((label, i) => (
               <div 
                 key={i} 
-                className="text-xs text-neutral-600 text-right pr-1"
+                className="text-xs text-ink-faint text-right pr-1"
                 style={{ height: `${cellSize + cellGap}px`, lineHeight: `${cellSize + cellGap}px` }}
               >
                 {i % 2 === 1 ? label : ''}
@@ -125,7 +125,7 @@ export const CommitHeatmap = ({ data }: CommitHeatmapProps) => {
                   return (
                     <div
                       key={dayIndex}
-                      className={`rounded-[3px] transition-colors duration-200 hover:ring-1 hover:ring-white/30 ${day ? getColor(day.count) : 'bg-neutral-800/30'}`}
+                      className={`rounded-[3px] transition-colors duration-200 hover:ring-1 hover:ring-white/30 ${day ? getColor(day.count) : 'bg-surface-ui/30'}`}
                       style={{ width: `${cellSize}px`, height: `${cellSize}px` }}
                       title={day ? `${day.date}: ${day.count} commits` : ''}
                     />
@@ -137,10 +137,10 @@ export const CommitHeatmap = ({ data }: CommitHeatmapProps) => {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-end gap-2 text-xs text-neutral-500 mt-3">
+        <div className="flex items-center justify-end gap-2 text-xs text-ink-faint mt-3">
           <span>Less</span>
           <div className="flex" style={{ gap: `${cellGap}px` }}>
-            <div className="rounded-[3px] bg-neutral-800/50" style={{ width: `${cellSize}px`, height: `${cellSize}px` }} />
+            <div className="rounded-[3px] bg-surface-ui/50" style={{ width: `${cellSize}px`, height: `${cellSize}px` }} />
             <div className="rounded-[3px] bg-emerald-700/60" style={{ width: `${cellSize}px`, height: `${cellSize}px` }} />
             <div className="rounded-[3px] bg-emerald-600/80" style={{ width: `${cellSize}px`, height: `${cellSize}px` }} />
             <div className="rounded-[3px] bg-emerald-500" style={{ width: `${cellSize}px`, height: `${cellSize}px` }} />

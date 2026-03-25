@@ -25,10 +25,10 @@ export const VelocityPanel = ({ data }: VelocityPanelProps) => {
   return (
     <div className="space-y-6">
       {/* Info Banner */}
-      <div className="flex items-start gap-2 p-2 rounded-lg bg-neutral-800/50 border border-neutral-700/50 text-xs text-neutral-400">
+      <div className="flex items-start gap-2 p-2 rounded-lg bg-surface-ui/50 border border-edge/50 text-xs text-ink-faint">
         <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
         <div>
-          <span className="text-neutral-300">Velocity metrics</span> track team productivity patterns. 
+          <span className="text-ink-secondary">Velocity metrics</span> track team productivity patterns. 
           Trend compares last 2 weeks vs previous 2 weeks. Aim for consistent, sustainable velocity.
         </div>
       </div>
@@ -36,61 +36,61 @@ export const VelocityPanel = ({ data }: VelocityPanelProps) => {
       {/* Summary Stats */}
       <div className="grid grid-cols-2 gap-3">
         {/* Total Commits */}
-        <div className="p-3 rounded-xl border border-neutral-800 bg-neutral-900/30">
+        <div className="p-3 rounded-xl border border-edge bg-surface-subtle/30">
           <div className="flex items-center gap-2 mb-1">
             <GitCommit className="w-4 h-4 text-blue-400" />
-            <span className="text-xs text-neutral-400">Commits (30d)</span>
+            <span className="text-xs text-ink-faint">Commits (30d)</span>
           </div>
-          <p className="text-2xl font-bold text-white">{data.summary.totalCommits30d}</p>
-          <p className="text-[10px] text-neutral-500 mt-1">Total merged commits</p>
+          <p className="text-2xl font-bold text-ink">{data.summary.totalCommits30d}</p>
+          <p className="text-[10px] text-ink-faint mt-1">Total merged commits</p>
         </div>
 
         {/* Avg Per Week */}
-        <div className="p-3 rounded-xl border border-neutral-800 bg-neutral-900/30">
+        <div className="p-3 rounded-xl border border-edge bg-surface-subtle/30">
           <div className="flex items-center gap-2 mb-1">
             <Activity className="w-4 h-4 text-purple-400" />
-            <span className="text-xs text-neutral-400">Avg/Week</span>
+            <span className="text-xs text-ink-faint">Avg/Week</span>
           </div>
-          <p className="text-2xl font-bold text-white">{data.summary.avgCommitsPerWeek}</p>
-          <p className="text-[10px] text-neutral-500 mt-1">Based on last 4 weeks</p>
+          <p className="text-2xl font-bold text-ink">{data.summary.avgCommitsPerWeek}</p>
+          <p className="text-[10px] text-ink-faint mt-1">Based on last 4 weeks</p>
         </div>
 
         {/* Velocity Trend */}
-        <div className={`p-3 rounded-xl border ${isNewTrend ? 'border-neutral-800 bg-neutral-900/30' : isPositive ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-red-500/30 bg-red-500/10'}`}>
+        <div className={`p-3 rounded-xl border ${isNewTrend ? 'border-edge bg-surface-subtle/30' : isPositive ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-red-500/30 bg-red-500/10'}`}>
           <div className="flex items-center gap-2 mb-1">
             {isNewTrend ? (
-              <Activity className="w-4 h-4 text-neutral-400" />
+              <Activity className="w-4 h-4 text-ink-faint" />
             ) : isPositive ? (
               <TrendingUp className="w-4 h-4 text-emerald-400" />
             ) : (
               <TrendingDown className="w-4 h-4 text-red-400" />
             )}
-            <span className="text-xs text-neutral-400">Trend</span>
+            <span className="text-xs text-ink-faint">Trend</span>
           </div>
-          <p className={`text-xl font-bold truncate ${isNewTrend ? 'text-neutral-300' : isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-xl font-bold truncate ${isNewTrend ? 'text-ink-secondary' : isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
             {data.summary.velocityTrend}
           </p>
-          <p className="text-[10px] text-neutral-500 mt-1">{getTrendInterpretation()}</p>
+          <p className="text-[10px] text-ink-faint mt-1">{getTrendInterpretation()}</p>
         </div>
 
         {/* Active Contributors */}
-        <div className="p-3 rounded-xl border border-neutral-800 bg-neutral-900/30">
+        <div className="p-3 rounded-xl border border-edge bg-surface-subtle/30">
           <div className="flex items-center gap-2 mb-1">
             <Users className="w-4 h-4 text-amber-400" />
-            <span className="text-xs text-neutral-400">Active (7d)</span>
+            <span className="text-xs text-ink-faint">Active (7d)</span>
           </div>
           <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold text-white">{data.summary.activeContributors}</span>
-            <span className="text-sm text-neutral-500">/ {data.summary.totalContributors}</span>
+            <span className="text-2xl font-bold text-ink">{data.summary.activeContributors}</span>
+            <span className="text-sm text-ink-faint">/ {data.summary.totalContributors}</span>
           </div>
-          <p className="text-[10px] text-neutral-500 mt-1">Contributors with commits</p>
+          <p className="text-[10px] text-ink-faint mt-1">Contributors with commits</p>
         </div>
       </div>
 
       {/* Daily Activity Chart */}
       <div>
-        <h3 className="text-sm font-medium text-neutral-300 mb-3">Daily Activity (Last 14 Days)</h3>
-        <div className="h-48 bg-neutral-900/30 rounded-xl p-4 border border-neutral-800">
+        <h3 className="text-sm font-medium text-ink-secondary mb-3">Daily Activity (Last 14 Days)</h3>
+        <div className="h-48 bg-surface-subtle/30 rounded-xl p-4 border border-edge">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data.dailyActivity}>
               <defs>
@@ -126,8 +126,8 @@ export const VelocityPanel = ({ data }: VelocityPanelProps) => {
 
       {/* Weekly Trend */}
       <div>
-        <h3 className="text-sm font-medium text-neutral-300 mb-3">Weekly Trend</h3>
-        <div className="h-32 bg-neutral-900/30 rounded-xl p-4 border border-neutral-800">
+        <h3 className="text-sm font-medium text-ink-secondary mb-3">Weekly Trend</h3>
+        <div className="h-32 bg-surface-subtle/30 rounded-xl p-4 border border-edge">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.weeklyTrend}>
               <XAxis 
@@ -157,20 +157,20 @@ export const VelocityPanel = ({ data }: VelocityPanelProps) => {
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Zap className="w-4 h-4 text-amber-400" />
-          <h3 className="text-sm font-medium text-neutral-300">Most Active (30d)</h3>
+          <h3 className="text-sm font-medium text-ink-secondary">Most Active (30d)</h3>
         </div>
         <div className="space-y-2">
           {data.topContributors.map((contributor, index) => (
             <div
               key={contributor.email}
-              className="flex items-center gap-3 p-3 rounded-lg bg-neutral-900/50 border border-neutral-800"
+              className="flex items-center gap-3 p-3 rounded-lg bg-surface-subtle/50 border border-edge"
             >
-              <div className="w-6 h-6 rounded-full bg-neutral-800 flex items-center justify-center text-xs font-bold text-neutral-300">
+              <div className="w-6 h-6 rounded-full bg-surface-ui flex items-center justify-center text-xs font-bold text-ink-secondary">
                 {index + 1}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white truncate">{contributor.email}</p>
-                <p className="text-xs text-neutral-500">
+                <p className="text-sm text-ink truncate">{contributor.email}</p>
+                <p className="text-xs text-ink-faint">
                   {contributor.commits} commits · {contributor.lastWeek} this week
                 </p>
               </div>

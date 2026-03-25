@@ -42,7 +42,7 @@ export const SignalsList = ({ signals, limit = 10, onSignalClick }: SignalsListP
 
   if (signals.length === 0) {
     return (
-      <div className="flex items-center justify-center h-32 text-neutral-600">
+      <div className="flex items-center justify-center h-32 text-ink-faint">
         <div className="text-center">
           <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No signals detected</p>
@@ -62,7 +62,7 @@ export const SignalsList = ({ signals, limit = 10, onSignalClick }: SignalsListP
             <div
               key={index}
               onClick={() => onSignalClick?.(signal)}
-              className={`p-4 rounded-xl border ${config.bg} ${config.border} transition-all duration-200 ${onSignalClick ? 'cursor-pointer hover:bg-neutral-800/50 hover:border-neutral-700' : ''}`}
+              className={`p-4 rounded-xl border ${config.bg} ${config.border} transition-all duration-200 ${onSignalClick ? 'cursor-pointer hover:bg-surface-ui/50 hover:border-edge' : ''}`}
             >
               <div className="flex items-start gap-3">
                 <Icon className={`w-4 h-4 mt-0.5 ${config.color}`} />
@@ -71,16 +71,16 @@ export const SignalsList = ({ signals, limit = 10, onSignalClick }: SignalsListP
                     <span className={`text-xs font-medium uppercase tracking-wider ${config.color}`}>
                       {signal.severity}
                     </span>
-                    <span className="text-xs text-neutral-700">•</span>
-                    <span className="text-xs text-neutral-500">{signal.type}</span>
+                    <span className="text-xs text-ink-faint">•</span>
+                    <span className="text-xs text-ink-faint">{signal.type}</span>
                   </div>
-                  <p className="text-sm text-white mb-1">{signal.message}</p>
-                  <p className="text-xs text-neutral-500 truncate font-mono">
+                  <p className="text-sm text-ink mb-1">{signal.message}</p>
+                  <p className="text-xs text-ink-faint truncate font-mono">
                     {signal.file}
                     {signal.line && `:${signal.line}`}
                   </p>
                   {signal.suggestion && (
-                    <p className="text-xs text-neutral-600 mt-2">
+                    <p className="text-xs text-ink-faint mt-2">
                       💡 {signal.suggestion}
                     </p>
                   )}
@@ -93,7 +93,7 @@ export const SignalsList = ({ signals, limit = 10, onSignalClick }: SignalsListP
       {hasMore && (
         <button
           onClick={() => setShowAll(!showAll)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2 text-sm text-ink-faint hover:text-ink transition-colors"
         >
           {showAll ? (
             <>

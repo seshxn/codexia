@@ -129,14 +129,14 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
         <Card title="Engineering Intelligence" subtitle="Connect GitHub or Jira to unlock engineering analytics">
           <div className="space-y-4 text-sm text-ink-secondary">
             <p>{config.data?.teamConfig.message || 'Set CODEXIA_DASHBOARD_TEAMS_JSON to enable team analytics.'}</p>
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <p className="text-xs uppercase tracking-wide text-ink-faint">Provider Status</p>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-ink-faint mb-3">Provider Status</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-edge bg-surface-subtle/50 p-3">
                   <p className="text-xs text-ink-faint">GitHub</p>
                   <p className="mt-1 text-sm text-ink">{config.data?.providers.github.message}</p>
                 </div>
-                <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-3">
+                <div className="rounded-lg border border-edge bg-surface-subtle/50 p-3">
                   <p className="text-xs text-ink-faint">Jira</p>
                   <p className="mt-1 text-sm text-ink">{config.data?.providers.jira.message}</p>
                 </div>

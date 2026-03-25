@@ -58,7 +58,7 @@ export const ActivityChart = ({ data }: ActivityChartProps) => {
 
       {/* Recent Changes */}
       <div>
-        <h4 className="text-sm font-medium text-neutral-500 mb-3 flex items-center gap-2">
+        <h4 className="text-sm font-medium text-ink-faint mb-3 flex items-center gap-2">
           <GitCommit className="w-4 h-4" />
           Recent Changes
         </h4>
@@ -66,13 +66,13 @@ export const ActivityChart = ({ data }: ActivityChartProps) => {
           {data.recentChanges.slice(0, 5).map((change, index) => (
             <div
               key={index}
-              className="flex items-center justify-between p-2 rounded-lg bg-neutral-900/50"
+              className="flex items-center justify-between p-2 rounded-lg bg-surface-subtle/50"
             >
-              <span className="text-sm text-neutral-300 truncate flex-1">
+              <span className="text-sm text-ink-secondary truncate flex-1">
                 {change.file}
               </span>
               <div className="flex items-center gap-3 text-xs">
-                <span className="text-neutral-600">
+                <span className="text-ink-faint">
                   {change.changeCount} changes
                 </span>
                 <span className="text-slate-600">
@@ -86,7 +86,7 @@ export const ActivityChart = ({ data }: ActivityChartProps) => {
 
       {/* Top Contributors */}
       <div>
-        <h4 className="text-sm font-medium text-neutral-500 mb-3 flex items-center gap-2">
+        <h4 className="text-sm font-medium text-ink-faint mb-3 flex items-center gap-2">
           <User className="w-4 h-4" />
           Top Contributors
         </h4>
@@ -94,12 +94,12 @@ export const ActivityChart = ({ data }: ActivityChartProps) => {
           {data.authorStats.slice(0, 4).map((author, index) => (
             <div
               key={index}
-              className="p-3 rounded-lg bg-neutral-900/50 border border-neutral-800"
+              className="p-3 rounded-lg bg-surface-subtle/50 border border-edge"
             >
-              <p className="text-sm font-medium text-white truncate">
+              <p className="text-sm font-medium text-ink truncate">
                 {author.author}
               </p>
-              <p className="text-xs text-neutral-500 mt-1">
+              <p className="text-xs text-ink-faint mt-1">
                 {author.commits} commits • {author.filesChanged} files
               </p>
             </div>

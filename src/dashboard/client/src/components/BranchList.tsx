@@ -10,7 +10,7 @@ interface BranchListProps {
 export const BranchList = ({ branches, current, staleBranches }: BranchListProps) => {
   if (!branches || branches.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-neutral-600">
+      <div className="flex items-center justify-center h-48 text-ink-faint">
         <div className="text-center">
           <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No branch data available</p>
@@ -24,8 +24,8 @@ export const BranchList = ({ branches, current, staleBranches }: BranchListProps
       {/* Summary */}
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-4">
-          <span className="text-neutral-500">
-            <span className="text-white font-semibold">{branches.length}</span> branches
+          <span className="text-ink-faint">
+            <span className="text-ink font-semibold">{branches.length}</span> branches
           </span>
           {staleBranches > 0 && (
             <span className="flex items-center gap-1 text-amber-400">
@@ -50,17 +50,17 @@ export const BranchList = ({ branches, current, staleBranches }: BranchListProps
                 ? 'bg-green-500/10 border-green-500/30'
                 : branch.isStale
                 ? 'bg-amber-500/10 border-amber-500/30'
-                : 'bg-neutral-900/50 border-neutral-800 hover:border-neutral-700'
+                : 'bg-surface-subtle/50 border-edge hover:border-edge'
             }`}
           >
             <GitBranch className={`w-4 h-4 flex-shrink-0 ${
-              branch.isCurrent ? 'text-green-400' : branch.isStale ? 'text-amber-400' : 'text-neutral-500'
+              branch.isCurrent ? 'text-green-400' : branch.isStale ? 'text-amber-400' : 'text-ink-faint'
             }`} />
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className={`text-sm font-medium truncate ${
-                  branch.isCurrent ? 'text-green-400' : 'text-white'
+                  branch.isCurrent ? 'text-green-400' : 'text-ink'
                 }`}>
                   {branch.name}
                 </span>
@@ -72,14 +72,14 @@ export const BranchList = ({ branches, current, staleBranches }: BranchListProps
                 )}
               </div>
               {branch.lastCommitMessage && (
-                <p className="text-xs text-neutral-500 truncate mt-0.5">
+                <p className="text-xs text-ink-faint truncate mt-0.5">
                   {branch.lastCommitMessage}
                 </p>
               )}
             </div>
 
             <div className="text-right flex-shrink-0">
-              <div className="flex items-center gap-1 text-xs text-neutral-600">
+              <div className="flex items-center gap-1 text-xs text-ink-faint">
                 <Clock className="w-3 h-3" />
                 {branch.daysSinceActivity === 0 ? 'today' : `${branch.daysSinceActivity}d ago`}
               </div>
