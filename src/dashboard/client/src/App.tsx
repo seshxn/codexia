@@ -86,7 +86,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl border-b border-edge">
+      <header className="sticky top-0 z-40 bg-surface/85 backdrop-blur-md border-b border-edge">
         <div className={`${isGraphPage ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-6 py-4 space-y-4`}>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center">

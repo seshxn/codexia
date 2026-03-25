@@ -138,43 +138,6 @@ body {
   animation: modalSlideOut 0.15s ease-in forwards;
 }
 
-/* Subtle glow effects */
-.glow-blue {
-  box-shadow: 0 0 20px rgba(14, 165, 233, 0.15);
-}
-
-.glow-green {
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
-}
-
-.glow-purple {
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
-}
-
-/* Card hover effect */
-.card-hover {
-  transition: all 0.2s ease;
-}
-
-.card-hover:hover {
-  border-color: #404040;
-  transform: translateY(-1px);
-}
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(to right, #fff, #a1a1a1);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Glass effect */
-.glass {
-  background: rgb(var(--surface-ui) / 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
 
 /* Pulse animation for live indicators */
 @keyframes pulse-soft {

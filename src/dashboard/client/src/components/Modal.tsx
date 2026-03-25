@@ -84,9 +84,7 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children, size = 'md' 
               transitionTimingFunction: isAnimating ? 'cubic-bezier(0.16, 1, 0.3, 1)' : 'ease-in',
             }}
           >
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-neutral-700/15 to-transparent pointer-events-none" />
-
-            <div className="relative flex items-start justify-between px-6 py-5 border-b border-edge">
+            <div className="flex items-start justify-between px-6 py-5 border-b border-edge">
               <div>
                 <h2 className="text-lg font-semibold text-ink tracking-tight">{title}</h2>
                 {subtitle && <p className="text-sm text-ink-faint mt-0.5">{subtitle}</p>}
@@ -94,13 +92,13 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children, size = 'md' 
               <button
                 onClick={onClose}
                 aria-label="Close dialog"
-                className="p-2 -mr-2 hover:bg-surface-raised rounded-xl transition-all duration-150 text-ink-faint hover:text-ink group"
+                className="p-2 -mr-2 hover:bg-surface-raised rounded-xl transition-colors duration-150 text-ink-faint hover:text-ink"
               >
-                <X className="w-5 h-5 transition-transform duration-150 group-hover:rotate-90" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="relative p-6 overflow-y-auto flex-1">
+            <div className="p-6 overflow-y-auto flex-1">
               {children}
             </div>
           </div>

@@ -74,10 +74,6 @@ export default {
         },
       },
       boxShadow: {
-        'glow-blue': '0 0 20px rgba(14, 165, 233, 0.15)',
-        'glow-green': '0 0 20px rgba(34, 197, 94, 0.15)',
-        'glow-purple': '0 0 20px rgba(168, 85, 247, 0.15)',
-        'glow-red': '0 0 20px rgba(239, 68, 68, 0.15)',
         'elevated': '0 4px 20px rgba(0, 0, 0, 0.5)',
       },
       backdropBlur: {
