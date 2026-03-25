@@ -120,26 +120,26 @@ export const RepositoryDashboard = ({ refreshKey }: RepositoryDashboardProps) =>
           <StatCard
             title="Total Files"
             value={data.totalFiles.toLocaleString()}
-            icon={<FileCode className="w-5 h-5 text-white" />}
+            icon={<FileCode className="w-5 h-5 text-ink" aria-hidden="true" />}
             color="blue"
           />
           <StatCard
             title="Symbols"
             value={data.totalSymbols.toLocaleString()}
-            icon={<Layers className="w-5 h-5 text-white" />}
+            icon={<Layers className="w-5 h-5 text-ink" aria-hidden="true" />}
             color="purple"
           />
           <StatCard
             title="Dependencies"
             value={data.totalDependencies.toLocaleString()}
-            icon={<GitBranch className="w-5 h-5 text-white" />}
+            icon={<GitBranch className="w-5 h-5 text-ink" aria-hidden="true" />}
             color="green"
           />
           <StatCard
             title="Signals"
             value={signals.data?.signals.length ?? 'N/A'}
             subtitle={signals.data ? `${signals.data.bySeverity.critical ?? 0} critical` : undefined}
-            icon={<AlertTriangle className="w-5 h-5 text-white" />}
+            icon={<AlertTriangle className="w-5 h-5 text-ink" aria-hidden="true" />}
             color="yellow"
           />
         </div>

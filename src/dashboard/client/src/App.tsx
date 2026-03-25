@@ -57,7 +57,7 @@ const App = () => {
   }, [repoContextRefetch]);
 
   const getTabButtonClass = (tab: DashboardTab): string => (
-    `inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
+    `inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
       activeTab === tab
         ? 'bg-ink text-surface shadow-sm'
         : 'text-ink-secondary hover:text-ink hover:bg-surface-raised/60'
@@ -99,12 +99,19 @@ const App = () => {
                 <span className="text-ink-secondary text-sm font-medium">{repoName}</span>
               </div>
 
-              <nav className="flex flex-wrap gap-2">
+              <nav role="tablist" aria-label="Dashboard sections" className="flex flex-wrap gap-2">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <button key={item.id} onClick={() => setActiveTab(item.id)} className={getTabButtonClass(item.id)}>
-                      <Icon className="h-4 w-4" />
+                    <button
+                      key={item.id}
+                      role="tab"
+                      aria-selected={activeTab === item.id}
+                      aria-controls={`tabpanel-${item.id}`}
+                      onClick={() => setActiveTab(item.id)}
+                      className={getTabButtonClass(item.id)}
+                    >
+                      <Icon className="h-4 w-4" aria-hidden="true" />
                       <span>{item.label}</span>
                     </button>
                   );
@@ -120,9 +127,10 @@ const App = () => {
               <button
                 onClick={refreshAll}
                 disabled={repoContext.loading}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-ink hover:bg-ink/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-surface transition-all duration-200 hover:scale-[1.02]"
+                aria-label={repoContext.loading ? 'Refreshing data…' : 'Refresh all data'}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-ink hover:bg-ink/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-surface transition-all duration-200 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               >
-                <RefreshCw className={`w-4 h-4 ${repoContext.loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${repoContext.loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                 Refresh
               </button>
             </div>
@@ -160,6 +168,9 @@ const App = () => {
         )}
 
         <section
+          id={`tabpanel-${visibleTab}`}
+          role="tabpanel"
+          aria-label={NAV_ITEMS.find((i) => i.id === visibleTab)?.label}
           className={tabPanelClassName}
           style={tabPanelStyle}
         >

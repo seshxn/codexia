@@ -36,7 +36,7 @@ const healthBadgeClass = (status: JiraSprintReportData['health']['status']): str
   if (status === 'off_track') {
     return 'bg-red-500/20 text-red-300 border-red-500/30';
   }
-  return 'bg-neutral-700/40 text-neutral-300 border-neutral-600';
+  return 'bg-surface-raised text-ink-secondary border-edge';
 };
 
 const statusLabel = (status: JiraSprintReportData['health']['status']): string => status.replace('_', ' ');
@@ -50,13 +50,13 @@ interface InsightListProps {
 const InsightList = ({ title, items, emptyLabel }: InsightListProps) => {
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-neutral-500">{title}</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">{title}</p>
       {items.length === 0 ? (
-        <p className="mt-2 text-sm text-neutral-500">{emptyLabel}</p>
+        <p className="mt-1.5 text-sm text-ink-faint">{emptyLabel}</p>
       ) : (
-        <ul className="mt-2 space-y-1 text-sm text-neutral-200">
+        <ul className="mt-1.5 space-y-1 text-sm text-ink-secondary">
           {items.map((item) => (
-            <li key={item}>- {item}</li>
+            <li key={item}>— {item}</li>
           ))}
         </ul>
       )}
@@ -72,10 +72,10 @@ interface MetricTileProps {
 
 const MetricTile = ({ label, value, helper }: MetricTileProps) => {
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-      <p className="text-xs uppercase tracking-wide text-neutral-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white tracking-tight">{value}</p>
-      {helper && <p className="mt-1 text-xs text-neutral-500">{helper}</p>}
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-ink-faint">{label}</dt>
+      <dd className="mt-1 text-2xl font-semibold text-ink tracking-tight nums">{value}</dd>
+      {helper && <p className="mt-0.5 text-xs text-ink-faint">{helper}</p>}
     </div>
   );
 };
@@ -126,7 +126,7 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
   } = useJiraAnalytics({ refreshKey });
 
   if (configLoading) {
-    return <p className="text-sm text-neutral-400">Loading Jira configuration...</p>;
+    return <p className="text-sm text-ink-faint">Loading Jira configuration...</p>;
   }
 
   if (configError) {
@@ -140,11 +140,11 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
   if (!config?.enabled) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-neutral-300">Jira analytics is not configured yet.</p>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 text-sm text-neutral-400">
+        <p className="text-sm text-ink-secondary">Jira analytics is not configured yet.</p>
+        <div className="rounded-xl border border-edge p-4 text-sm text-ink-secondary">
           <p>{config?.message || 'Missing Jira configuration.'}</p>
-          <p className="mt-2 text-xs text-neutral-500">
-            Expected env vars: <code>CODEXIA_JIRA_BASE_URL</code> and either <code>CODEXIA_JIRA_EMAIL</code> + <code>CODEXIA_JIRA_API_TOKEN</code> or <code>CODEXIA_JIRA_BEARER_TOKEN</code>.
+          <p className="mt-2 text-xs text-ink-faint">
+            Expected env vars: <code className="font-mono text-ink">CODEXIA_JIRA_BASE_URL</code> and either <code className="font-mono text-ink">CODEXIA_JIRA_EMAIL</code> + <code className="font-mono text-ink">CODEXIA_JIRA_API_TOKEN</code> or <code className="font-mono text-ink">CODEXIA_JIRA_BEARER_TOKEN</code>.
           </p>
         </div>
       </div>
@@ -154,72 +154,77 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 xl:col-span-2">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Connection</p>
-          <p className="mt-2 text-sm text-neutral-300">
-            Connected to <span className="text-white">{config.baseUrl}</span> using <span className="text-white">{config.authMode}</span> auth.
+        <div className="xl:col-span-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Connection</p>
+          <p className="mt-1 text-sm text-ink-secondary">
+            Connected to <span className="text-ink">{config.baseUrl}</span> using <span className="text-ink">{config.authMode}</span> auth.
           </p>
         </div>
 
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Historical Depth</p>
+        <div>
+          <label htmlFor="jira-max-sprints" className="text-xs font-medium uppercase tracking-wide text-ink-faint">Historical Depth</label>
           <input
+            id="jira-max-sprints"
             value={maxSprintsInput}
             onChange={(event) => setMaxSprintsInput(event.target.value)}
-            className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
+            className="mt-1 w-full rounded-lg border border-edge bg-surface-raised px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-transparent"
             placeholder="8"
             inputMode="numeric"
           />
-          <p className="mt-2 text-xs text-neutral-500">Used for board-wide sprint trend analysis.</p>
+          <p className="mt-1.5 text-xs text-ink-faint">Used for board-wide sprint trend analysis.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 xl:col-span-2">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Project Filter</p>
-          <div className="mt-2 flex gap-2">
+        <div className="xl:col-span-2">
+          <label htmlFor="jira-project-key" className="text-xs font-medium uppercase tracking-wide text-ink-faint">Project Filter</label>
+          <div className="mt-1 flex gap-2">
             <input
+              id="jira-project-key"
               value={projectKey}
               onChange={(event) => setProjectKey(event.target.value)}
-              className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
+              className="flex-1 rounded-lg border border-edge bg-surface-raised px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-transparent"
               placeholder="e.g. CORE"
             />
             <button
               onClick={loadBoards}
               disabled={boardsLoading}
-              className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-surface disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               {boardsLoading ? 'Loading...' : 'Find Boards'}
             </button>
           </div>
-          {boardsError && <p className="mt-2 text-xs text-red-300">{boardsError}</p>}
-          <p className="mt-2 text-xs text-neutral-500">Optional project key. Leave blank to search all visible boards.</p>
+          {boardsError && <p className="mt-1.5 text-xs text-accent-red" role="alert">{boardsError}</p>}
+          <p className="mt-1.5 text-xs text-ink-faint">Optional project key. Leave blank to search all visible boards.</p>
         </div>
 
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 xl:col-span-2">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Board Selection</p>
-          <div className="mt-2 flex gap-2">
+        <div className="xl:col-span-2">
+          <label htmlFor="jira-board-id" className="text-xs font-medium uppercase tracking-wide text-ink-faint">Board Selection</label>
+          <div className="mt-1 flex gap-2">
             <input
+              id="jira-board-id"
               value={boardIdInput}
               onChange={(event) => setBoardIdInput(event.target.value)}
-              className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
+              className="flex-1 rounded-lg border border-edge bg-surface-raised px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-transparent"
               placeholder="Enter board ID"
               inputMode="numeric"
             />
             <button
               onClick={applyBoardId}
-              className="rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-medium text-white"
+              className="rounded-lg border border-edge bg-surface-raised px-4 py-2 text-sm font-medium text-ink hover:bg-surface-ui focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               Use ID
             </button>
           </div>
+          <label htmlFor="jira-board-select" className="sr-only">Select board from list</label>
           <select
+            id="jira-board-select"
             value={selectedBoardId || ''}
             onChange={(event) => {
               const value = event.target.value;
               setSelectedBoardId(value ? Number(value) : null);
             }}
-            className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
+            className="mt-2 w-full rounded-lg border border-edge bg-surface-raised px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-transparent"
           >
             <option value="">Select board...</option>
             {boards.map((board) => (
@@ -232,15 +237,16 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 xl:col-span-2">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Sprint Selection</p>
+        <div className="xl:col-span-2">
+          <label htmlFor="jira-sprint-select" className="text-xs font-medium uppercase tracking-wide text-ink-faint">Sprint Selection</label>
           <select
+            id="jira-sprint-select"
             value={selectedSprintId || ''}
             onChange={(event) => {
               const value = event.target.value;
               setSelectedSprintId(value ? Number(value) : null);
             }}
-            className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
+            className="mt-1 w-full rounded-lg border border-edge bg-surface-raised px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-transparent disabled:opacity-50"
             disabled={!selectedBoardId || sprintsLoading}
           >
             <option value="">Select sprint...</option>
@@ -250,79 +256,79 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
               </option>
             ))}
           </select>
-          {sprintsLoading && <p className="mt-2 text-xs text-neutral-500">Loading sprints...</p>}
-          {sprintsError && <p className="mt-2 text-xs text-red-300">{sprintsError}</p>}
+          {sprintsLoading && <p className="mt-1.5 text-xs text-ink-faint" aria-live="polite">Loading sprints...</p>}
+          {sprintsError && <p className="mt-1.5 text-xs text-accent-red" role="alert">{sprintsError}</p>}
         </div>
 
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 xl:col-span-2">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Run Analysis</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+        <div className="xl:col-span-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Run Analysis</p>
+          <div className="mt-1 flex flex-wrap gap-2">
             <button
               onClick={runSprintAnalysis}
               disabled={analysisLoading || !selectedBoardId || !selectedSprintId}
-              className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-surface disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               {analysisLoading ? 'Running...' : 'Analyze Sprint'}
             </button>
             <button
               onClick={runBoardAnalysis}
               disabled={analysisLoading || !selectedBoardId}
-              className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-accent-yellow px-4 py-2 text-sm font-medium text-surface-page disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               {analysisLoading ? 'Running...' : 'Analyze Board History'}
             </button>
           </div>
-          <p className="mt-2 text-xs text-neutral-500">
+          <p className="mt-1.5 text-xs text-ink-faint" aria-live="polite">
             {selectedBoard
               ? `Active board: ${selectedBoard.name} (${selectedBoard.id})`
               : selectedBoardId
                 ? `Active board ID: ${selectedBoardId}`
                 : 'Pick a board to start.'}
           </p>
-          {analysisError && <p className="mt-2 text-xs text-red-300">{analysisError}</p>}
+          {analysisError && <p className="mt-1.5 text-xs text-accent-red" role="alert">{analysisError}</p>}
         </div>
       </div>
 
-      <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
-        <p className="text-xs uppercase tracking-wide text-violet-200">AI Insights</p>
-        <p className="mt-2 text-sm text-neutral-300">
+      <div className="rounded-xl border border-edge p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">AI Insights</p>
+        <p className="mt-1.5 text-sm text-ink-secondary">
           Generate narrative analysis from sprint metrics to explain delivery confidence, integrity risk, and next actions.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             onClick={runSprintAiInsights}
             disabled={aiInsightsLoading || !selectedBoardId || !selectedSprintId}
-            className="rounded-lg bg-violet-400 px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-accent-purple px-4 py-2 text-sm font-medium text-surface disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             {aiInsightsLoading ? 'Generating...' : 'AI Sprint Insights'}
           </button>
           <button
             onClick={runBoardAiInsights}
             disabled={aiInsightsLoading || !selectedBoardId}
-            className="rounded-lg border border-violet-400/40 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-edge bg-surface-raised px-4 py-2 text-sm font-medium text-ink hover:bg-surface-ui disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             {aiInsightsLoading ? 'Generating...' : 'AI Board Insights'}
           </button>
         </div>
-        {aiInsightsError && <p className="mt-2 text-xs text-red-300">{aiInsightsError}</p>}
+        {aiInsightsError && <p className="mt-2 text-xs text-accent-red" role="alert">{aiInsightsError}</p>}
       </div>
 
       {aiInsights && (
-        <div className="space-y-4 rounded-2xl border border-violet-500/30 bg-neutral-900/60 p-5">
+        <div className="space-y-4 rounded-2xl border border-edge p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h4 className="text-base font-semibold text-white tracking-tight">
+              <h4 className="text-base font-semibold text-ink tracking-tight">
                 AI {insightScopeLabel(aiInsights.scope)} Insights
               </h4>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-ink-faint">
                 Generated via {aiInsights.provider} at {new Date(aiInsights.generatedAt).toLocaleString()}
               </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-            <p className="text-xs uppercase tracking-wide text-neutral-500">Overview</p>
-            <p className="mt-2 text-sm text-neutral-200">{aiInsights.overview}</p>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Overview</p>
+            <p className="mt-1.5 text-sm text-ink-secondary">{aiInsights.overview}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -352,14 +358,14 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
       )}
 
       {sprintReport && (
-        <div className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5">
+        <div className="space-y-4 rounded-2xl border border-edge p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h4 className="text-base font-semibold text-white tracking-tight">
+              <h4 className="text-base font-semibold text-ink tracking-tight">
                 Sprint Report: {sprintReport.sprint.name}
               </h4>
-              <p className="text-sm text-neutral-400">
-                {sprintReport.board.name} | {formatDate(sprintReport.sprint.startDate)} - {formatDate(sprintReport.sprint.completeDate || sprintReport.sprint.endDate)}
+              <p className="text-sm text-ink-secondary">
+                {sprintReport.board.name} | {formatDate(sprintReport.sprint.startDate)} — {formatDate(sprintReport.sprint.completeDate || sprintReport.sprint.endDate)}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -372,7 +378,7 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <dl className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-5">
             <MetricTile
               label="Point Completion"
               value={formatPercent(sprintReport.metrics.points.completionRate)}
@@ -393,9 +399,9 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
               value={`${sprintReport.health.score.toFixed(1)}/100`}
               helper={sprintReport.health.summary}
             />
-          </div>
+          </dl>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <dl className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-5">
             <MetricTile
               label="Remaining Points"
               value={sprintReport.metrics.points.remaining.toFixed(1)}
@@ -420,14 +426,14 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
               value={formatPercent(sprintReport.integrity.indicators.removedPct)}
               helper={`${sprintReport.metrics.issues.removedDuringSprint} removed during sprint`}
             />
-          </div>
+          </dl>
 
           {sprintReport.integrity.flags.length > 0 && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-              <p className="text-xs uppercase tracking-wide text-amber-200">Integrity Flags</p>
-              <ul className="mt-2 space-y-1 text-sm text-amber-100">
+            <div className="rounded-xl border border-accent-yellow/30 bg-accent-yellow/5 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-accent-yellow">Integrity Flags</p>
+              <ul className="mt-1.5 space-y-1 text-sm text-ink-secondary" role="list">
                 {sprintReport.integrity.flags.map((flag) => (
-                  <li key={flag}>- {flag}</li>
+                  <li key={flag}>— {flag}</li>
                 ))}
               </ul>
             </div>
@@ -436,15 +442,15 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
       )}
 
       {boardReport && (
-        <div className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5">
+        <div className="space-y-4 rounded-2xl border border-edge p-5">
           <div>
-            <h4 className="text-base font-semibold text-white tracking-tight">Board History Report: {boardReport.board.name}</h4>
-            <p className="text-sm text-neutral-400">
+            <h4 className="text-base font-semibold text-ink tracking-tight">Board History Report: {boardReport.board.name}</h4>
+            <p className="text-sm text-ink-secondary">
               {boardReport.summary.sprintsAnalyzed} sprint(s) analyzed. Average integrity score: {boardReport.summary.averageIntegrityScore.toFixed(1)}/100.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <dl className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-5">
             <MetricTile
               label="Avg Completion"
               value={formatPercent(boardReport.summary.averageCompletionRate)}
@@ -462,37 +468,37 @@ export const JiraSprintAnalysis = ({ refreshKey = 0 }: JiraSprintAnalysisProps) 
               value={`${boardReport.summary.onTrackLikeSprints}/${boardReport.summary.sprintsAnalyzed}`}
               helper={`Risk low/medium/high: ${boardReport.summary.riskDistribution.low}/${boardReport.summary.riskDistribution.medium}/${boardReport.summary.riskDistribution.high}`}
             />
-          </div>
+          </dl>
 
-          <div className="overflow-x-auto rounded-xl border border-neutral-800">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-neutral-900/70 text-neutral-400">
+          <div className="overflow-x-auto rounded-xl border border-edge">
+            <table className="min-w-full text-left text-sm" aria-label={`Sprint history for ${boardReport.board.name}`}>
+              <thead className="bg-surface-subtle text-ink-faint">
                 <tr>
-                  <th className="px-3 py-2">Sprint</th>
-                  <th className="px-3 py-2">State</th>
-                  <th className="px-3 py-2">Completion</th>
-                  <th className="px-3 py-2">Scope Creep</th>
-                  <th className="px-3 py-2">Point Churn</th>
-                  <th className="px-3 py-2">Integrity</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Sprint</th>
+                  <th scope="col" className="px-3 py-2 font-medium">State</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Completion</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Scope Creep</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Point Churn</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Integrity</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-edge">
                 {boardReport.sprints.map((sprint) => (
-                  <tr key={sprint.id} className="border-t border-neutral-800 text-neutral-200">
+                  <tr key={sprint.id} className="text-ink-secondary">
                     <td className="px-3 py-2">
-                      <p className="font-medium text-white">{sprint.name}</p>
-                      <p className="text-xs text-neutral-500">{formatDate(sprint.startDate)} - {formatDate(sprint.completeDate || sprint.endDate)}</p>
+                      <p className="font-medium text-ink">{sprint.name}</p>
+                      <p className="text-xs text-ink-faint">{formatDate(sprint.startDate)} — {formatDate(sprint.completeDate || sprint.endDate)}</p>
                     </td>
                     <td className="px-3 py-2 capitalize">{sprint.state}</td>
-                    <td className="px-3 py-2">{formatPercent(sprint.completionRate)}</td>
-                    <td className="px-3 py-2">{formatPercent(sprint.scopeCreepPct)}</td>
-                    <td className="px-3 py-2">{formatPercent(sprint.pointChurnPct)}</td>
+                    <td className="px-3 py-2 nums">{formatPercent(sprint.completionRate)}</td>
+                    <td className="px-3 py-2 nums">{formatPercent(sprint.scopeCreepPct)}</td>
+                    <td className="px-3 py-2 nums">{formatPercent(sprint.pointChurnPct)}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-medium uppercase ${riskBadgeClass(sprint.integrityRisk)}`}>
                         {sprint.integrityRisk} ({sprint.integrityScore.toFixed(1)})
                       </span>
                       {sprint.flags.length > 0 && (
-                        <p className="mt-1 text-xs text-neutral-500">{sprint.flags.join(' ')}</p>
+                        <p className="mt-1 text-xs text-ink-faint">{sprint.flags.join(' ')}</p>
                       )}
                     </td>
                   </tr>

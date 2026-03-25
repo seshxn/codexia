@@ -70,6 +70,16 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
+/*
+ * Global focus-visible ring — ensures all interactive elements show a visible
+ * focus indicator when navigated by keyboard, while suppressing mouse focus outlines.
+ * Component-level overrides take precedence via Tailwind's focus-visible utilities.
+ */
+:focus-visible {
+  outline: 2px solid var(--accent-brand);
+  outline-offset: 2px;
+}
+
 /* Custom scrollbar - sleeker */
 ::-webkit-scrollbar {
   width: 6px;
