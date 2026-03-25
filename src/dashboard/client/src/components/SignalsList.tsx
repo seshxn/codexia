@@ -29,9 +29,9 @@ const severityConfig = {
   },
   low: {
     icon: Info,
-    color: 'text-sky-400',
-    bg: 'bg-sky-500/5',
-    border: 'border-sky-500/20',
+    color: 'text-accent-blue',
+    bg: 'bg-accent-blue/5',
+    border: 'border-accent-blue/20',
   },
 };
 

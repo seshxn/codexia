@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 export const LoadingSpinner = () => {
   return (
     <div className="flex items-center justify-center p-8">
-      <Loader2 className="w-8 h-8 text-sky-500 animate-spin" />
+      <Loader2 className="w-8 h-8 text-brand animate-spin" />
     </div>
   );
 };
@@ -27,7 +27,7 @@ export const LoadingPage = () => {
       <div className="text-center">
         <div className="relative">
           <div className="w-16 h-16 rounded-full border-2 border-edge" />
-          <div className="absolute inset-0 w-16 h-16 rounded-full border-2 border-transparent border-t-sky-500 animate-spin" />
+          <div className="absolute inset-0 w-16 h-16 rounded-full border-2 border-transparent border-t-brand animate-spin" />
         </div>
         <p className="text-ink-faint mt-4 text-sm font-medium">Loading dashboard...</p>
       </div>

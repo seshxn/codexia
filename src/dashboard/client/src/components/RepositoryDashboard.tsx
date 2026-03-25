@@ -258,7 +258,7 @@ export const RepositoryDashboard = ({ refreshKey }: RepositoryDashboardProps) =>
       <Card
         title="Development Activity"
         subtitle="Recent commits and contributor activity"
-        action={<Clock className="w-5 h-5 text-slate-400" />}
+        action={<Clock className="w-5 h-5 text-ink-faint" aria-hidden="true" />}
       >
         {temporal.loading && !temporal.data ? (
           <LoadingCard />

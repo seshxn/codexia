@@ -34,12 +34,12 @@ interface StatCardProps {
 }
 
 const colorClasses = {
-  blue:   'from-sky-500 to-sky-600',
-  green:  'from-emerald-500 to-emerald-600',
-  yellow: 'from-amber-500 to-amber-600',
-  red:    'from-red-500 to-red-600',
-  purple: 'from-violet-500 to-violet-600',
-  cyan:   'from-cyan-500 to-cyan-600',
+  blue:   'bg-accent-blue/15 text-accent-blue',
+  green:  'bg-brand/15 text-brand',
+  yellow: 'bg-accent-yellow/15 text-accent-yellow',
+  red:    'bg-accent-red/15 text-accent-red',
+  purple: 'bg-accent-purple/15 text-accent-purple',
+  cyan:   'bg-accent-cyan/15 text-accent-cyan',
 };
 
 export const StatCard = ({
@@ -58,7 +58,7 @@ export const StatCard = ({
           {subtitle && <p className="text-sm text-ink-faint mt-1">{subtitle}</p>}
         </div>
         {icon && (
-          <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClasses[color]} transition-transform duration-200 group-hover:scale-105`}>
+          <div className={`p-3 rounded-xl ${colorClasses[color]} transition-transform duration-200 group-hover:scale-105`}>
             {icon}
           </div>
         )}

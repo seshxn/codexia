@@ -357,7 +357,7 @@ export const HotPathDetailsModal = ({ isOpen, onClose, hotPath }: HotPathDetails
               </div>
               <ProgressBar 
                 value={hotPath.metrics.couplingFactor * 100} 
-                color={hotPath.metrics.couplingFactor > 0.5 ? 'bg-purple-500' : 'bg-slate-500'}
+                color={hotPath.metrics.couplingFactor > 0.5 ? 'bg-accent-purple' : 'bg-surface-raised'}
               />
             </div>
           </div>
@@ -436,7 +436,7 @@ export const OwnershipDetailsModal = ({ isOpen, onClose, file }: OwnershipDetail
           <div className="mt-2">
             <ProgressBar 
               value={100 - file.ownership} 
-              color="bg-slate-600"
+              color="bg-surface-raised"
               label="Others"
             />
           </div>

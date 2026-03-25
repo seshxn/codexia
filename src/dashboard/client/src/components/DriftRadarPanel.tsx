@@ -64,14 +64,14 @@ export const DriftRadarPanel = ({ data }: DriftRadarPanelProps) => {
             </span>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-edge bg-black/30 p-3">
+            <div className="rounded-lg border border-edge bg-surface-subtle/50 p-3">
               <p className="text-[11px] uppercase tracking-wide text-ink-faint">Delta</p>
               <p className={`mt-1 text-xl font-semibold ${data.trajectory.velocity.delta > 0 ? 'text-red-400' : data.trajectory.velocity.delta < 0 ? 'text-emerald-400' : 'text-ink-secondary'}`}>
                 {data.trajectory.velocity.delta > 0 ? '+' : ''}
                 {data.trajectory.velocity.delta.toFixed(1)}
               </p>
             </div>
-            <div className="rounded-lg border border-edge bg-black/30 p-3">
+            <div className="rounded-lg border border-edge bg-surface-subtle/50 p-3">
               <p className="text-[11px] uppercase tracking-wide text-ink-faint">Slope / Commit</p>
               <p className="mt-1 text-xl font-semibold text-ink">{data.trajectory.velocity.slopePerCommit.toFixed(2)}</p>
             </div>
@@ -81,7 +81,7 @@ export const DriftRadarPanel = ({ data }: DriftRadarPanelProps) => {
 
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Radar className="w-4 h-4 text-sky-400" />
+          <Radar className="w-4 h-4 text-brand" aria-hidden="true" />
           <h3 className="text-sm font-medium text-ink-secondary">Drift Decomposition</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -95,7 +95,7 @@ export const DriftRadarPanel = ({ data }: DriftRadarPanelProps) => {
                 </div>
                 <div className="mt-2 h-2 rounded-full bg-surface-ui overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-sky-500 to-cyan-400"
+                    className="h-full bg-brand"
                     style={{ width: `${Math.min(100, component.score)}%` }}
                   />
                 </div>
@@ -146,7 +146,7 @@ export const DriftRadarPanel = ({ data }: DriftRadarPanelProps) => {
           <p className="text-xs uppercase tracking-wide text-ink-faint mb-3">Layer Heatmap</p>
           <div className="space-y-2">
             {sortedLayers.length > 0 ? sortedLayers.map((layer) => (
-              <div key={layer.layer} className="rounded-lg border border-edge bg-black/30 p-2.5">
+              <div key={layer.layer} className="rounded-lg border border-edge bg-surface-subtle/50 p-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-ink-secondary">{layer.layer}</span>
                   <span className={`text-sm font-semibold ${scoreClass(layer.score)}`}>{layer.score}</span>
@@ -165,7 +165,7 @@ export const DriftRadarPanel = ({ data }: DriftRadarPanelProps) => {
           <p className="text-xs uppercase tracking-wide text-ink-faint mb-3">Emergent Conventions</p>
           <div className="space-y-2">
             {data.emergentConventions.length > 0 ? data.emergentConventions.slice(0, 5).map((candidate, index) => (
-              <div key={`${candidate.pattern}-${index}`} className="rounded-lg border border-edge bg-black/30 p-2.5">
+              <div key={`${candidate.pattern}-${index}`} className="rounded-lg border border-edge bg-surface-subtle/50 p-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-ink-secondary">{candidate.pattern}</span>
                   <span className="text-xs text-ink-faint">{Math.round(candidate.confidence * 100)}%</span>

@@ -16,7 +16,7 @@ const getHeatLevel = (score: number): {
   if (score >= 0.8) return { color: 'text-red-400', bg: 'bg-red-500', intensity: 4 };
   if (score >= 0.6) return { color: 'text-orange-400', bg: 'bg-orange-500', intensity: 3 };
   if (score >= 0.4) return { color: 'text-amber-400', bg: 'bg-amber-500', intensity: 2 };
-  return { color: 'text-sky-400', bg: 'bg-sky-500', intensity: 1 };
+  return { color: 'text-accent-blue', bg: 'bg-accent-blue', intensity: 1 };
 };
 
 export const HotPathsList = ({ hotPaths, limit = 10, onHotPathClick }: HotPathsListProps) => {
@@ -44,7 +44,7 @@ export const HotPathsList = ({ hotPaths, limit = 10, onHotPathClick }: HotPathsL
           return (
             <div
               key={index}
-              className={`p-4 rounded-xl bg-surface-subtle/30 border border-edge hover:border-edge hover:bg-surface-ui/30 transition-all duration-200 ${onHotPathClick ? 'cursor-pointer' : ''}`}
+              className={`p-4 rounded-xl bg-surface-subtle/30 border border-edge hover:border-edge hover:bg-surface-ui/30 transition-colors duration-200 ${onHotPathClick ? 'cursor-pointer' : ''}`}
               onClick={() => onHotPathClick?.(hotPath)}
             >
               <div className="flex items-start gap-3">
@@ -78,7 +78,7 @@ export const HotPathsList = ({ hotPaths, limit = 10, onHotPathClick }: HotPathsL
               </div>
               <div className="mt-3 h-1 bg-surface-ui rounded-full overflow-hidden">
                 <div
-                  className={`h-full ${heat.bg} rounded-full transition-all duration-700 ease-out`}
+                  className={`h-full ${heat.bg} rounded-full transition-[width] duration-700 ease-out`}
                   style={{ width: `${hotPath.score * 100}%` }}
                 />
               </div>

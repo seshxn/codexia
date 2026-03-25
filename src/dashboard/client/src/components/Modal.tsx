@@ -75,7 +75,7 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children, size = 'md' 
       <div className="absolute inset-0 overflow-y-auto">
         <div className="flex min-h-full items-center justify-center p-4">
           <div
-            className={`relative bg-surface-subtle/95 rounded-2xl border border-edge shadow-2xl shadow-surface/60 w-full ${sizeClasses[size]} max-h-[85vh] flex flex-col transition-all duration-300 ease-out ${
+            className={`relative bg-surface-subtle/95 rounded-2xl border border-edge shadow-2xl shadow-surface/60 w-full ${sizeClasses[size]} max-h-[85vh] flex flex-col transition-[opacity,transform] duration-300 ease-out ${
               isAnimating
                 ? 'opacity-100 scale-100 translate-y-0'
                 : 'opacity-0 scale-95 translate-y-4'
@@ -136,16 +136,16 @@ interface MetricCardProps {
 
 export const MetricCard = ({ label, value, icon, color = 'blue', subtitle }: MetricCardProps) => {
   const colorClasses = {
-    blue: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-    green: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    yellow: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    red: 'bg-red-500/10 text-red-400 border-red-500/20',
-    purple: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
-    cyan: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    blue:   'bg-accent-blue/10 text-accent-blue border-accent-blue/20',
+    green:  'bg-accent-green/10 text-accent-green border-accent-green/20',
+    yellow: 'bg-accent-yellow/10 text-accent-yellow border-accent-yellow/20',
+    red:    'bg-accent-red/10 text-accent-red border-accent-red/20',
+    purple: 'bg-accent-purple/10 text-accent-purple border-accent-purple/20',
+    cyan:   'bg-accent-cyan/10 text-accent-cyan border-accent-cyan/20',
   };
 
   return (
-    <div className={`p-4 rounded-xl border ${colorClasses[color]} transition-all duration-200 hover:scale-[1.02]`}>
+    <div className={`p-4 rounded-xl border ${colorClasses[color]} transition-[transform,border-color] duration-200 hover:scale-[1.02]`}>
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <span className="text-xs text-ink-faint uppercase tracking-wider font-medium">{label}</span>
@@ -165,7 +165,7 @@ interface ProgressBarProps {
   showValue?: boolean;
 }
 
-export const ProgressBar = ({ value, max = 100, color = 'bg-sky-500', label, showValue = true }: ProgressBarProps) => {
+export const ProgressBar = ({ value, max = 100, color = 'bg-brand', label, showValue = true }: ProgressBarProps) => {
   const percentage = Math.min(100, (value / max) * 100);
 
   return (
@@ -178,7 +178,7 @@ export const ProgressBar = ({ value, max = 100, color = 'bg-sky-500', label, sho
       )}
       <div className="h-1.5 bg-surface-raised rounded-full overflow-hidden">
         <div 
-          className={`h-full ${color} rounded-full transition-all duration-700 ease-out`}
+          className={`h-full ${color} rounded-full transition-[width] duration-700 ease-out`}
           style={{ width: `${percentage}%` }}
         />
       </div>

@@ -250,22 +250,22 @@ export const CodeHealthPanel = ({ data }: CodeHealthPanelProps) => {
           {totalComplexity > 0 && (
             <>
               <div 
-                className="bg-emerald-500 transition-all duration-500"
+                className="bg-emerald-500 transition-[width] duration-500"
                 style={{ width: `${(data.complexity.distribution.low / totalComplexity) * 100}%` }}
                 title={`Low: ${data.complexity.distribution.low} files`}
               />
               <div 
-                className="bg-lime-500 transition-all duration-500"
+                className="bg-lime-500 transition-[width] duration-500"
                 style={{ width: `${(data.complexity.distribution.moderate / totalComplexity) * 100}%` }}
                 title={`Moderate: ${data.complexity.distribution.moderate} files`}
               />
               <div 
-                className="bg-amber-500 transition-all duration-500"
+                className="bg-amber-500 transition-[width] duration-500"
                 style={{ width: `${(data.complexity.distribution.high / totalComplexity) * 100}%` }}
                 title={`High: ${data.complexity.distribution.high} files`}
               />
               <div 
-                className="bg-red-500 transition-all duration-500"
+                className="bg-red-500 transition-[width] duration-500"
                 style={{ width: `${(data.complexity.distribution.critical / totalComplexity) * 100}%` }}
                 title={`Critical: ${data.complexity.distribution.critical} files`}
               />

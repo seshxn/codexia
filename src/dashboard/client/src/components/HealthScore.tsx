@@ -38,7 +38,7 @@ export const HealthScore = ({ score, size = 'md', onClick }: HealthScoreProps) =
 
   return (
     <div 
-      className={`flex flex-col items-center ${onClick ? 'cursor-pointer hover:scale-105 transition-all duration-300' : ''}`}
+      className={`flex flex-col items-center ${onClick ? 'cursor-pointer hover:scale-105 transition-transform duration-300' : ''}`}
       onClick={onClick}
     >
       <div className={`relative ${classes.container}`}>

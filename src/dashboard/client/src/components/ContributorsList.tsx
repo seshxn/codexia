@@ -57,7 +57,7 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
             <div
               key={contributor.email}
               onClick={() => onContributorClick?.(contributor)}
-              className={`flex items-center gap-3 p-3 rounded-xl bg-surface-subtle/30 border border-edge hover:border-edge hover:bg-surface-ui/30 transition-all duration-200 ${onContributorClick ? 'cursor-pointer' : ''}`}
+              className={`flex items-center gap-3 p-3 rounded-xl bg-surface-subtle/30 border border-edge hover:border-edge hover:bg-surface-ui/30 transition-colors duration-200 ${onContributorClick ? 'cursor-pointer' : ''}`}
             >
               {/* Rank */}
               <div className={`w-8 h-8 rounded-full ${badge.bg} flex items-center justify-center text-xs font-bold ${badge.color}`}>
@@ -68,7 +68,7 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
               <AvatarImage
                 src={contributor.avatar}
                 name={contributor.name}
-                className="w-10 h-10 rounded-full bg-surface-ui ring-2 ring-neutral-700"
+                className="w-10 h-10 rounded-full bg-surface-ui ring-2 ring-edge"
               />
 
               {/* Info */}

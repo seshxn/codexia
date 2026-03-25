@@ -75,7 +75,7 @@ export const ActivityChart = ({ data }: ActivityChartProps) => {
                 <span className="text-ink-faint">
                   {change.changeCount} changes
                 </span>
-                <span className="text-slate-600">
+                <span className="text-ink-faint">
                   {new Date(change.lastModified).toLocaleDateString()}
                 </span>
               </div>

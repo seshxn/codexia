@@ -31,14 +31,14 @@ const severityClass = (severity: TeamReportData['recentIncidents'][number]['seve
   if (severity === 'critical') return 'border-red-500/30 bg-red-500/10 text-red-300';
   if (severity === 'high') return 'border-orange-500/30 bg-orange-500/10 text-orange-300';
   if (severity === 'medium') return 'border-amber-500/30 bg-amber-500/10 text-amber-300';
-  return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+  return 'border-edge bg-surface-raised text-ink-secondary';
 };
 
 const deploymentStatusClass = (status: TeamReportData['deploymentTimeline'][number]['status']): string => {
   if (status === 'success') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
   if (status === 'failure') return 'border-red-500/30 bg-red-500/10 text-red-300';
-  if (status === 'in_progress') return 'border-sky-500/30 bg-sky-500/10 text-sky-300';
-  return 'border-slate-500/30 bg-slate-500/10 text-slate-300';
+  if (status === 'in_progress') return 'border-accent-blue/30 bg-accent-blue/10 text-accent-blue';
+  return 'border-edge bg-surface-raised text-ink-secondary';
 };
 
 const formatMetric = (metric: ConfidenceMetricData, unit?: 'hours' | 'percent'): string => {
@@ -260,7 +260,7 @@ export const EngineeringDashboard = ({ refreshKey }: EngineeringDashboardProps) 
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card title="Selected Scope DORA" subtitle={report?.team.name || 'Loading...'} action={<Radar className="w-5 h-5 text-sky-400" />}>
+        <Card title="Selected Scope DORA" subtitle={report?.team.name || 'Loading...'} action={<Radar className="w-5 h-5 text-brand" aria-hidden="true" />}>
           {reportLoading && !report ? (
             <LoadingCard />
           ) : reportError ? (
