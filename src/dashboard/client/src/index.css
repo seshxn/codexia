@@ -10,22 +10,38 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
-  /* Vercel-inspired color palette */
-  --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --bg-tertiary: #111111;
-  --bg-elevated: #171717;
-  --border-primary: #262626;
-  --border-secondary: #333333;
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1a1;
-  --text-tertiary: #666666;
-  --accent-blue: #0ea5e9;
+
+  /*
+   * Design tokens — R G B channel format for Tailwind opacity modifier support.
+   * In CSS: use as rgb(var(--surface-page))
+   * In Tailwind: use as bg-surface, bg-surface/50, etc.
+   */
+
+  /* Surfaces */
+  --surface-page:    0 0 0;       /* #000000 — page background */
+  --surface-subtle:  10 10 10;    /* #0a0a0a — secondary background */
+  --surface-ui:      17 17 17;    /* #111111 — UI element backgrounds */
+  --surface-raised:  23 23 23;    /* #171717 — elevated cards */
+
+  /* Edges / Borders */
+  --edge-subtle:     38 38 38;    /* #262626 — standard borders */
+  --edge-moderate:   51 51 51;    /* #333333 — stronger borders / dividers */
+
+  /* Ink / Text */
+  --ink-primary:     250 250 250; /* #fafafa — primary text */
+  --ink-secondary:   161 161 161; /* #a1a1a1 — secondary text */
+  --ink-faint:       102 102 102; /* #666666 — tertiary / placeholder text */
+
+  /* Scrollbar */
+  --scrollbar-thumb:       51 51 51;  /* #333333 */
+  --scrollbar-thumb-hover: 68 68 68;  /* #444444 */
+
+  /* Semantic accent colors (kept as hex — no opacity modifiers needed) */
+  --accent-blue:   #0ea5e9;
   --accent-purple: #a855f7;
-  --accent-green: #22c55e;
+  --accent-green:  #22c55e;
   --accent-yellow: #eab308;
-  --accent-red: #ef4444;
+  --accent-red:    #ef4444;
   --accent-orange: #f97316;
 }
 
@@ -33,7 +49,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--bg-primary);
+  background: rgb(var(--surface-page));
 }
 
 /* Mono font for code */
@@ -52,12 +68,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333333;
+  background: rgb(var(--scrollbar-thumb));
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444444;
+  background: rgb(var(--scrollbar-thumb-hover));
 }
 
 /* Smooth transitions globally */
@@ -155,7 +171,7 @@ body {
 
 /* Glass effect */
 .glass {
-  background: rgba(17, 17, 17, 0.8);
+  background: rgb(var(--surface-ui) / 0.8);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }

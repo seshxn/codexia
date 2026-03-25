@@ -59,8 +59,8 @@ const App = () => {
   const getTabButtonClass = (tab: DashboardTab): string => (
     `inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
       activeTab === tab
-        ? 'bg-white text-black shadow-sm'
-        : 'text-neutral-300 hover:text-white hover:bg-neutral-800/60'
+        ? 'bg-ink text-surface shadow-sm'
+        : 'text-ink-secondary hover:text-ink hover:bg-surface-raised/60'
     }`
   );
 
@@ -85,8 +85,8 @@ const App = () => {
           };
 
   return (
-    <div className="min-h-screen bg-black">
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-neutral-800">
+    <div className="min-h-screen bg-surface">
+      <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl border-b border-edge">
         <div className={`${isGraphPage ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-6 py-4 space-y-4`}>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
@@ -97,8 +97,8 @@ const App = () => {
                   </div>
                   <h1 className="text-xl font-semibold text-white tracking-tight">Codexia</h1>
                 </div>
-                <div className="h-5 w-px bg-neutral-800" />
-                <span className="text-neutral-400 text-sm font-medium">{repoName}</span>
+                <div className="h-5 w-px bg-edge" />
+                <span className="text-ink-secondary text-sm font-medium">{repoName}</span>
               </div>
 
               <nav className="flex flex-wrap gap-2">
@@ -115,14 +115,14 @@ const App = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-xs text-neutral-500">
+              <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span>Updated {lastRefreshAt.toLocaleTimeString()}</span>
               </div>
               <button
                 onClick={refreshAll}
                 disabled={repoContext.loading}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-black transition-all duration-200 hover:scale-[1.02]"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-ink hover:bg-ink/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-surface transition-all duration-200 hover:scale-[1.02]"
               >
                 <RefreshCw className={`w-4 h-4 ${repoContext.loading ? 'animate-spin' : ''}`} />
                 Refresh
@@ -131,13 +131,13 @@ const App = () => {
           </div>
 
           {!isGraphPage && (
-            <div className="rounded-2xl border border-neutral-800/70 bg-neutral-950/70 px-4 py-3">
+            <div className="rounded-2xl border border-edge/70 bg-surface-subtle/70 px-4 py-3">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-white">{activeTabDetails.title}</p>
-                  <p className="text-sm text-neutral-500">{activeTabDetails.subtitle}</p>
+                  <p className="text-sm font-medium text-ink">{activeTabDetails.title}</p>
+                  <p className="text-sm text-ink-faint">{activeTabDetails.subtitle}</p>
                 </div>
-                <div className="hidden rounded-full border border-neutral-800 bg-black/40 px-3 py-1 text-xs text-neutral-400 md:block">
+                <div className="hidden rounded-full border border-edge bg-surface/40 px-3 py-1 text-xs text-ink-secondary md:block">
                   {repoName}
                 </div>
               </div>
@@ -148,7 +148,7 @@ const App = () => {
 
       <main className={`${isGraphPage ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-6 py-8 animate-fade-in`}>
         {isGraphPage ? (
-          <div className="mb-6 rounded-2xl border border-neutral-800/70 bg-neutral-950/60 px-4 py-3">
+          <div className="mb-6 rounded-2xl border border-edge/70 bg-surface-subtle/60 px-4 py-3">
             <RepoSelector onRepoSwitched={refreshAll} />
           </div>
         ) : (
@@ -184,16 +184,16 @@ const App = () => {
         </section>
       </main>
 
-      <footer className="border-t border-neutral-800 mt-16">
+      <footer className="border-t border-edge mt-16">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1 rounded bg-gradient-to-br from-sky-500 to-violet-600">
-                <Code2 className="w-3.5 h-3.5 text-white" />
+                <Code2 className="w-3.5 h-3.5 text-ink" />
               </div>
-              <span className="text-sm font-medium text-neutral-400">Codexia</span>
+              <span className="text-sm font-medium text-ink-secondary">Codexia</span>
             </div>
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-ink-faint">
               Engineering Intelligence Layer for Teams and Repositories
             </p>
           </div>
