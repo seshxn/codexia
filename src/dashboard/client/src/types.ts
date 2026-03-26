@@ -27,6 +27,25 @@ export interface RepoSwitchData extends RepoContextData {
   message: string;
 }
 
+export interface RepoSwitchJobData {
+  jobId: string;
+  message: string;
+}
+
+export interface RepoSwitchStatusData {
+  jobId: string;
+  repoPath: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  phase: 'queued' | 'validating' | 'indexing' | 'graph' | 'semantic' | 'finalizing' | 'completed' | 'failed';
+  progress: number;
+  message: string;
+  repoRoot?: string;
+  repoName?: string;
+  error?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
 export interface RepoPickData {
   cancelled: boolean;
   repoPath?: string;

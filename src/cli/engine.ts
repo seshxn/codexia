@@ -55,6 +55,12 @@ export interface EngineOptions {
   verbose?: boolean;
 }
 
+export interface EngineInitializationProgress {
+  phase: 'indexing' | 'graph' | 'semantic';
+  progress: number;
+  message: string;
+}
+
 export class CodexiaEngine {
   private repoRoot: string;
   private git: GitAnalyzer;
@@ -120,11 +126,26 @@ export class CodexiaEngine {
   /**
    * Initialize the engine by indexing the repository
    */
-  async initialize(): Promise<void> {
+  async initialize(onProgress?: (update: EngineInitializationProgress) => void): Promise<void> {
     if (this.initialized) return;
 
+    onProgress?.({
+      phase: 'indexing',
+      progress: 20,
+      message: 'Indexing repository files.',
+    });
     await this.loadIndex(false);
+    onProgress?.({
+      phase: 'graph',
+      progress: 70,
+      message: 'Initializing graph store.',
+    });
     await this.graphStore.initialize();
+    onProgress?.({
+      phase: 'semantic',
+      progress: 90,
+      message: 'Loading semantic index.',
+    });
     await this.semanticIndex.load();
   }
 

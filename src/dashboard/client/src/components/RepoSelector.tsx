@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchRecentRepos, fetchRepoContext, pickRepositoryPath, selectRepository } from '../api';
-import type { RepoContextData, RepoRecentData } from '../types';
+import { fetchRecentRepos, fetchRepoContext, fetchRepositorySwitchStatus, pickRepositoryPath, selectRepository } from '../api';
+import type { RepoContextData, RepoRecentData, RepoSwitchStatusData } from '../types';
 
 interface RepoSelectorProps {
   onRepoSwitched: () => void;
@@ -12,6 +12,7 @@ export const RepoSelector = ({ onRepoSwitched }: RepoSelectorProps) => {
   const [repoInput, setRepoInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
+  const [switchStatus, setSwitchStatus] = useState<RepoSwitchStatusData | null>(null);
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,19 +55,39 @@ export const RepoSelector = ({ onRepoSwitched }: RepoSelectorProps) => {
     setError(null);
 
     try {
-      const switched = await selectRepository(nextPath);
-      setContext({ repoRoot: switched.repoRoot, repoName: switched.repoName });
-      setRepoInput(switched.repoRoot);
+      const job = await selectRepository(nextPath);
+      let latestStatus: RepoSwitchStatusData | null = null;
 
-      const recentRepos = await fetchRecentRepos();
-      setRecent(recentRepos.repos);
-      onRepoSwitched();
+      while (!latestStatus || (latestStatus.status !== 'completed' && latestStatus.status !== 'failed')) {
+        latestStatus = await fetchRepositorySwitchStatus(job.jobId);
+        setSwitchStatus(latestStatus);
+
+        if (latestStatus.status === 'completed') {
+          setContext({
+            repoRoot: latestStatus.repoRoot || nextPath,
+            repoName: latestStatus.repoName || context?.repoName || 'Repository',
+          });
+          setRepoInput(latestStatus.repoRoot || nextPath);
+
+          const recentRepos = await fetchRecentRepos();
+          setRecent(recentRepos.repos);
+          onRepoSwitched();
+          break;
+        }
+
+        if (latestStatus.status === 'failed') {
+          throw new Error(latestStatus.error || latestStatus.message || 'Failed to switch repository.');
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+      }
     } catch (switchError) {
       setError(switchError instanceof Error ? switchError.message : 'Failed to switch repository.');
     } finally {
       setSwitching(false);
+      setSwitchStatus(null);
     }
-  }, [onRepoSwitched, repoInput]);
+  }, [context?.repoName, onRepoSwitched, repoInput]);
 
   const pickAndSwitchRepo = useCallback(async () => {
     setPicking(true);
@@ -145,6 +166,25 @@ export const RepoSelector = ({ onRepoSwitched }: RepoSelectorProps) => {
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {switchStatus && (
+        <div className="rounded-xl border border-edge bg-surface-subtle/70 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-ink">Switching repository</p>
+              <p className="text-xs text-ink-faint">{switchStatus.message}</p>
+            </div>
+            <div className="text-sm font-medium text-ink">{Math.max(0, Math.min(100, switchStatus.progress))}%</div>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-raised">
+            <div
+              className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
+              style={{ width: `${Math.max(6, Math.min(100, switchStatus.progress))}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs uppercase tracking-wide text-ink-faint">{switchStatus.phase}</p>
         </div>
       )}
 

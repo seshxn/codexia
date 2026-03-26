@@ -2,7 +2,8 @@ import type {
   OverviewData,
   RepoContextData,
   RepoRecentData,
-  RepoSwitchData,
+  RepoSwitchJobData,
+  RepoSwitchStatusData,
   RepoPickData,
   ComplexityData,
   GraphData,
@@ -127,8 +128,12 @@ export const fetchRecentRepos = async (): Promise<RepoRecentData> => {
   return fetchJson<RepoRecentData>('/repo/recent');
 };
 
-export const selectRepository = async (repoPath: string): Promise<RepoSwitchData> => {
-  return fetchJson<RepoSwitchData>('/repo/select', { repoPath });
+export const selectRepository = async (repoPath: string): Promise<RepoSwitchJobData> => {
+  return fetchJson<RepoSwitchJobData>('/repo/select', { repoPath });
+};
+
+export const fetchRepositorySwitchStatus = async (jobId: string): Promise<RepoSwitchStatusData> => {
+  return fetchJson<RepoSwitchStatusData>('/repo/switch-status', { jobId });
 };
 
 export const pickRepositoryPath = async (): Promise<RepoPickData> => {

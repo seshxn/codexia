@@ -277,6 +277,7 @@ export class JiraAnalyticsService {
   private readonly sprintMembershipMode: 'currentOnly' | 'auto';
   private readonly cacheTtlMs: number;
   private readonly boardHistoryTimeBudgetMs: number;
+  private coreApiVersion: '3' | '2' | 'unknown' = 'unknown';
   private sprintHistoryJqlMode: 'unknown' | 'was' | 'changed' | 'currentOnly' = 'unknown';
   private readonly sprintReportCache = new Map<string, JiraCacheEntry<JiraSprintReport>>();
   private readonly boardHistoryCache = new Map<string, JiraCacheEntry<JiraBoardHistoryReport>>();
@@ -1517,7 +1518,30 @@ export class JiraAnalyticsService {
     endpoint: string,
     params?: Record<string, string | number | boolean | undefined>,
   ): Promise<T> {
-    return this.request<T>(`/rest/api/3${endpoint}`, params);
+    const normalizedEndpoint = this.normalizeCoreEndpoint(endpoint, this.coreApiVersion === '2');
+
+    if (this.coreApiVersion === '2') {
+      return this.request<T>(`/rest/api/2${normalizedEndpoint}`, params);
+    }
+
+    if (this.coreApiVersion === '3') {
+      return this.request<T>(`/rest/api/3${endpoint}`, params);
+    }
+
+    try {
+      const response = await this.request<T>(`/rest/api/3${endpoint}`, params);
+      this.coreApiVersion = '3';
+      return response;
+    } catch (error) {
+      if (!this.isHttpStatusError(error, 404) && !this.isHttpStatusError(error, 405)) {
+        throw error;
+      }
+    }
+
+    const fallbackEndpoint = this.normalizeCoreEndpoint(endpoint, true);
+    const response = await this.request<T>(`/rest/api/2${fallbackEndpoint}`, params);
+    this.coreApiVersion = '2';
+    return response;
   }
 
   private async request<T>(
@@ -1679,6 +1703,18 @@ export class JiraAnalyticsService {
         'Jira is not configured: set CODEXIA_JIRA_EMAIL + CODEXIA_JIRA_API_TOKEN, or CODEXIA_JIRA_BEARER_TOKEN.',
       );
     }
+  }
+
+  private normalizeCoreEndpoint(endpoint: string, useApi2: boolean): string {
+    if (!useApi2) {
+      return endpoint;
+    }
+
+    if (endpoint === '/search/jql') {
+      return '/search';
+    }
+
+    return endpoint;
   }
 
   private parseNumeric(value: unknown): number | null {
