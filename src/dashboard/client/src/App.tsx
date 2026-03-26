@@ -4,7 +4,7 @@ import { useApi } from './hooks/useApi';
 import { fetchRepoContext } from './api';
 import { Card } from './components/Card';
 import { EngineeringDashboard } from './components/EngineeringDashboard';
-import { LoadingCard } from './components/Loading';
+import { KnowledgeGraphLoading, LoadingCard } from './components/Loading';
 import { RepoSelector } from './components/RepoSelector';
 import { RepositoryDashboard } from './components/RepositoryDashboard';
 
@@ -189,7 +189,7 @@ const App = () => {
             ) : visibleTab === 'repository' ? (
               <RepositoryDashboard refreshKey={refreshKey} />
             ) : visibleTab === 'graph' ? (
-              <Suspense fallback={<LoadingCard />}>
+              <Suspense fallback={<KnowledgeGraphLoading />}>
                 <KnowledgeGraphDashboard refreshKey={refreshKey} />
               </Suspense>
             ) : (

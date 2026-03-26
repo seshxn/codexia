@@ -3,7 +3,7 @@ import { fetchGraph } from '../api';
 import { useApi } from '../hooks/useApi';
 import { ErrorDisplay } from './ErrorDisplay';
 import { KnowledgeGraphPanel } from './KnowledgeGraphPanel';
-import { LoadingCard } from './Loading';
+import { KnowledgeGraphLoading } from './Loading';
 
 interface KnowledgeGraphDashboardProps {
   refreshKey: number;
@@ -15,9 +15,7 @@ export const KnowledgeGraphDashboard = ({ refreshKey }: KnowledgeGraphDashboardP
   return (
     <div>
       {graph.loading && !graph.data ? (
-        <div className="rounded-3xl border border-edge/80 bg-surface-subtle/70 p-6">
-          <LoadingCard />
-        </div>
+        <KnowledgeGraphLoading />
       ) : graph.error ? (
         <div className="rounded-3xl border border-edge/80 bg-surface-subtle/70 p-6">
           <ErrorDisplay message="Failed to load knowledge graph" onRetry={graph.refetch} />
