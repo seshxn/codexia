@@ -66,7 +66,7 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children, size = 'md' 
   return createPortal(
     <div className="fixed inset-0 z-50">
       <div
-        className={`absolute inset-0 bg-black/88 transition-opacity duration-200 ease-out ${
+        className={`absolute inset-0 bg-surface/88 transition-opacity duration-200 ease-out ${
           isAnimating ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={onClose}
@@ -75,7 +75,7 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children, size = 'md' 
       <div className="absolute inset-0 overflow-y-auto">
         <div className="flex min-h-full items-center justify-center p-4">
           <div
-            className={`relative bg-neutral-950/95 rounded-2xl border border-neutral-800 shadow-2xl shadow-black/60 w-full ${sizeClasses[size]} max-h-[85vh] flex flex-col transition-all duration-300 ease-out ${
+            className={`relative bg-surface-subtle/95 rounded-2xl border border-edge shadow-2xl shadow-surface/60 w-full ${sizeClasses[size]} max-h-[85vh] flex flex-col transition-[opacity,transform] duration-300 ease-out ${
               isAnimating
                 ? 'opacity-100 scale-100 translate-y-0'
                 : 'opacity-0 scale-95 translate-y-4'
@@ -84,22 +84,21 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children, size = 'md' 
               transitionTimingFunction: isAnimating ? 'cubic-bezier(0.16, 1, 0.3, 1)' : 'ease-in',
             }}
           >
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-neutral-700/15 to-transparent pointer-events-none" />
-
-            <div className="relative flex items-start justify-between px-6 py-5 border-b border-neutral-800">
+            <div className="flex items-start justify-between px-6 py-5 border-b border-edge">
               <div>
-                <h2 className="text-lg font-semibold text-white tracking-tight">{title}</h2>
-                {subtitle && <p className="text-sm text-neutral-500 mt-0.5">{subtitle}</p>}
+                <h2 className="text-lg font-semibold text-ink tracking-tight">{title}</h2>
+                {subtitle && <p className="text-sm text-ink-faint mt-0.5">{subtitle}</p>}
               </div>
               <button
                 onClick={onClose}
-                className="p-2 -mr-2 hover:bg-neutral-800 rounded-xl transition-all duration-150 text-neutral-500 hover:text-white group"
+                aria-label="Close dialog"
+                className="p-2 -mr-2 hover:bg-surface-raised rounded-xl transition-colors duration-150 text-ink-faint hover:text-ink"
               >
-                <X className="w-5 h-5 transition-transform duration-150 group-hover:rotate-90" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="relative p-6 overflow-y-auto flex-1">
+            <div className="p-6 overflow-y-auto flex-1">
               {children}
             </div>
           </div>
@@ -119,9 +118,9 @@ interface DetailRowProps {
 
 export const DetailRow = ({ label, value, color }: DetailRowProps) => {
   return (
-    <div className="flex justify-between items-center py-3 border-b border-neutral-800/50 last:border-0">
-      <span className="text-neutral-500 text-sm">{label}</span>
-      <span className={`text-sm font-medium ${color || 'text-white'}`}>{value}</span>
+    <div className="flex justify-between items-center py-3 border-b border-edge/50 last:border-0">
+      <span className="text-ink-faint text-sm">{label}</span>
+      <span className={`text-sm font-medium ${color || 'text-ink'}`}>{value}</span>
     </div>
   );
 };
@@ -137,22 +136,22 @@ interface MetricCardProps {
 
 export const MetricCard = ({ label, value, icon, color = 'blue', subtitle }: MetricCardProps) => {
   const colorClasses = {
-    blue: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-    green: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    yellow: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    red: 'bg-red-500/10 text-red-400 border-red-500/20',
-    purple: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
-    cyan: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    blue:   'bg-accent-blue/10 text-accent-blue border-accent-blue/20',
+    green:  'bg-accent-green/10 text-accent-green border-accent-green/20',
+    yellow: 'bg-accent-yellow/10 text-accent-yellow border-accent-yellow/20',
+    red:    'bg-accent-red/10 text-accent-red border-accent-red/20',
+    purple: 'bg-accent-purple/10 text-accent-purple border-accent-purple/20',
+    cyan:   'bg-accent-cyan/10 text-accent-cyan border-accent-cyan/20',
   };
 
   return (
-    <div className={`p-4 rounded-xl border ${colorClasses[color]} transition-all duration-200 hover:scale-[1.02]`}>
+    <div className={`p-4 rounded-xl border ${colorClasses[color]} transition-[transform,border-color] duration-200 hover:scale-[1.02]`}>
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <span className="text-xs text-neutral-500 uppercase tracking-wider font-medium">{label}</span>
+        <span className="text-xs text-ink-faint uppercase tracking-wider font-medium">{label}</span>
       </div>
-      <p className="text-2xl font-semibold tracking-tight">{value}</p>
-      {subtitle && <p className="text-xs text-neutral-600 mt-1">{subtitle}</p>}
+      <p className="text-2xl font-semibold tracking-tight nums">{value}</p>
+      {subtitle && <p className="text-xs text-ink-faint mt-1">{subtitle}</p>}
     </div>
   );
 };
@@ -166,20 +165,20 @@ interface ProgressBarProps {
   showValue?: boolean;
 }
 
-export const ProgressBar = ({ value, max = 100, color = 'bg-sky-500', label, showValue = true }: ProgressBarProps) => {
+export const ProgressBar = ({ value, max = 100, color = 'bg-brand', label, showValue = true }: ProgressBarProps) => {
   const percentage = Math.min(100, (value / max) * 100);
-  
+
   return (
     <div className="space-y-2">
       {(label || showValue) && (
         <div className="flex justify-between text-xs">
-          <span className="text-neutral-500">{label}</span>
-          {showValue && <span className="text-neutral-400 font-medium">{value.toFixed(0)}%</span>}
+          <span className="text-ink-faint">{label}</span>
+          {showValue && <span className="text-ink-secondary font-medium">{value.toFixed(0)}%</span>}
         </div>
       )}
-      <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-surface-raised rounded-full overflow-hidden">
         <div 
-          className={`h-full ${color} rounded-full transition-all duration-700 ease-out`}
+          className={`h-full ${color} rounded-full transition-[width] duration-700 ease-out`}
           style={{ width: `${percentage}%` }}
         />
       </div>

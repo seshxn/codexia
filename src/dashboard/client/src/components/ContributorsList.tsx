@@ -18,7 +18,7 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
 
   if (!contributors || contributors.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-neutral-600">
+      <div className="flex items-center justify-center h-48 text-ink-faint">
         <div className="text-center">
           <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No contributor data available</p>
@@ -29,9 +29,9 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
 
   const getRankBadge = (rank: number) => {
     if (rank === 1) return { color: 'text-amber-400', bg: 'bg-amber-400/10 border border-amber-400/20', icon: '🥇' };
-    if (rank === 2) return { color: 'text-neutral-300', bg: 'bg-neutral-300/10 border border-neutral-300/20', icon: '🥈' };
+    if (rank === 2) return { color: 'text-ink-secondary', bg: 'bg-surface-ui/50 border border-edge', icon: '🥈' };
     if (rank === 3) return { color: 'text-orange-500', bg: 'bg-orange-500/10 border border-orange-500/20', icon: '🥉' };
-    return { color: 'text-neutral-500', bg: 'bg-neutral-800 border border-neutral-700', icon: `#${rank}` };
+    return { color: 'text-ink-faint', bg: 'bg-surface-ui border border-edge', icon: `#${rank}` };
   };
 
   return (
@@ -39,10 +39,10 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
       {/* Stats header */}
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-4">
-          <span className="text-neutral-500">
-            <span className="text-white font-semibold">{totalContributors}</span> total contributors
+          <span className="text-ink-faint">
+            <span className="text-ink font-semibold">{totalContributors}</span> total contributors
           </span>
-          <span className="text-neutral-500">
+          <span className="text-ink-faint">
             <span className="text-emerald-400 font-semibold">{activeContributors}</span> active (30d)
           </span>
         </div>
@@ -57,7 +57,7 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
             <div
               key={contributor.email}
               onClick={() => onContributorClick?.(contributor)}
-              className={`flex items-center gap-3 p-3 rounded-xl bg-neutral-900/30 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/30 transition-all duration-200 ${onContributorClick ? 'cursor-pointer' : ''}`}
+              className={`flex items-center gap-3 p-3 rounded-xl bg-surface-subtle/30 border border-edge hover:border-edge hover:bg-surface-ui/30 transition-colors duration-200 ${onContributorClick ? 'cursor-pointer' : ''}`}
             >
               {/* Rank */}
               <div className={`w-8 h-8 rounded-full ${badge.bg} flex items-center justify-center text-xs font-bold ${badge.color}`}>
@@ -68,18 +68,18 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
               <AvatarImage
                 src={contributor.avatar}
                 name={contributor.name}
-                className="w-10 h-10 rounded-full bg-neutral-800 ring-2 ring-neutral-700"
+                className="w-10 h-10 rounded-full bg-surface-ui ring-2 ring-edge"
               />
 
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-white truncate">{contributor.name}</span>
+                  <span className="text-sm font-medium text-ink truncate">{contributor.name}</span>
                   {contributor.isActive && (
                     <span className="px-1.5 py-0.5 text-xs rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-neutral-500 mt-0.5">
+                <div className="flex items-center gap-3 text-xs text-ink-faint mt-0.5">
                   <span className="flex items-center gap-1">
                     <GitCommit className="w-3 h-3" />
                     {contributor.commits} commits
@@ -95,7 +95,7 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
 
               {/* Commit count */}
               <div className="text-right">
-                <span className="text-lg font-semibold text-white">{contributor.commits}</span>
+                <span className="text-lg font-semibold text-ink">{contributor.commits}</span>
               </div>
             </div>
           );
@@ -105,7 +105,7 @@ export const ContributorsList = ({ contributors, totalContributors, activeContri
       {hasMore && (
         <button
           onClick={() => setShowAll(!showAll)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2 text-sm text-ink-faint hover:text-ink transition-colors"
         >
           {showAll ? (
             <>

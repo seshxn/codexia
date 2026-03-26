@@ -3,29 +3,48 @@
 @tailwind utilities;
 
 :root {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
-  /* Vercel-inspired color palette */
-  --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --bg-tertiary: #111111;
-  --bg-elevated: #171717;
-  --border-primary: #262626;
-  --border-secondary: #333333;
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1a1;
-  --text-tertiary: #666666;
-  --accent-blue: #0ea5e9;
+
+  /*
+   * Design tokens — R G B channel format for Tailwind opacity modifier support.
+   * In CSS: use as rgb(var(--surface-page))
+   * In Tailwind: use as bg-surface, bg-surface/50, etc.
+   */
+
+  /* Surfaces — zinc-tinted dark (subtle cool undertone, signals precision) */
+  --surface-page:    9 9 11;      /* #09090b — zinc-950 */
+  --surface-subtle:  12 12 15;    /* #0c0c0f — zinc-adjacent secondary */
+  --surface-ui:      18 18 22;    /* #121216 — UI element backgrounds */
+  --surface-raised:  25 25 30;    /* #19191e — elevated cards */
+
+  /* Edges / Borders — zinc-tinted for consistency */
+  --edge-subtle:     38 38 44;    /* #26262c — standard borders */
+  --edge-moderate:   54 54 62;    /* #36363e — stronger borders / dividers */
+
+  /* Ink / Text */
+  --ink-primary:     250 250 250; /* #fafafa — primary text */
+  --ink-secondary:   161 161 161; /* #a1a1a1 — secondary text */
+  --ink-faint:       102 102 102; /* #666666 — tertiary / placeholder text */
+
+  /* Scrollbar */
+  --scrollbar-thumb:       51 51 51;  /* #333333 */
+  --scrollbar-thumb-hover: 68 68 68;  /* #444444 */
+
+  /* Brand accent — emerald reinforces the "health" concept central to the product */
+  --accent-brand:  #10b981; /* emerald-500 */
+
+  /* Semantic accent colors (kept as hex — no opacity modifiers needed) */
+  --accent-blue:   #0ea5e9;
   --accent-purple: #a855f7;
-  --accent-green: #22c55e;
+  --accent-green:  #22c55e;
   --accent-yellow: #eab308;
-  --accent-red: #ef4444;
+  --accent-red:    #ef4444;
   --accent-orange: #f97316;
 }
 
@@ -33,12 +52,32 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--bg-primary);
+  background: rgb(var(--surface-page));
 }
 
-/* Mono font for code */
+/* Mono font for code and inline data */
 .font-mono {
-  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-family: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/*
+ * Tabular numerics — apply to any context where numbers should align:
+ * stat values, table cells, metric displays, percentages, durations.
+ * IBM Plex Sans/Mono include tabular figures natively; this activates them.
+ */
+.nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/*
+ * Global focus-visible ring — ensures all interactive elements show a visible
+ * focus indicator when navigated by keyboard, while suppressing mouse focus outlines.
+ * Component-level overrides take precedence via Tailwind's focus-visible utilities.
+ */
+:focus-visible {
+  outline: 2px solid var(--accent-brand);
+  outline-offset: 2px;
 }
 
 /* Custom scrollbar - sleeker */
@@ -52,16 +91,21 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333333;
+  background: rgb(var(--scrollbar-thumb));
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444444;
+  background: rgb(var(--scrollbar-thumb-hover));
 }
 
-/* Smooth transitions globally */
-* {
+/*
+ * Default easing for transitions — scoped to elements that actually have
+ * a transition-duration set, so this doesn't force repaints everywhere.
+ */
+*,
+*::before,
+*::after {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -122,43 +166,6 @@ body {
   animation: modalSlideOut 0.15s ease-in forwards;
 }
 
-/* Subtle glow effects */
-.glow-blue {
-  box-shadow: 0 0 20px rgba(14, 165, 233, 0.15);
-}
-
-.glow-green {
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
-}
-
-.glow-purple {
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
-}
-
-/* Card hover effect */
-.card-hover {
-  transition: all 0.2s ease;
-}
-
-.card-hover:hover {
-  border-color: #404040;
-  transform: translateY(-1px);
-}
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(to right, #fff, #a1a1a1);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Glass effect */
-.glass {
-  background: rgba(17, 17, 17, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
 
 /* Pulse animation for live indicators */
 @keyframes pulse-soft {
@@ -174,25 +181,22 @@ body {
   animation: pulse-soft 2s ease-in-out infinite;
 }
 
-/* Tab panel transitions */
+/* Tab panel transitions — opacity + transform only (filter: blur is expensive) */
 .tab-panel {
   transition:
     opacity var(--tab-transition-ms, 180ms) ease,
-    transform calc(var(--tab-transition-ms, 180ms) + 40ms) cubic-bezier(0.22, 1, 0.36, 1),
-    filter calc(var(--tab-transition-ms, 180ms) + 40ms) ease;
-  will-change: opacity, transform, filter;
+    transform calc(var(--tab-transition-ms, 180ms) + 40ms) cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
 }
 
 .tab-panel-enter {
   opacity: 1;
   transform: translateY(0) scale(1);
-  filter: blur(0);
 }
 
 .tab-panel-exit {
   opacity: 0;
-  transform: translateY(10px) scale(0.995);
-  filter: blur(2px);
+  transform: translateY(8px) scale(0.997);
   pointer-events: none;
 }
 

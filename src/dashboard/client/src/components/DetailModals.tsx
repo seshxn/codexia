@@ -39,9 +39,9 @@ export const FileDetailsModal = ({ isOpen, onClose, file }: FileDetailsModalProp
     <Modal isOpen={isOpen} onClose={onClose} title={file.file.split('/').pop() || file.file} subtitle={file.file} size="md">
       <div className="space-y-6">
         {/* Complexity Score */}
-        <div className="text-center p-6 rounded-lg bg-neutral-900/50">
+        <div className="text-center p-6 rounded-lg bg-surface-subtle/50">
           <p className={`text-5xl font-bold ${getScoreColor(file.score)}`}>{file.score.toFixed(1)}</p>
-          <p className="text-neutral-500 mt-2">{getScoreLabel(file.score)}</p>
+          <p className="text-ink-faint mt-2">{getScoreLabel(file.score)}</p>
         </div>
 
         {/* Metrics Grid */}
@@ -53,9 +53,9 @@ export const FileDetailsModal = ({ isOpen, onClose, file }: FileDetailsModalProp
         </div>
 
         {/* Recommendations */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3">Recommendations</h4>
-          <ul className="space-y-2 text-sm text-neutral-500">
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3">Recommendations</h4>
+          <ul className="space-y-2 text-sm text-ink-faint">
             {file.metrics.cyclomaticComplexity > 10 && (
               <li className="flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
@@ -104,18 +104,18 @@ export const ContributorDetailsModal = ({ isOpen, onClose, contributor }: Contri
     <Modal isOpen={isOpen} onClose={onClose} title={contributor.name} subtitle={contributor.email} size="md">
       <div className="space-y-6">
         {/* Profile Header */}
-        <div className="flex items-center gap-4 p-4 rounded-lg bg-neutral-900/50">
+        <div className="flex items-center gap-4 p-4 rounded-lg bg-surface-subtle/50">
           <AvatarImage
             src={contributor.avatar}
             name={contributor.name}
-            className="w-16 h-16 rounded-full bg-neutral-800"
+            className="w-16 h-16 rounded-full bg-surface-ui"
             size={64}
             background="334155"
             color="f8fafc"
           />
           <div>
-            <h3 className="text-xl font-semibold text-white">{contributor.name}</h3>
-            <p className="text-neutral-500">{contributor.email}</p>
+            <h3 className="text-xl font-semibold text-ink">{contributor.name}</h3>
+            <p className="text-ink-faint">{contributor.email}</p>
             {contributor.isActive && (
               <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -133,8 +133,8 @@ export const ContributorDetailsModal = ({ isOpen, onClose, contributor }: Contri
         </div>
 
         {/* Timeline */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3 flex items-center gap-2">
             <Calendar className="w-4 h-4" />
             Activity Timeline
           </h4>
@@ -167,35 +167,35 @@ export const CommitDetailsModal = ({ isOpen, onClose, commit }: CommitDetailsMod
     <Modal isOpen={isOpen} onClose={onClose} title="Commit Details" subtitle={commit.hash} size="md">
       <div className="space-y-6">
         {/* Commit Message */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <p className="text-white text-lg">{commit.message}</p>
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <p className="text-ink text-lg">{commit.message}</p>
         </div>
 
         {/* Author */}
-        <div className="flex items-center gap-3 p-4 rounded-lg bg-neutral-900/50">
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-surface-subtle/50">
           <AvatarImage
             src={commit.avatar}
             name={commit.author}
-            className="w-10 h-10 rounded-full bg-neutral-800"
+            className="w-10 h-10 rounded-full bg-surface-ui"
             size={40}
             background="334155"
             color="f8fafc"
           />
           <div>
-            <p className="text-white font-medium">{commit.author}</p>
-            <p className="text-sm text-neutral-500">{commit.email}</p>
+            <p className="text-ink font-medium">{commit.author}</p>
+            <p className="text-sm text-ink-faint">{commit.email}</p>
           </div>
           <div className="ml-auto text-right">
-            <p className="text-sm text-neutral-500">{commit.relativeDate}</p>
-            <p className="text-xs text-neutral-600">{new Date(commit.date).toLocaleString()}</p>
+            <p className="text-sm text-ink-faint">{commit.relativeDate}</p>
+            <p className="text-xs text-ink-faint">{new Date(commit.date).toLocaleString()}</p>
           </div>
         </div>
 
         {/* Commit Info */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3">Commit Info</h4>
-          <DetailRow label="Full Hash" value={<code className="text-xs bg-neutral-800 px-2 py-1 rounded">{commit.fullHash}</code>} />
-          <DetailRow label="Short Hash" value={<code className="text-xs bg-neutral-800 px-2 py-1 rounded">{commit.hash}</code>} />
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3">Commit Info</h4>
+          <DetailRow label="Full Hash" value={<code className="text-xs bg-surface-ui px-2 py-1 rounded">{commit.fullHash}</code>} />
+          <DetailRow label="Short Hash" value={<code className="text-xs bg-surface-ui px-2 py-1 rounded">{commit.hash}</code>} />
           <DetailRow label="Date" value={new Date(commit.date).toLocaleString()} />
         </div>
       </div>
@@ -231,12 +231,12 @@ export const SignalDetailsModal = ({ isOpen, onClose, signal }: SignalDetailsMod
             <AlertTriangle className={`w-5 h-5 ${config.color}`} />
             <span className={`text-sm font-medium uppercase ${config.color}`}>{signal.severity}</span>
           </div>
-          <p className="text-white">{signal.message}</p>
+          <p className="text-ink">{signal.message}</p>
         </div>
 
         {/* Location */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3 flex items-center gap-2">
             <FileCode className="w-4 h-4" />
             Location
           </h4>
@@ -249,7 +249,7 @@ export const SignalDetailsModal = ({ isOpen, onClose, signal }: SignalDetailsMod
         {signal.suggestion && (
           <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
             <h4 className="text-sm font-medium text-green-400 mb-2">Suggestion</h4>
-            <p className="text-neutral-300">{signal.suggestion}</p>
+            <p className="text-ink-secondary">{signal.suggestion}</p>
           </div>
         )}
       </div>
@@ -291,14 +291,14 @@ export const HotPathDetailsModal = ({ isOpen, onClose, hotPath }: HotPathDetails
     >
       <div className="space-y-6">
         {/* Score Display */}
-        <div className="text-center p-6 rounded-lg bg-neutral-900/50">
+        <div className="text-center p-6 rounded-lg bg-surface-subtle/50">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Flame className={`w-8 h-8 text-${getHeatColor(hotPath.score)}-400`} />
             <p className={`text-5xl font-bold text-${getHeatColor(hotPath.score)}-400`}>
               {(hotPath.score * 100).toFixed(0)}
             </p>
           </div>
-          <p className="text-neutral-500">{getHeatLabel(hotPath.score)}</p>
+          <p className="text-ink-faint">{getHeatLabel(hotPath.score)}</p>
         </div>
 
         {/* Metrics */}
@@ -327,13 +327,13 @@ export const HotPathDetailsModal = ({ isOpen, onClose, hotPath }: HotPathDetails
         </div>
 
         {/* Heat Breakdown */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3">Risk Factors</h4>
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3">Risk Factors</h4>
           <div className="space-y-3">
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-neutral-500">Change Frequency</span>
-                <span className="text-neutral-300">{hotPath.metrics.changeFrequency > 10 ? 'High' : 'Normal'}</span>
+                <span className="text-ink-faint">Change Frequency</span>
+                <span className="text-ink-secondary">{hotPath.metrics.changeFrequency > 10 ? 'High' : 'Normal'}</span>
               </div>
               <ProgressBar 
                 value={Math.min(hotPath.metrics.changeFrequency * 5, 100)} 
@@ -342,8 +342,8 @@ export const HotPathDetailsModal = ({ isOpen, onClose, hotPath }: HotPathDetails
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-neutral-500">Complexity Score</span>
-                <span className="text-neutral-300">{hotPath.metrics.complexity > 15 ? 'High' : 'Normal'}</span>
+                <span className="text-ink-faint">Complexity Score</span>
+                <span className="text-ink-secondary">{hotPath.metrics.complexity > 15 ? 'High' : 'Normal'}</span>
               </div>
               <ProgressBar 
                 value={Math.min(hotPath.metrics.complexity * 3, 100)} 
@@ -352,12 +352,12 @@ export const HotPathDetailsModal = ({ isOpen, onClose, hotPath }: HotPathDetails
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-neutral-500">Coupling Factor</span>
-                <span className="text-neutral-300">{hotPath.metrics.couplingFactor > 0.5 ? 'High' : 'Normal'}</span>
+                <span className="text-ink-faint">Coupling Factor</span>
+                <span className="text-ink-secondary">{hotPath.metrics.couplingFactor > 0.5 ? 'High' : 'Normal'}</span>
               </div>
               <ProgressBar 
                 value={hotPath.metrics.couplingFactor * 100} 
-                color={hotPath.metrics.couplingFactor > 0.5 ? 'bg-purple-500' : 'bg-slate-500'}
+                color={hotPath.metrics.couplingFactor > 0.5 ? 'bg-accent-purple' : 'bg-surface-raised'}
               />
             </div>
           </div>
@@ -369,7 +369,7 @@ export const HotPathDetailsModal = ({ isOpen, onClose, hotPath }: HotPathDetails
             <Flame className="w-4 h-4" />
             Recommendations
           </h4>
-          <ul className="space-y-2 text-sm text-neutral-300">
+          <ul className="space-y-2 text-sm text-ink-secondary">
             {hotPath.metrics.changeFrequency > 10 && (
               <li>• Consider stabilizing this frequently changed file</li>
             )}
@@ -426,8 +426,8 @@ export const OwnershipDetailsModal = ({ isOpen, onClose, file }: OwnershipDetail
         </div>
 
         {/* Ownership Bar */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3">Ownership Distribution</h4>
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3">Ownership Distribution</h4>
           <ProgressBar 
             value={file.ownership} 
             color={file.ownership > 80 ? 'bg-red-500' : file.ownership > 50 ? 'bg-yellow-500' : 'bg-green-500'}
@@ -436,15 +436,15 @@ export const OwnershipDetailsModal = ({ isOpen, onClose, file }: OwnershipDetail
           <div className="mt-2">
             <ProgressBar 
               value={100 - file.ownership} 
-              color="bg-slate-600"
+              color="bg-surface-raised"
               label="Others"
             />
           </div>
         </div>
 
         {/* Details */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3">File Info</h4>
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3">File Info</h4>
           <DetailRow label="Contributors" value={file.contributors} />
           <DetailRow label="Last Modified" value={new Date(file.lastModified).toLocaleDateString()} />
           <DetailRow 
@@ -461,7 +461,7 @@ export const OwnershipDetailsModal = ({ isOpen, onClose, file }: OwnershipDetail
               <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
               <div>
                 <h4 className="text-sm font-medium text-red-400">Bus Factor Risk</h4>
-                <p className="text-sm text-neutral-300 mt-1">
+                <p className="text-sm text-ink-secondary mt-1">
                   This file has only one primary contributor owning {file.ownership}% of the code. 
                   Consider knowledge sharing to reduce risk.
                 </p>
@@ -499,37 +499,37 @@ export const HealthScoreModal = ({ isOpen, onClose, score, signalsData, complexi
     <Modal isOpen={isOpen} onClose={onClose} title="Repository Health" subtitle="Score breakdown and recommendations" size="md">
       <div className="space-y-6">
         {/* Score Display */}
-        <div className="text-center p-8 rounded-lg bg-neutral-900/50">
+        <div className="text-center p-8 rounded-lg bg-surface-subtle/50">
           <p className={`text-6xl font-bold ${getScoreColor(score)}`}>{score}</p>
-          <p className="text-neutral-500 mt-2">
+          <p className="text-ink-faint mt-2">
             {score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Needs Attention' : 'Critical'}
           </p>
         </div>
 
         {/* Score Factors */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3">Score Factors</h4>
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3">Score Factors</h4>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-neutral-500">Critical Issues</span>
+              <span className="text-ink-faint">Critical Issues</span>
               <span className={`font-medium ${criticalCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
                 {criticalCount > 0 ? `-${criticalCount * 15} pts` : '+0 pts'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-neutral-500">High Issues</span>
+              <span className="text-ink-faint">High Issues</span>
               <span className={`font-medium ${highCount > 0 ? 'text-orange-400' : 'text-green-400'}`}>
                 {highCount > 0 ? `-${highCount * 10} pts` : '+0 pts'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-neutral-500">Medium Issues</span>
+              <span className="text-ink-faint">Medium Issues</span>
               <span className={`font-medium ${mediumCount > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
                 {mediumCount > 0 ? `-${mediumCount * 5} pts` : '+0 pts'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-neutral-500">Complex Files</span>
+              <span className="text-ink-faint">Complex Files</span>
               <span className={`font-medium ${complexFiles > 0 ? 'text-purple-400' : 'text-green-400'}`}>
                 {complexFiles > 0 ? `-${complexFiles * 3} pts` : '+0 pts'}
               </span>
@@ -538,9 +538,9 @@ export const HealthScoreModal = ({ isOpen, onClose, score, signalsData, complexi
         </div>
 
         {/* Recommendations */}
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
-          <h4 className="text-sm font-medium text-white mb-3">How to Improve</h4>
-          <ul className="space-y-2 text-sm text-neutral-500">
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
+          <h4 className="text-sm font-medium text-ink mb-3">How to Improve</h4>
+          <ul className="space-y-2 text-sm text-ink-faint">
             {criticalCount > 0 && (
               <li className="flex items-start gap-2">
                 <span className="text-red-400">•</span>

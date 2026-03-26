@@ -1,13 +1,22 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { RefreshCw, Code2, Network, LayoutDashboard, Workflow } from 'lucide-react';
 import { useApi } from './hooks/useApi';
 import { fetchRepoContext } from './api';
 import { Card } from './components/Card';
 import { EngineeringDashboard } from './components/EngineeringDashboard';
-import { JiraSprintAnalysis } from './components/JiraSprintAnalysis';
-import { KnowledgeGraphDashboard } from './components/KnowledgeGraphDashboard';
+import { KnowledgeGraphLoading, LoadingCard } from './components/Loading';
 import { RepoSelector } from './components/RepoSelector';
 import { RepositoryDashboard } from './components/RepositoryDashboard';
+
+// Lazy-load heavy tabs to keep initial bundle small:
+// - KnowledgeGraphDashboard pulls in sigma + graphology (~400 kB minified)
+// - JiraSprintAnalysis is only relevant to teams with Jira configured
+const KnowledgeGraphDashboard = lazy(() =>
+  import('./components/KnowledgeGraphDashboard').then((m) => ({ default: m.KnowledgeGraphDashboard }))
+);
+const JiraSprintAnalysis = lazy(() =>
+  import('./components/JiraSprintAnalysis').then((m) => ({ default: m.JiraSprintAnalysis }))
+);
 
 const TAB_TRANSITION_MS = 180;
 
@@ -57,10 +66,10 @@ const App = () => {
   }, [repoContextRefetch]);
 
   const getTabButtonClass = (tab: DashboardTab): string => (
-    `inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
+    `inline-flex items-center gap-2 rounded-xl px-4 py-2 min-h-[44px] sm:min-h-0 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
       activeTab === tab
-        ? 'bg-white text-black shadow-sm'
-        : 'text-neutral-300 hover:text-white hover:bg-neutral-800/60'
+        ? 'bg-ink text-surface shadow-sm'
+        : 'text-ink-secondary hover:text-ink hover:bg-surface-raised/60'
     }`
   );
 
@@ -85,28 +94,33 @@ const App = () => {
           };
 
   return (
-    <div className="min-h-screen bg-black">
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-neutral-800">
+    <div className="min-h-screen bg-surface">
+      <header className="sticky top-0 z-40 bg-surface/85 backdrop-blur-md border-b border-edge">
         <div className={`${isGraphPage ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-6 py-4 space-y-4`}>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-gradient-to-br from-sky-500 to-violet-600">
-                    <Code2 className="w-5 h-5 text-white" />
-                  </div>
-                  <h1 className="text-xl font-semibold text-white tracking-tight">Codexia</h1>
+                  <Code2 className="w-5 h-5 text-brand" />
+                  <h1 className="text-xl font-semibold text-ink tracking-tight">Codexia</h1>
                 </div>
-                <div className="h-5 w-px bg-neutral-800" />
-                <span className="text-neutral-400 text-sm font-medium">{repoName}</span>
+                <div className="h-5 w-px bg-edge" />
+                <span className="text-ink-secondary text-sm font-medium">{repoName}</span>
               </div>
 
-              <nav className="flex flex-wrap gap-2">
+              <nav role="tablist" aria-label="Dashboard sections" className="flex flex-wrap gap-2">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <button key={item.id} onClick={() => setActiveTab(item.id)} className={getTabButtonClass(item.id)}>
-                      <Icon className="h-4 w-4" />
+                    <button
+                      key={item.id}
+                      role="tab"
+                      aria-selected={activeTab === item.id}
+                      aria-controls={`tabpanel-${item.id}`}
+                      onClick={() => setActiveTab(item.id)}
+                      className={getTabButtonClass(item.id)}
+                    >
+                      <Icon className="h-4 w-4" aria-hidden="true" />
                       <span>{item.label}</span>
                     </button>
                   );
@@ -115,29 +129,30 @@ const App = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-xs text-neutral-500">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="flex items-center gap-2 text-xs text-ink-faint">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
                 <span>Updated {lastRefreshAt.toLocaleTimeString()}</span>
               </div>
               <button
                 onClick={refreshAll}
                 disabled={repoContext.loading}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-black transition-all duration-200 hover:scale-[1.02]"
+                aria-label={repoContext.loading ? 'Refreshing data…' : 'Refresh all data'}
+                className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-0 bg-ink hover:bg-ink/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-surface transition-all duration-200 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               >
-                <RefreshCw className={`w-4 h-4 ${repoContext.loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${repoContext.loading ? 'animate-spin' : ''}`} aria-hidden="true" />
                 Refresh
               </button>
             </div>
           </div>
 
           {!isGraphPage && (
-            <div className="rounded-2xl border border-neutral-800/70 bg-neutral-950/70 px-4 py-3">
+            <div className="rounded-2xl border border-edge/70 bg-surface-subtle/70 px-4 py-3">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-white">{activeTabDetails.title}</p>
-                  <p className="text-sm text-neutral-500">{activeTabDetails.subtitle}</p>
+                  <p className="text-sm font-medium text-ink">{activeTabDetails.title}</p>
+                  <p className="text-sm text-ink-faint">{activeTabDetails.subtitle}</p>
                 </div>
-                <div className="hidden rounded-full border border-neutral-800 bg-black/40 px-3 py-1 text-xs text-neutral-400 md:block">
+                <div className="hidden rounded-full border border-edge bg-surface/40 px-3 py-1 text-xs text-ink-secondary md:block">
                   {repoName}
                 </div>
               </div>
@@ -148,7 +163,7 @@ const App = () => {
 
       <main className={`${isGraphPage ? 'max-w-[1800px]' : 'max-w-7xl'} mx-auto px-6 py-8 animate-fade-in`}>
         {isGraphPage ? (
-          <div className="mb-6 rounded-2xl border border-neutral-800/70 bg-neutral-950/60 px-4 py-3">
+          <div className="mb-6 rounded-2xl border border-edge/70 bg-surface-subtle/60 px-4 py-3">
             <RepoSelector onRepoSwitched={refreshAll} />
           </div>
         ) : (
@@ -162,6 +177,9 @@ const App = () => {
         )}
 
         <section
+          id={`tabpanel-${visibleTab}`}
+          role="tabpanel"
+          aria-label={NAV_ITEMS.find((i) => i.id === visibleTab)?.label}
           className={tabPanelClassName}
           style={tabPanelStyle}
         >
@@ -171,29 +189,31 @@ const App = () => {
             ) : visibleTab === 'repository' ? (
               <RepositoryDashboard refreshKey={refreshKey} />
             ) : visibleTab === 'graph' ? (
-              <KnowledgeGraphDashboard refreshKey={refreshKey} />
+              <Suspense fallback={<KnowledgeGraphLoading />}>
+                <KnowledgeGraphDashboard refreshKey={refreshKey} />
+              </Suspense>
             ) : (
               <Card
                 title="Jira Sprint Intelligence"
                 subtitle="Sprint health, scope changes, and board-level delivery integrity"
               >
-                <JiraSprintAnalysis refreshKey={refreshKey} />
+                <Suspense fallback={<LoadingCard />}>
+                  <JiraSprintAnalysis refreshKey={refreshKey} />
+                </Suspense>
               </Card>
             )}
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-neutral-800 mt-16">
+      <footer className="border-t border-edge mt-16">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-1 rounded bg-gradient-to-br from-sky-500 to-violet-600">
-                <Code2 className="w-3.5 h-3.5 text-white" />
-              </div>
-              <span className="text-sm font-medium text-neutral-400">Codexia</span>
+              <Code2 className="w-3.5 h-3.5 text-brand" />
+              <span className="text-sm font-medium text-ink-secondary">Codexia</span>
             </div>
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-ink-faint">
               Engineering Intelligence Layer for Teams and Repositories
             </p>
           </div>

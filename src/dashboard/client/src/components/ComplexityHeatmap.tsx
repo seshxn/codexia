@@ -36,7 +36,7 @@ export const ComplexityHeatmap = ({ data, limit = 15, onFileClick }: ComplexityH
 
   if (chartData.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-neutral-600">
+      <div className="flex items-center justify-center h-64 text-ink-faint">
         No complexity data available
       </div>
     );
@@ -77,12 +77,12 @@ export const ComplexityHeatmap = ({ data, limit = 15, onFileClick }: ComplexityH
                 if (!payload || !payload[0]) return null;
                 const item = payload[0].payload;
                 return (
-                  <div className="bg-neutral-950/95 border border-neutral-700 rounded-lg p-3 text-sm shadow-xl shadow-black/60">
-                    <p className="font-medium text-white mb-1">{item.fullPath}</p>
-                    <p className="text-neutral-300">Score: {item.score.toFixed(1)}</p>
-                    <p className="text-neutral-300">Lines: {item.lines}</p>
-                    <p className="text-neutral-300">Functions: {item.functions}</p>
-                    {onFileClick && <p className="text-sky-300 text-xs mt-2">Click for details</p>}
+                  <div className="bg-surface-subtle border border-edge rounded-lg p-3 text-sm shadow-elevated">
+                    <p className="font-medium text-ink mb-1">{item.fullPath}</p>
+                    <p className="text-ink-secondary">Score: {item.score.toFixed(1)}</p>
+                    <p className="text-ink-secondary">Lines: {item.lines}</p>
+                    <p className="text-ink-secondary">Functions: {item.functions}</p>
+                    {onFileClick && <p className="text-brand text-xs mt-2">Click for details</p>}
                   </div>
                 );
               }}
@@ -103,7 +103,7 @@ export const ComplexityHeatmap = ({ data, limit = 15, onFileClick }: ComplexityH
       {hasMore && (
         <button
           onClick={() => setShowAll(!showAll)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2 text-sm text-ink-faint hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
           {showAll ? (
             <>

@@ -457,8 +457,18 @@ export class DashboardServer {
       }
       files = new Map([...files].filter(([p]) => relevantPaths.has(p)));
     }
-    const cognitiveLoad = await this.engine.getCognitiveLoadMap({ maxTemporalFiles: 120 });
-    const cognitiveLoadByFile = new Map(cognitiveLoad.files.map((entry) => [entry.path, entry.score]));
+    // getCognitiveLoadMap runs git log and can be slow on large repos.
+    // Time-box it to 15s; if it exceeds that, render the graph without
+    // temporal heat (nodes will simply have no cognitive-load coloring).
+    const COGNITIVE_LOAD_TIMEOUT_MS = 15_000;
+    const cognitiveLoadByFile = await Promise.race([
+      this.engine
+        .getCognitiveLoadMap({ maxTemporalFiles: 120 })
+        .then((result) => new Map(result.files.map((entry) => [entry.path, entry.score]))),
+      new Promise<Map<string, number>>((resolve) =>
+        setTimeout(() => resolve(new Map()), COGNITIVE_LOAD_TIMEOUT_MS),
+      ),
+    ]);
     const result = await buildKnowledgeGraphData(this.currentRepoRoot, files, graphData.edges, {
       cognitiveLoadByFile,
     });

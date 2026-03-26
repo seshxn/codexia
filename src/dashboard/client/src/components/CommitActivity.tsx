@@ -10,7 +10,7 @@ interface CommitActivityProps {
 export const CommitActivity = ({ data }: CommitActivityProps) => {
   if (!data || !data.activityByHour) {
     return (
-      <div className="flex items-center justify-center h-48 text-neutral-600">
+      <div className="flex items-center justify-center h-48 text-ink-faint">
         <div className="text-center">
           <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No activity data available</p>
@@ -35,25 +35,25 @@ export const CommitActivity = ({ data }: CommitActivityProps) => {
     <div className="space-y-6">
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="text-center p-3 rounded-lg bg-neutral-900/50">
-          <p className="text-2xl font-bold text-white">{data.totalCommits.toLocaleString()}</p>
-          <p className="text-xs text-neutral-500">Total Commits</p>
+        <div className="text-center p-3 rounded-lg bg-surface-subtle/50">
+          <p className="text-2xl font-bold text-ink">{data.totalCommits.toLocaleString()}</p>
+          <p className="text-xs text-ink-faint">Total Commits</p>
         </div>
-        <div className="text-center p-3 rounded-lg bg-neutral-900/50">
+        <div className="text-center p-3 rounded-lg bg-surface-subtle/50">
           <p className="text-2xl font-bold text-blue-400">{data.peakHour}</p>
-          <p className="text-xs text-neutral-500">Peak Hour</p>
+          <p className="text-xs text-ink-faint">Peak Hour</p>
         </div>
-        <div className="text-center p-3 rounded-lg bg-neutral-900/50">
+        <div className="text-center p-3 rounded-lg bg-surface-subtle/50">
           <p className="text-2xl font-bold text-green-400">{data.peakDay}</p>
-          <p className="text-xs text-neutral-500">Peak Day</p>
+          <p className="text-xs text-ink-faint">Peak Day</p>
         </div>
       </div>
 
       {/* Activity by Hour */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Clock className="w-4 h-4 text-neutral-500" />
-          <span className="text-sm text-neutral-300">Commits by Hour of Day</span>
+          <Clock className="w-4 h-4 text-ink-faint" />
+          <span className="text-sm text-ink-secondary">Commits by Hour of Day</span>
         </div>
         <div className="h-32">
           <ResponsiveContainer width="100%" height="100%">
@@ -81,8 +81,8 @@ export const CommitActivity = ({ data }: CommitActivityProps) => {
       {/* Activity by Day of Week */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Calendar className="w-4 h-4 text-neutral-500" />
-          <span className="text-sm text-neutral-300">Commits by Day of Week</span>
+          <Calendar className="w-4 h-4 text-ink-faint" />
+          <span className="text-sm text-ink-secondary">Commits by Day of Week</span>
         </div>
         <div className="h-24">
           <ResponsiveContainer width="100%" height="100%">
@@ -108,9 +108,9 @@ export const CommitActivity = ({ data }: CommitActivityProps) => {
       </div>
 
       {/* Average per day */}
-      <div className="flex items-center justify-center gap-2 text-sm text-neutral-500">
+      <div className="flex items-center justify-center gap-2 text-sm text-ink-faint">
         <TrendingUp className="w-4 h-4" />
-        <span>Average: <span className="text-white font-semibold">{data.averagePerDay}</span> commits/day</span>
+        <span>Average: <span className="text-ink font-semibold">{data.averagePerDay}</span> commits/day</span>
       </div>
     </div>
   );

@@ -38,7 +38,7 @@ export const HealthScore = ({ score, size = 'md', onClick }: HealthScoreProps) =
 
   return (
     <div 
-      className={`flex flex-col items-center ${onClick ? 'cursor-pointer hover:scale-105 transition-all duration-300' : ''}`}
+      className={`flex flex-col items-center ${onClick ? 'cursor-pointer hover:scale-105 transition-transform duration-300' : ''}`}
       onClick={onClick}
     >
       <div className={`relative ${classes.container}`}>
@@ -51,7 +51,7 @@ export const HealthScore = ({ score, size = 'md', onClick }: HealthScoreProps) =
             stroke="currentColor"
             strokeWidth="6"
             fill="none"
-            className="text-neutral-800"
+            className="text-edge"
           />
           {/* Progress circle */}
           <circle
@@ -76,12 +76,12 @@ export const HealthScore = ({ score, size = 'md', onClick }: HealthScoreProps) =
           </defs>
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`${classes.text} font-bold ${getScoreColor(score)}`}>
+          <span className={`${classes.text} font-bold ${getScoreColor(score)} nums`}>
             {Math.round(score)}
           </span>
         </div>
       </div>
-      <span className={`${classes.label} font-medium mt-2 ${getScoreColor(score)}`}>
+      <span className={`${classes.label} font-medium mt-2 tracking-tight ${getScoreColor(score)}`}>
         {getScoreLabel(score)}
       </span>
     </div>

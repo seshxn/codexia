@@ -14,7 +14,7 @@ export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
 
   if (!data || !data.files) {
     return (
-      <div className="flex items-center justify-center h-48 text-neutral-600">
+      <div className="flex items-center justify-center h-48 text-ink-faint">
         <div className="text-center">
           <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No ownership data available</p>
@@ -37,13 +37,13 @@ export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
     <div className="space-y-6">
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="p-4 rounded-lg bg-neutral-900/50 border border-neutral-800">
+        <div className="p-4 rounded-lg bg-surface-subtle/50 border border-edge">
           <div className="flex items-center gap-2 mb-2">
             <Users className="w-5 h-5 text-blue-400" />
-            <span className="text-sm text-neutral-500">Avg Bus Factor</span>
+            <span className="text-sm text-ink-faint">Avg Bus Factor</span>
           </div>
-          <p className="text-3xl font-bold text-white">{data.averageBusFactor}</p>
-          <p className="text-xs text-neutral-600 mt-1">people to cover 50% of code</p>
+          <p className="text-3xl font-bold text-ink">{data.averageBusFactor}</p>
+          <p className="text-xs text-ink-faint mt-1">people to cover 50% of code</p>
         </div>
         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
           <div className="flex items-center gap-2 mb-2">
@@ -51,7 +51,7 @@ export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
             <span className="text-sm text-red-400">High Risk Files</span>
           </div>
           <p className="text-3xl font-bold text-red-400">{data.highRiskFiles.length}</p>
-          <p className="text-xs text-neutral-600 mt-1">single owner, 80%+ ownership</p>
+          <p className="text-xs text-ink-faint mt-1">single owner, 80%+ ownership</p>
         </div>
       </div>
 
@@ -71,8 +71,8 @@ export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
               >
                 <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{file.file}</p>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-sm text-ink truncate">{file.file}</p>
+                  <p className="text-xs text-ink-faint">
                     {file.primaryOwner} owns {file.ownership}%
                   </p>
                 </div>
@@ -82,7 +82,7 @@ export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
           {data.highRiskFiles.length > 5 && (
             <button
               onClick={() => setShowAllHighRisk(!showAllHighRisk)}
-              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-ink-faint hover:text-ink transition-colors"
             >
               {showAllHighRisk ? (
                 <>
@@ -103,21 +103,21 @@ export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
       {/* Top File Owners */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Users className="w-4 h-4 text-neutral-500" />
-          <span className="text-sm text-neutral-300">Code Owners by Files</span>
+          <Users className="w-4 h-4 text-ink-faint" />
+          <span className="text-sm text-ink-secondary">Code Owners by Files</span>
         </div>
         <div className={`space-y-2 ${showAllOwners ? 'max-h-64 overflow-y-auto' : ''} pr-2`}>
           {displayedOwners.map((owner, index) => (
             <div
               key={owner.email}
-              className="flex items-center gap-3 p-3 rounded-lg bg-neutral-900/50 border border-neutral-800"
+              className="flex items-center gap-3 p-3 rounded-lg bg-surface-subtle/50 border border-edge"
             >
-              <div className="w-6 h-6 rounded-full bg-neutral-800 flex items-center justify-center text-xs font-bold text-neutral-300">
+              <div className="w-6 h-6 rounded-full bg-surface-ui flex items-center justify-center text-xs font-bold text-ink-secondary">
                 {index + 1}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white truncate">{owner.name}</p>
-                <p className="text-xs text-neutral-500">
+                <p className="text-sm text-ink truncate">{owner.name}</p>
+                <p className="text-xs text-ink-faint">
                   {owner.filesOwned} files · {owner.avgOwnership}% avg ownership
                 </p>
               </div>
@@ -127,7 +127,7 @@ export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
         {data.ownersByFiles.length > 5 && (
           <button
             onClick={() => setShowAllOwners(!showAllOwners)}
-            className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2 text-sm text-ink-faint hover:text-ink transition-colors"
           >
             {showAllOwners ? (
               <>
@@ -147,30 +147,30 @@ export const OwnershipPanel = ({ data, onFileClick }: OwnershipPanelProps) => {
       {/* File Ownership Table */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Shield className="w-4 h-4 text-neutral-500" />
-          <span className="text-sm text-neutral-300">File Ownership</span>
-          <span className="text-xs text-neutral-600">({data.files.length} files)</span>
+          <Shield className="w-4 h-4 text-ink-faint" />
+          <span className="text-sm text-ink-secondary">File Ownership</span>
+          <span className="text-xs text-ink-faint">({data.files.length} files)</span>
         </div>
         <div className={`space-y-1 ${showAllFiles ? 'max-h-72 overflow-y-auto' : ''} pr-2`}>
           {displayedFiles.map((file) => (
             <div
               key={file.file}
-              className={`flex items-center gap-2 p-2 rounded bg-slate-900/30 text-xs ${onFileClick ? 'cursor-pointer hover:bg-neutral-900/50' : ''}`}
+              className={`flex items-center gap-2 p-2 rounded bg-surface-subtle/30 text-xs ${onFileClick ? 'cursor-pointer hover:bg-surface-subtle/50' : ''}`}
               onClick={() => onFileClick?.(file)}
             >
               <span className={`px-1.5 py-0.5 rounded ${getBusFactorColor(file.busFactor)}`}>
                 BF:{file.busFactor}
               </span>
-              <span className="text-neutral-500 flex-shrink-0 w-12">{file.ownership}%</span>
-              <span className="text-white truncate flex-1">{file.file}</span>
-              <span className="text-neutral-600 flex-shrink-0">{file.primaryOwner}</span>
+              <span className="text-ink-faint flex-shrink-0 w-12">{file.ownership}%</span>
+              <span className="text-ink truncate flex-1">{file.file}</span>
+              <span className="text-ink-faint flex-shrink-0">{file.primaryOwner}</span>
             </div>
           ))}
         </div>
         {data.files.length > 15 && (
           <button
             onClick={() => setShowAllFiles(!showAllFiles)}
-            className="w-full flex items-center justify-center gap-2 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2 text-sm text-ink-faint hover:text-ink transition-colors"
           >
             {showAllFiles ? (
               <>

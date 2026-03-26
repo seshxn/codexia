@@ -91,34 +91,38 @@ export const RepoSelector = ({ onRepoSwitched }: RepoSelectorProps) => {
   }, [switchRepo]);
 
   if (loading) {
-    return <p className="text-sm text-neutral-400">Loading repository context...</p>;
+    return <p className="text-sm text-ink-faint">Loading repository context...</p>;
   }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">Current Repository</p>
-        <p className="mt-2 text-sm text-white font-mono break-all">{context?.repoRoot || 'Unknown'}</p>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Current Repository</p>
+        <p className="mt-1 text-sm text-ink font-mono break-all">{context?.repoRoot || 'Unknown'}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <label htmlFor="repo-path-input" className="sr-only">Repository path</label>
         <input
+          id="repo-path-input"
           value={repoInput}
           onChange={(event) => setRepoInput(event.target.value)}
-          className="lg:col-span-2 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-sky-500"
+          className="lg:col-span-2 rounded-lg border border-edge bg-surface-raised px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-transparent"
           placeholder="/absolute/path/to/repository"
         />
         <button
           onClick={() => void pickAndSwitchRepo()}
           disabled={switching || picking}
-          className="rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={picking ? 'Opening folder picker…' : 'Browse for repository'}
+          className="rounded-lg border border-edge bg-surface-raised px-4 py-2 text-sm font-medium text-ink hover:bg-surface-ui disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           {picking ? 'Opening...' : 'Browse...'}
         </button>
         <button
           onClick={() => void switchRepo()}
           disabled={switching || picking}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={switching ? 'Switching repository…' : 'Switch to this repository'}
+          className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-surface hover:bg-ink/80 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           {switching ? 'Switching...' : 'Switch Repo'}
         </button>
@@ -126,14 +130,16 @@ export const RepoSelector = ({ onRepoSwitched }: RepoSelectorProps) => {
 
       {recent.length > 0 && (
         <div>
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Recent Repositories</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Recent Repositories</p>
+          <div className="mt-2 flex flex-wrap gap-2" role="list" aria-label="Recent repositories">
             {recent.map((repo) => (
               <button
                 key={repo.path}
+                role="listitem"
                 onClick={() => void switchRepo(repo.path)}
                 disabled={switching || picking || repo.current}
-                className="rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-current={repo.current ? 'true' : undefined}
+                className="rounded-full border border-edge bg-surface-raised px-3 py-2 text-xs text-ink-secondary hover:text-ink hover:border-edge-moderate disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand min-h-[44px] sm:min-h-0 sm:py-1.5"
               >
                 {repo.current ? `${repo.name} (current)` : repo.name}
               </button>
