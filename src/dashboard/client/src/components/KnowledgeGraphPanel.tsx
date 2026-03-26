@@ -1233,7 +1233,6 @@ export const KnowledgeGraphPanel = ({ data }: KnowledgeGraphPanelProps) => {
             <div className="relative flex items-center justify-between border-b border-neutral-800/70 px-5 py-4">
               <div>
                 <p className="text-sm font-medium text-white">Graph Canvas</p>
-                <p className="text-sm text-neutral-500">Sigma renderer with ForceAtlas layout, GitNexus-style focus, and graph-driven filtering.</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="rounded-full border border-neutral-800 bg-neutral-950/90 px-3 py-1.5 text-xs text-neutral-400">
