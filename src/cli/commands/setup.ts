@@ -4,7 +4,20 @@ import { Command } from 'commander';
 import { Formatter } from '../formatter.js';
 
 export const setupCommand = new Command('setup')
-  .description('Generate local MCP configuration snippets for editor setup')
+  .description('Write an MCP config snippet for the Integrate workflow')
+  .addHelpText('after', `
+When to use:
+  Run this when you want an editor or assistant to launch Codexia through MCP.
+
+Depends on:
+  A repository checkout and an MCP client that can launch \`npx codexia serve\`.
+
+Usually next:
+  Load the generated config in your editor or client, which then starts \`codexia serve\`.
+
+Examples:
+  $ codexia setup
+`)
   .action(async (_options, command) => {
     const globalOpts = command.parent?.opts() || {};
     const formatter = new Formatter(globalOpts.json);

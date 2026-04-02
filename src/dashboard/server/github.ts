@@ -101,11 +101,20 @@ interface GitHubDeploymentStatusResponse {
 
 const ISSUE_KEY_PATTERN = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
 const GITHUB_API_VERSION = '2026-03-10';
+const SNAPSHOT_CACHE_TTL_MS = 15_000;
+
+interface SnapshotCacheEntry<T> {
+  expiresAt: number;
+  settled: boolean;
+  promise: Promise<T>;
+}
 
 export class GitHubAnalyticsService {
   private readonly token: string | null;
   private readonly apiUrl: string;
   private readonly fetchImpl: FetchLike;
+  private readonly pullRequestCache = new Map<string, SnapshotCacheEntry<GitHubPullRequest[]>>();
+  private readonly deploymentCache = new Map<string, SnapshotCacheEntry<GitHubDeployment[]>>();
 
   constructor(env: NodeJS.ProcessEnv = process.env, fetchImpl: FetchLike = fetch) {
     this.token = (env.CODEXIA_GITHUB_TOKEN || '').trim() || null;
@@ -131,56 +140,59 @@ export class GitHubAnalyticsService {
 
   async getPullRequests(repo: string, lookbackDays: number): Promise<GitHubPullRequest[]> {
     this.ensureConfigured();
-    const [owner, name] = this.parseRepo(repo);
-    const since = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
+    const cacheKey = this.makeSnapshotCacheKey('pulls', repo, lookbackDays);
+    return this.getCachedSnapshot(this.pullRequestCache, cacheKey, async () => {
+      const [owner, name] = this.parseRepo(repo);
+      const since = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
 
-    const [openPulls, closedPulls] = await Promise.all([
-      this.paginate<GitHubPullResponse>(`/repos/${owner}/${name}/pulls?state=open&sort=updated&direction=desc&per_page=100`),
-      this.paginate<GitHubPullResponse>(`/repos/${owner}/${name}/pulls?state=closed&sort=updated&direction=desc&per_page=100`),
-    ]);
+      const [openPulls, closedPulls] = await Promise.all([
+        this.paginate<GitHubPullResponse>(`/repos/${owner}/${name}/pulls?state=open&sort=updated&direction=desc&per_page=100`),
+        this.paginate<GitHubPullResponse>(`/repos/${owner}/${name}/pulls?state=closed&sort=updated&direction=desc&per_page=100`),
+      ]);
 
-    const filtered = [...openPulls, ...closedPulls]
-      .filter((pull) => {
-        const updatedAt = Date.parse(pull.updated_at || pull.created_at);
-        return Number.isFinite(updatedAt) && updatedAt >= since;
-      })
-      .filter((pull, index, all) => all.findIndex((candidate) => candidate.number === pull.number) === index);
+      const filtered = [...openPulls, ...closedPulls]
+        .filter((pull) => {
+          const updatedAt = Date.parse(pull.updated_at || pull.created_at);
+          return Number.isFinite(updatedAt) && updatedAt >= since;
+        })
+        .filter((pull, index, all) => all.findIndex((candidate) => candidate.number === pull.number) === index);
 
-    return Promise.all(filtered.map(async (pull) => {
-      const merged = Boolean(pull.merged_at);
-      const detail = await this.getPullRequestDetail(owner, name, pull.number);
-      const reviews = await this.getPullRequestReviews(owner, name, pull.number);
-      const firstReviewAt = reviews
-        .map((review) => review.submitted_at)
-        .filter((value): value is string => typeof value === 'string')
-        .sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+      return Promise.all(filtered.map(async (pull) => {
+        const merged = Boolean(pull.merged_at);
+        const detail = await this.getPullRequestDetail(owner, name, pull.number);
+        const reviews = await this.getPullRequestReviews(owner, name, pull.number);
+        const firstReviewAt = reviews
+          .map((review) => review.submitted_at)
+          .filter((value): value is string => typeof value === 'string')
+          .sort((a, b) => Date.parse(a) - Date.parse(b))[0];
 
-      return {
-        id: `pr-${pull.id || pull.number}`,
-        repo,
-        number: pull.number,
-        title: pull.title,
-        author: pull.user?.login || 'unknown',
-        createdAt: pull.created_at,
-        updatedAt: pull.updated_at,
-        mergedAt: pull.merged_at || undefined,
-        closedAt: pull.closed_at || undefined,
-        issueKeys: this.extractIssueKeys([pull.title, pull.head?.ref]),
-        state: merged ? 'merged' : pull.state === 'open' ? 'open' : 'closed',
-        baseBranch: pull.base?.ref || 'main',
-        headBranch: pull.head?.ref || '',
-        headSha: pull.head?.sha || undefined,
-        firstCommitAt: pull.created_at,
-        firstReviewAt,
-        isDraft: Boolean(pull.draft),
-        mergedBy: detail.merged_by?.login || pull.merged_by?.login,
-        mergeCommitSha: detail.merge_commit_sha || undefined,
-        additions: detail.additions ?? 0,
-        deletions: detail.deletions ?? 0,
-        changedFiles: detail.changed_files ?? 0,
-        reviewCount: reviews.length,
-      };
-    }));
+        return {
+          id: `pr-${pull.id || pull.number}`,
+          repo,
+          number: pull.number,
+          title: pull.title,
+          author: pull.user?.login || 'unknown',
+          createdAt: pull.created_at,
+          updatedAt: pull.updated_at,
+          mergedAt: pull.merged_at || undefined,
+          closedAt: pull.closed_at || undefined,
+          issueKeys: this.extractIssueKeys([pull.title, pull.head?.ref]),
+          state: merged ? 'merged' : pull.state === 'open' ? 'open' : 'closed',
+          baseBranch: pull.base?.ref || 'main',
+          headBranch: pull.head?.ref || '',
+          headSha: pull.head?.sha || undefined,
+          firstCommitAt: pull.created_at,
+          firstReviewAt,
+          isDraft: Boolean(pull.draft),
+          mergedBy: detail.merged_by?.login || pull.merged_by?.login,
+          mergeCommitSha: detail.merge_commit_sha || undefined,
+          additions: detail.additions ?? 0,
+          deletions: detail.deletions ?? 0,
+          changedFiles: detail.changed_files ?? 0,
+          reviewCount: reviews.length,
+        };
+      }));
+    });
   }
 
   async getDeployments(
@@ -189,45 +201,54 @@ export class GitHubAnalyticsService {
     selectors?: { environments?: string[] },
   ): Promise<GitHubDeployment[]> {
     this.ensureConfigured();
-    const [owner, name] = this.parseRepo(repo);
-    const since = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
-    const deployments = await this.paginate<GitHubDeploymentResponse>(`/repos/${owner}/${name}/deployments?per_page=100`);
-    const allowedEnvironments = new Set((selectors?.environments || []).map((value) => value.toLowerCase()));
+    const cacheKey = this.makeSnapshotCacheKey(
+      'deployments',
+      repo,
+      lookbackDays,
+      (selectors?.environments || []).slice().sort().join(','),
+    );
 
-    const filtered = deployments.filter((deployment) => {
-      const createdAt = Date.parse(deployment.created_at);
-      if (!Number.isFinite(createdAt) || createdAt < since) {
-        return false;
-      }
+    return this.getCachedSnapshot(this.deploymentCache, cacheKey, async () => {
+      const [owner, name] = this.parseRepo(repo);
+      const since = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
+      const deployments = await this.paginate<GitHubDeploymentResponse>(`/repos/${owner}/${name}/deployments?per_page=100`);
+      const allowedEnvironments = new Set((selectors?.environments || []).map((value) => value.toLowerCase()));
 
-      if (allowedEnvironments.size === 0) {
-        return true;
-      }
+      const filtered = deployments.filter((deployment) => {
+        const createdAt = Date.parse(deployment.created_at);
+        if (!Number.isFinite(createdAt) || createdAt < since) {
+          return false;
+        }
 
-      return allowedEnvironments.has((deployment.environment || '').toLowerCase());
-    });
+        if (allowedEnvironments.size === 0) {
+          return true;
+        }
 
-    const snapshots: GitHubDeployment[] = [];
-    for (const deployment of filtered) {
-      const status = deployment.statuses_url
-        ? await this.getDeploymentStatus(deployment.statuses_url)
-        : { status: 'unknown' as const, updatedAt: deployment.updated_at };
-
-      snapshots.push({
-        id: `dep-${deployment.id}`,
-        repo,
-        environment: deployment.environment || 'unknown',
-        status: status.status,
-        createdAt: deployment.created_at,
-        updatedAt: status.updatedAt || deployment.updated_at,
-        sha: deployment.sha,
-        source: 'github_deployment',
-        confidence: 'high',
-        linkedPullRequestIds: [],
+        return allowedEnvironments.has((deployment.environment || '').toLowerCase());
       });
-    }
 
-    return snapshots;
+      const snapshots: GitHubDeployment[] = [];
+      for (const deployment of filtered) {
+        const status = deployment.statuses_url
+          ? await this.getDeploymentStatus(deployment.statuses_url)
+          : { status: 'unknown' as const, updatedAt: deployment.updated_at };
+
+        snapshots.push({
+          id: `dep-${deployment.id}`,
+          repo,
+          environment: deployment.environment || 'unknown',
+          status: status.status,
+          createdAt: deployment.created_at,
+          updatedAt: status.updatedAt || deployment.updated_at,
+          sha: deployment.sha,
+          source: 'github_deployment',
+          confidence: 'high',
+          linkedPullRequestIds: [],
+        });
+      }
+
+      return snapshots;
+    });
   }
 
   private async getDeploymentStatus(statusesUrl: string): Promise<{ status: GitHubDeployment['status']; updatedAt?: string }> {
@@ -315,6 +336,41 @@ export class GitHubAnalyticsService {
     if (!this.token) {
       throw new Error('GitHub is not configured: missing CODEXIA_GITHUB_TOKEN.');
     }
+  }
+
+  private makeSnapshotCacheKey(kind: 'pulls' | 'deployments', repo: string, lookbackDays: number, extra = ''): string {
+    return `${kind}:${repo}:${lookbackDays}:${extra}`;
+  }
+
+  private getCachedSnapshot<T>(
+    cache: Map<string, SnapshotCacheEntry<T>>,
+    key: string,
+    loader: () => Promise<T>,
+  ): Promise<T> {
+    const now = Date.now();
+    const cached = cache.get(key);
+    if (cached && (!cached.settled || cached.expiresAt > now)) {
+      return cached.promise;
+    }
+
+    const entry: SnapshotCacheEntry<T> = {
+      expiresAt: now + SNAPSHOT_CACHE_TTL_MS,
+      settled: false,
+      promise: Promise.resolve().then(loader).then((value) => {
+        entry.settled = true;
+        entry.expiresAt = Date.now() + SNAPSHOT_CACHE_TTL_MS;
+        return value;
+      }).catch((error) => {
+        if (cache.get(key) === entry) {
+          cache.delete(key);
+        }
+
+        throw error;
+      }),
+    };
+
+    cache.set(key, entry);
+    return entry.promise;
   }
 
   private extractIssueKeys(values: Array<string | undefined>): string[] {

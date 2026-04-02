@@ -4,17 +4,38 @@ import * as inquirer from '@inquirer/prompts';
 import { CodexiaEngine } from './engine.js';
 import { Formatter } from './formatter.js';
 
+const testState = vi.hoisted(() => ({
+  fsAccess: vi.fn(),
+  fsWriteFile: vi.fn(),
+  lastSpinner: undefined as undefined | {
+    text: string;
+    start: ReturnType<typeof vi.fn>;
+    succeed: ReturnType<typeof vi.fn>;
+    fail: ReturnType<typeof vi.fn>;
+    warn: ReturnType<typeof vi.fn>;
+  },
+}));
+
 // Mock dependencies
 vi.mock('@inquirer/prompts');
 vi.mock('./engine.js');
 vi.mock('./formatter.js');
+vi.mock('node:fs/promises', () => ({
+  access: testState.fsAccess,
+  writeFile: testState.fsWriteFile,
+}));
 vi.mock('ora', () => ({
-  default: vi.fn(() => ({
-    start: vi.fn().mockReturnThis(),
-    succeed: vi.fn().mockReturnThis(),
-    fail: vi.fn().mockReturnThis(),
-    warn: vi.fn().mockReturnThis(),
-  })),
+  default: vi.fn((options?: { text?: string }) => {
+    const spinner = {
+      text: options?.text || '',
+      start: vi.fn().mockReturnThis(),
+      succeed: vi.fn().mockReturnThis(),
+      fail: vi.fn().mockReturnThis(),
+      warn: vi.fn().mockReturnThis(),
+    };
+    testState.lastSpinner = spinner;
+    return spinner;
+  }),
 }));
 vi.mock('boxen', () => ({
   default: vi.fn((content: string) => content),
@@ -31,6 +52,7 @@ vi.mock('chalk', () => {
     fn.green = fn;
     fn.red = fn;
     fn.blue = fn;
+    fn.magenta = fn;
     return fn;
   };
   
@@ -67,20 +89,25 @@ describe('Interactive Wizard', () => {
   });
 
   describe('selectCategory', () => {
-    it('should prompt user with category choices', async () => {
-      mockSelect.mockResolvedValue('analyze');
+    it('should prompt user with workflow category choices', async () => {
+      mockSelect.mockResolvedValue('index');
       
       const result = await selectCategory();
       
-      expect(result).toBe('analyze');
+      expect(result).toBe('index');
       expect(mockSelect).toHaveBeenCalledOnce();
       expect(mockSelect.mock.calls[0][0]).toHaveProperty('message');
       expect(mockSelect.mock.calls[0][0]).toHaveProperty('choices');
-      expect(mockSelect.mock.calls[0][0].choices.length).toBeGreaterThan(0);
+      expect(mockSelect.mock.calls[0][0].choices.map((choice: { value: string }) => choice.value)).toEqual([
+        'index',
+        'inspect',
+        'enforce',
+        'integrate',
+      ]);
     });
 
-    it('should return the selected category value', async () => {
-      const categories = ['analyze', 'reports', 'quality', 'testing', 'setup'];
+    it('should return the selected workflow value', async () => {
+      const categories = ['index', 'inspect', 'enforce', 'integrate'];
       
       for (const category of categories) {
         mockSelect.mockResolvedValue(category);
@@ -91,12 +118,61 @@ describe('Interactive Wizard', () => {
   });
 
   describe('selectCommand', () => {
+    const directRunOnlyCommands = new Set(['analyze', 'update', 'status', 'setup', 'serve', 'list', 'dashboard']);
+    const commandPlacementCases = [
+      {
+        category: 'index',
+        commands: ['analyze', 'update', 'status', 'scan'],
+      },
+      {
+        category: 'inspect',
+        commands: ['impact', 'graph', 'history', 'complexity', 'signals', 'hotpaths', 'changelog', 'pr-report'],
+      },
+      {
+        category: 'enforce',
+        commands: ['check', 'invariants', 'tests'],
+      },
+      {
+        category: 'integrate',
+        commands: ['setup', 'serve', 'list', 'dashboard', 'init', 'watch', 'monorepo', 'mcp-server'],
+      },
+    ] as const;
+
+    it('should keep command placements unique across workflows', () => {
+      const allCommands = commandPlacementCases.flatMap(({ commands }) => commands);
+      expect(new Set(allCommands).size).toBe(allCommands.length);
+    });
+
+    for (const { category, commands } of commandPlacementCases) {
+      it(`should place ${commands.join(', ')} under ${category}`, async () => {
+        mockSelect.mockResolvedValue('back');
+
+        await selectCommand(category);
+
+        const choiceValues = mockSelect.mock.calls[0][0].choices.map((choice: { value: string }) => choice.value);
+        const choiceNames = new Map(
+          mockSelect.mock.calls[0][0].choices.map((choice: { value: string; name: string }) => [choice.value, choice.name])
+        );
+        expect(choiceValues).toEqual([...commands, 'back']);
+        expect(choiceValues.at(-1)).toBe('back');
+        for (const command of commands) {
+          const name = choiceNames.get(command);
+          expect(name).toBeDefined();
+          if (directRunOnlyCommands.has(command)) {
+            expect(name).toContain('terminal only');
+          } else {
+            expect(name).not.toContain('terminal only');
+          }
+        }
+      });
+    }
+
     it('should prompt user with commands for the selected category', async () => {
-      mockSelect.mockResolvedValue('scan');
+      mockSelect.mockResolvedValue('analyze');
       
-      const result = await selectCommand('analyze');
+      const result = await selectCommand('index');
       
-      expect(result).toBe('scan');
+      expect(result).toBe('analyze');
       expect(mockSelect).toHaveBeenCalledOnce();
       expect(mockSelect.mock.calls[0][0]).toHaveProperty('message');
       expect(mockSelect.mock.calls[0][0]).toHaveProperty('choices');
@@ -105,7 +181,7 @@ describe('Interactive Wizard', () => {
     it('should include a back option', async () => {
       mockSelect.mockResolvedValue('back');
       
-      const result = await selectCommand('analyze');
+      const result = await selectCommand('index');
       
       expect(result).toBe('back');
     });
@@ -116,7 +192,7 @@ describe('Interactive Wizard', () => {
 
     it('should return selected command value', async () => {
       mockSelect.mockResolvedValue('graph');
-      const result = await selectCommand('analyze');
+      const result = await selectCommand('index');
       expect(result).toBe('graph');
     });
   });
@@ -159,6 +235,37 @@ describe('Interactive Wizard', () => {
       const options = await getCommandOptions('history');
       
       expect(options.file).toBe('src/test.ts');
+    });
+
+    it('should add json option for history command when user confirms', async () => {
+      mockInput.mockResolvedValue('src/test.ts');
+      mockConfirm.mockResolvedValueOnce(true);
+
+      const options = await getCommandOptions('history');
+
+      expect(options.file).toBe('src/test.ts');
+      expect(options.json).toBe(true);
+    });
+
+    it('should add json option for changelog command when user confirms', async () => {
+      mockInput
+        .mockResolvedValueOnce('v1.0.0')
+        .mockResolvedValueOnce('HEAD');
+      mockConfirm.mockResolvedValue(true);
+
+      const options = await getCommandOptions('changelog');
+
+      expect(options.from).toBe('v1.0.0');
+      expect(options.to).toBe('HEAD');
+      expect(options.json).toBe(true);
+    });
+
+    it('should add json option for monorepo command when user confirms', async () => {
+      mockConfirm.mockResolvedValue(true);
+
+      const options = await getCommandOptions('monorepo');
+
+      expect(options.json).toBe(true);
     });
 
     it('should gather options for complexity command', async () => {
@@ -382,12 +489,26 @@ describe('Interactive Wizard', () => {
       expect(mockFormatter.formatPrReport).toHaveBeenCalled();
     });
 
-    it('should handle init command and create config file', async () => {
-      // Just test that the command runs without error
-      // The actual file system interaction is tested through integration
+    it('should handle init command without touching the real filesystem when config already exists', async () => {
+      testState.fsAccess.mockResolvedValueOnce(undefined);
+
       await executeCommand('init', {});
       
+      expect(testState.fsAccess).toHaveBeenCalledOnce();
+      expect(testState.fsWriteFile).not.toHaveBeenCalled();
       expect(console.log).toHaveBeenCalled();
+    });
+
+    it('should create the invariants file when init finds no existing config', async () => {
+      testState.fsAccess.mockRejectedValueOnce(new Error('missing'));
+      testState.fsWriteFile.mockResolvedValueOnce(undefined);
+
+      await executeCommand('init', {});
+
+      expect(testState.fsAccess).toHaveBeenCalledOnce();
+      expect(testState.fsWriteFile).toHaveBeenCalledOnce();
+      expect(testState.fsWriteFile.mock.calls[0][0]).toContain('codexia.invariants.yaml');
+      expect(testState.fsWriteFile.mock.calls[0][1]).toContain('no-circular-imports');
     });
 
     it('should handle watch command info display', async () => {
@@ -408,12 +529,27 @@ describe('Interactive Wizard', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('not yet implemented'));
     });
 
+    it('should explain direct-run-only commands in the fallback message', async () => {
+      await executeCommand('analyze', {});
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('terminal-only'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('codexia analyze'));
+    });
+
     it('should handle errors gracefully', async () => {
       mockEngine.scan.mockRejectedValue(new Error('Test error'));
       
       await executeCommand('scan', {});
       
       expect(mockFormatter.formatError).toHaveBeenCalled();
+    });
+
+    it('should fail the spinner when a command throws', async () => {
+      mockEngine.scan.mockRejectedValue(new Error('Test error'));
+      
+      await executeCommand('scan', {});
+
+      expect(testState.lastSpinner?.fail).toHaveBeenCalled();
     });
   });
 
@@ -437,7 +573,7 @@ describe('Interactive Wizard', () => {
     });
 
     it('should run the full wizard flow', async () => {
-      mockSelect.mockResolvedValueOnce('analyze').mockResolvedValueOnce('scan');
+      mockSelect.mockResolvedValueOnce('index').mockResolvedValueOnce('scan');
       mockConfirm.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
       
       await runInteractiveWizard();
@@ -449,9 +585,9 @@ describe('Interactive Wizard', () => {
 
     it('should allow running multiple commands', async () => {
       mockSelect
-        .mockResolvedValueOnce('analyze')
+        .mockResolvedValueOnce('index')
         .mockResolvedValueOnce('scan')
-        .mockResolvedValueOnce('analyze')
+        .mockResolvedValueOnce('index')
         .mockResolvedValueOnce('graph');
       mockInput.mockResolvedValue('');
       mockConfirm
@@ -471,9 +607,9 @@ describe('Interactive Wizard', () => {
 
     it('should handle back navigation', async () => {
       mockSelect
-        .mockResolvedValueOnce('analyze')
+        .mockResolvedValueOnce('index')
         .mockResolvedValueOnce('back')
-        .mockResolvedValueOnce('reports')
+        .mockResolvedValueOnce('inspect')
         .mockResolvedValueOnce('impact');
       mockConfirm
         .mockResolvedValueOnce(false) // staged
@@ -532,6 +668,17 @@ describe('Interactive Wizard', () => {
       
       expect(mockSelect).toHaveBeenCalledOnce();
       expect(mockEngine.scan).toHaveBeenCalled();
+    });
+
+    it('should mark direct-run-only commands in quick command choices', async () => {
+      mockSelect.mockResolvedValue('scan');
+      mockConfirm.mockResolvedValue(false);
+
+      await runQuickCommand();
+
+      const choiceNames = mockSelect.mock.calls[0][0].choices.map((choice: { name: string }) => choice.name);
+      expect(choiceNames.some((name: string) => name.includes('analyze') && name.includes('terminal only'))).toBe(true);
+      expect(choiceNames.some((name: string) => name.includes('setup') && name.includes('terminal only'))).toBe(true);
     });
 
     it('should handle ExitPromptError without throwing', async () => {

@@ -8,10 +8,13 @@
   "bin": {
     "codexia": "dist/cli/index.js"
   },
+  "workspaces": [
+    "src/dashboard/client"
+  ],
   "scripts": {
     "build": "tsc && npm run build:dashboard",
     "build:cli": "tsc",
-    "build:dashboard": "cd src/dashboard/client && npm install && npm run build",
+    "build:dashboard": "npm run build --workspace @codexia/dashboard",
     "start": "node dist/cli/index.js",
     "dev": "tsc --watch",
     "dev:dashboard": "npm run build:cli && node dist/cli/index.js dashboard --repo . --open",
@@ -76,6 +79,8 @@
     "dist/cli",
     "dist/codegraph",
     "dist/core",
+    "dist/dashboard",
+    "dist/dashboard-client",
     "dist/index.d.ts",
     "dist/index.js",
     "dist/learning",

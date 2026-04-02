@@ -4,12 +4,25 @@ import * as path from 'node:path';
 import { CodexiaEngine } from '../engine.js';
 
 export const dashboardCommand = new Command('dashboard')
-  .description('Start the web dashboard for visualizing code analysis')
+  .description('Open the workflow dashboard for repository analysis')
   .option('-p, --port <port>', 'Port to run the dashboard on', '3200')
   .option('--host <host>', 'Host to bind the dashboard server', '127.0.0.1')
   .option('-r, --repo <path>', 'Repository path to analyze (defaults to current directory)')
   .option('--open', 'Open the dashboard in your default browser')
   .option('--no-open', 'Do not open the browser automatically')
+  .addHelpText('after', `
+When to use:
+  Use this when you want a browser view of repository analysis.
+
+Depends on:
+  A repository checkout; run \`codexia analyze\` or \`codexia update\` first if you want the latest local data.
+
+Usually next:
+  Use \`codexia status\` or \`codexia update\` from the CLI when the repo changes.
+
+Examples:
+  $ codexia dashboard --repo .
+`)
   .action(async (options) => {
     const port = parseInt(options.port, 10);
     const host = options.host as string;
@@ -36,12 +49,8 @@ export const dashboardCommand = new Command('dashboard')
         process.exit(0);
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('Cannot find module') || message.includes('ERR_MODULE_NOT_FOUND')) {
-        console.error(chalk.red('Failed to start dashboard:'), 'The dashboard is not shipped in the npm package. Use the repository checkout to run it.');
-      } else {
-        console.error(chalk.red('Failed to start dashboard:'), message);
-      }
+      console.error(chalk.red('Failed to start dashboard:'));
+      console.error(error);
       process.exit(1);
     }
   });

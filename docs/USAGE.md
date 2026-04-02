@@ -1,5 +1,7 @@
 # Usage
 
+Advanced workflows only. If you are onboarding or setting up integrations, start with [Getting Started](getting-started.md), [CLI Guide](cli.md), [MCP Tools](MCP.md), or [AI Guide](ai.md).
+
 ## Language Support
 
 Codexia currently has two language tiers:
@@ -46,7 +48,7 @@ For quick delta review during development, use staged changes:
 review_context { staged: true, depth: 2 }
 ```
 
-This keeps the context limited to changed hunks and immediate dependents.
+This keeps the context focused on the changed hunks and their first- and second-hop dependents.
 
 ## Semantic Search
 

@@ -1,5 +1,28 @@
 # MCP Tools
 
+Use this for the common MCP workflows that most users need. It is intentionally narrower than a complete tool catalog. For first-run setup, see [Getting Started](getting-started.md). For broader CLI usage, see [CLI Guide](cli.md).
+Local analysis stays on your machine by default. MCP is the integration layer for editor and agent workflows, while AI, GitHub, and Jira remain optional integrations. For provider setup or remote analytics, see [AI Guide](ai.md) and [Dashboard Guide](dashboard.md).
+Operations dashboard engineering analytics performs remote API calls when configured.
+
+## Quick Setup
+
+Add Codexia to your MCP client with `codexia serve`:
+
+```json
+{
+  "mcpServers": {
+    "codexia": {
+      "command": "npx",
+      "args": ["codexia", "serve"]
+    }
+  }
+}
+```
+
+`serve` is the preferred entry point. `mcp-server` remains available for compatibility.
+
+For Core command workflows, use [CLI Guide](cli.md). For Operations analytics, use [Dashboard Guide](dashboard.md).
+
 ## Semantic Search
 
 Tool names:
@@ -92,3 +115,25 @@ Input:
 ```
 
 Returns composite drift score (0-100), component breakdown (boundary/naming/structural/dependency), drift trajectory + velocity, layer heatmap, and emergent convention candidates.
+
+## Compatibility Aliases
+
+The following aliases are exposed for older clients and helper flows:
+
+- `semantic_search_nodes_tool`
+- `get_review_context_tool`
+- `embed_graph_tool`
+- `get_docs_section_tool`
+- `list_graph_stats_tool`
+
+## Common Tool Map
+
+Keep the integration surface focused on the jobs above:
+
+- search and retrieval: `semantic_search`
+- review packets: `review_context`
+- graph refresh: `embed_graph`
+- documentation lookup: `docs_section`
+- graph health: `graph_stats`
+- simulation workflows: `codexia/refactor-plan`
+- architecture drift: `codexia/drift`

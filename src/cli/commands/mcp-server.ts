@@ -3,17 +3,20 @@ import { Formatter } from '../formatter.js';
 import chalk from 'chalk';
 
 export const mcpServerCommand = new Command('mcp-server')
-  .description('Start MCP server for AI integration')
+  .description('Compatibility alias for codexia serve')
   .option('-p, --port <port>', 'HTTP port (uses stdio if not specified)')
   .option('--host <host>', 'Host to bind the HTTP server', '127.0.0.1')
   .option('--stdio', 'Use stdio transport (for direct MCP integration)')
   .option('--tools <tools>', 'Comma-separated list of tools to enable')
   .option('--verbose', 'Enable verbose logging')
   .addHelpText('after', `
+Compatibility:
+  Prefer \`codexia serve\` for new MCP setups.
+
 Examples:
-  $ codexia mcp-server                     Start with stdio (for Claude/etc)
-  $ codexia mcp-server --port 3000         Start HTTP server on port 3000
-  $ codexia mcp-server --tools scan,impact Enable specific tools only
+  $ codexia serve                          Start with stdio (preferred)
+  $ codexia serve --http --port 3000       Start HTTP server on port 3000
+  $ codexia mcp-server                    Legacy alias for codexia serve
 
 Available MCP Tools:
   - scan          Scan repository and index all code

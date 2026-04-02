@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GitHubAnalyticsService } from './github.js';
 
 const okJson = (body: unknown, headers: Record<string, string> = {}): Response =>
@@ -47,7 +47,7 @@ describe('GitHubAnalyticsService', () => {
           return okJson([]);
         }
 
-        if (url.includes('/pulls?state=closed') && calls.length === 2) {
+        if (url.includes('/pulls?state=closed')) {
           return okJson(
             [
               {
@@ -127,7 +127,7 @@ describe('GitHubAnalyticsService', () => {
       },
     );
 
-    const pulls = await service.getPullRequests('acme/api', 90);
+    const pulls = await service.getPullRequests('acme/api', 120);
 
     expect(pulls).toHaveLength(2);
     expect(calls).toHaveLength(7);
@@ -217,6 +217,164 @@ describe('GitHubAnalyticsService', () => {
       { number: 3, state: 'open' },
       { number: 4, state: 'merged' },
     ]);
+  });
+
+  it('reuses identical pull request snapshot requests within the cache window', async () => {
+    const calls: string[] = [];
+    const service = new GitHubAnalyticsService(
+      {
+        CODEXIA_GITHUB_TOKEN: 'ghp_test',
+      } as NodeJS.ProcessEnv,
+      async (input) => {
+        const url = String(input);
+        calls.push(url);
+
+        if (url.includes('/pulls?state=open')) {
+          return okJson([
+            {
+              number: 5,
+              state: 'open',
+              title: 'PLAT-16 Cached work',
+              user: { login: 'sesh' },
+              created_at: '2026-01-05T09:00:00Z',
+              updated_at: '2026-01-05T12:00:00Z',
+              draft: false,
+              head: { ref: 'feature/plat-16', sha: 'mno345' },
+              base: { ref: 'main' },
+            },
+          ]);
+        }
+
+        if (url.includes('/pulls?state=closed')) {
+          return okJson([]);
+        }
+
+        if (url.endsWith('/pulls/5')) {
+          return okJson({ additions: 10, deletions: 2, changed_files: 1 });
+        }
+
+        if (url.endsWith('/pulls/5/reviews?per_page=100')) {
+          return okJson([]);
+        }
+
+        throw new Error(`Unexpected URL ${url}`);
+      },
+    );
+
+    await Promise.all([
+      service.getPullRequests('acme/api', 90),
+      service.getPullRequests('acme/api', 90),
+    ]);
+    await service.getPullRequests('acme/api', 90);
+
+    expect(calls).toHaveLength(4);
+  });
+
+  it('reuses identical deployment snapshot requests within the cache window', async () => {
+    const calls: string[] = [];
+    const service = new GitHubAnalyticsService(
+      {
+        CODEXIA_GITHUB_TOKEN: 'ghp_test',
+      } as NodeJS.ProcessEnv,
+      async (input) => {
+        const url = String(input);
+        calls.push(url);
+
+        if (url.includes('/deployments?per_page=100')) {
+          return okJson([
+            {
+              id: 7,
+              sha: 'sha-7',
+              environment: 'production',
+              created_at: '2026-01-05T12:00:00Z',
+              updated_at: '2026-01-05T12:10:00Z',
+            },
+          ]);
+        }
+
+        throw new Error(`Unexpected URL ${url}`);
+      },
+    );
+
+    await Promise.all([
+      service.getDeployments('acme/api', 90),
+      service.getDeployments('acme/api', 90),
+    ]);
+    await service.getDeployments('acme/api', 90);
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('keeps a slow in-flight pull request snapshot reusable after the ttl window advances', async () => {
+    const calls: string[] = [];
+    let resolveOpenRequest!: (response: Response) => void;
+    const openRequest = new Promise<Response>((resolve) => {
+      resolveOpenRequest = resolve;
+    });
+    let now = 0;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+
+    try {
+      const service = new GitHubAnalyticsService(
+        {
+          CODEXIA_GITHUB_TOKEN: 'ghp_test',
+        } as NodeJS.ProcessEnv,
+        async (input) => {
+          const url = String(input);
+          calls.push(url);
+
+          if (url.includes('/pulls?state=open')) {
+            return openRequest;
+          }
+
+          if (url.includes('/pulls?state=closed')) {
+            return okJson([]);
+          }
+
+          if (url.endsWith('/pulls/6')) {
+            return okJson({
+              additions: 10,
+              deletions: 2,
+              changed_files: 1,
+            });
+          }
+
+          if (url.endsWith('/pulls/6/reviews?per_page=100')) {
+            return okJson([]);
+          }
+
+          throw new Error(`Unexpected URL ${url}`);
+        },
+      );
+
+      const first = service.getPullRequests('acme/api', 90);
+      await Promise.resolve();
+      now = 20_000;
+      const second = service.getPullRequests('acme/api', 90);
+
+      resolveOpenRequest(okJson([
+        {
+          number: 6,
+          state: 'open',
+          title: 'PLAT-16 Slow cached work',
+          user: { login: 'sesh' },
+          created_at: '2026-01-05T09:00:00Z',
+          updated_at: '2026-01-05T12:00:00Z',
+          draft: false,
+          head: { ref: 'feature/plat-16', sha: 'mno345' },
+          base: { ref: 'main' },
+        },
+      ]));
+
+      const [firstPulls, secondPulls] = await Promise.all([first, second]);
+
+      expect(firstPulls).toHaveLength(1);
+      expect(secondPulls).toHaveLength(1);
+      expect(calls.filter((url) => url.includes('/pulls?state=open'))).toHaveLength(1);
+      expect(calls.filter((url) => url.includes('/pulls?state=closed'))).toHaveLength(1);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('throws a rate-limit error when GitHub returns 429', async () => {

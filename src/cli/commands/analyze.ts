@@ -3,10 +3,22 @@ import { CodexiaEngine } from '../engine.js';
 import { Formatter } from '../formatter.js';
 
 export const analyzeCommand = new Command('analyze')
-  .description('Analyze the repository and register it for CodeGraph features')
-  .option('--fast', 'Analyze structural information only')
+  .description('Index the current repository for later status and update checks')
+  .option('--fast', 'Compatibility flag; uses the standard analyze path')
   .option('-f, --force', 'Force a full re-index')
   .addHelpText('after', `
+When to use:
+  Run this after cloning a repository or when you need a fresh local index.
+
+Depends on:
+  A repository checkout in the current directory.
+
+Usually next:
+  Run \`codexia status\` to confirm the index, or \`codexia update\` after code changes.
+
+Notes:
+  \`--fast\` does not change the analyze engine path; it only keeps the command-line shape stable.
+
 Examples:
   $ codexia analyze
   $ codexia analyze --fast
