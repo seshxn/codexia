@@ -425,4 +425,62 @@ describe('GitHubAnalyticsService', () => {
 
     await expect(service.getPullRequests('acme/api', 90)).rejects.toThrow(/rate limit/i);
   });
+
+  it('reuses cached pull-request responses for identical requests', async () => {
+    const calls: string[] = [];
+    const service = new GitHubAnalyticsService(
+      {
+        CODEXIA_GITHUB_TOKEN: 'ghp_test',
+      } as NodeJS.ProcessEnv,
+      async (input) => {
+        const url = String(input);
+        calls.push(url);
+
+        if (url.includes('/pulls?state=open')) {
+          return okJson([]);
+        }
+
+        if (url.includes('/pulls?state=closed')) {
+          return okJson([
+            {
+              number: 7,
+              id: 7,
+              state: 'closed',
+              title: 'PLAT-77 Cached call',
+              user: { login: 'sesh' },
+              created_at: '2026-01-05T09:00:00Z',
+              updated_at: '2026-01-05T13:00:00Z',
+              merged_at: '2026-01-05T13:00:00Z',
+              closed_at: '2026-01-05T13:00:00Z',
+              draft: false,
+              merged_by: { login: 'maintainer' },
+              head: { ref: 'feature/plat-77', sha: 'cached-sha' },
+              base: { ref: 'main' },
+            },
+          ]);
+        }
+
+        if (url.endsWith('/pulls/7')) {
+          return okJson({
+            additions: 12,
+            deletions: 1,
+            changed_files: 2,
+            merged_by: { login: 'maintainer' },
+          });
+        }
+
+        if (url.endsWith('/pulls/7/reviews?per_page=100')) {
+          return okJson([]);
+        }
+
+        throw new Error(`Unexpected URL ${url}`);
+      },
+    );
+
+    const first = await service.getPullRequests('acme/api', 90);
+    const second = await service.getPullRequests('acme/api', 90);
+
+    expect(second).toEqual(first);
+    expect(calls).toHaveLength(4);
+  });
 });

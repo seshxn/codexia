@@ -1,6 +1,79 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitHubAnalyticsService } from './github.js';
-import { EngineeringIntelligenceService } from './engineering.js';
+import { EngineeringIntelligenceService, type TeamConfig } from './engineering.js';
+
+describe('EngineeringIntelligenceService request reuse', () => {
+  it('reuses pull requests when building deployments for the same report', async () => {
+    const getPullRequests = vi.fn(async () => [
+      {
+        id: 'pr-1',
+        repo: 'acme/api',
+        number: 1,
+        title: 'PLAT-1 Ship feature',
+        author: 'alice',
+        createdAt: '2026-01-01T09:00:00Z',
+        mergedAt: '2026-01-02T10:00:00Z',
+        closedAt: '2026-01-02T10:00:00Z',
+        firstCommitAt: '2026-01-01T08:00:00Z',
+        firstReviewAt: '2026-01-01T12:00:00Z',
+        issueKeys: ['PLAT-1'],
+        state: 'merged' as const,
+        baseBranch: 'main',
+        headBranch: 'feature/plat-1',
+        isDraft: false,
+        mergedBy: 'lead',
+        headSha: 'head-sha',
+        mergeCommitSha: 'merge-sha',
+        additions: 10,
+        deletions: 2,
+        changedFiles: 1,
+        reviewCount: 1,
+      },
+    ]);
+    const getDeployments = vi.fn(async () => [
+      {
+        id: 'dep-1',
+        repo: 'acme/api',
+        environment: 'production',
+        status: 'success' as const,
+        createdAt: '2026-01-02T12:00:00Z',
+        updatedAt: '2026-01-02T12:10:00Z',
+        sha: 'merge-sha',
+        source: 'github_deployment' as const,
+        confidence: 'high' as const,
+        linkedPullRequestIds: [],
+      },
+    ]);
+
+    const service = new EngineeringIntelligenceService({
+      repoRoot: '/tmp/codexia',
+      github: {
+        getConfig: () => ({ enabled: true, apiUrl: 'https://api.github.com', message: 'configured' }),
+        getPullRequests,
+        getDeployments,
+      } as never,
+      jira: {
+        getConfig: () => ({ enabled: false, baseUrl: null, authMode: 'none' as const, message: 'disabled' }),
+      } as never,
+      teamConfigLoader: {
+        load: async () => ({
+          enabled: true,
+          path: 'test',
+          message: 'ok',
+          teams: [{
+            name: 'Platform',
+            repos: ['acme/api'],
+          } satisfies TeamConfig],
+        }),
+      } as never,
+    });
+
+    await service.getTeamReport('Platform', 30);
+
+    expect(getPullRequests).toHaveBeenCalledTimes(1);
+    expect(getDeployments).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('EngineeringIntelligenceService single-repo fallback', () => {
   beforeEach(() => {
@@ -117,7 +190,7 @@ describe('EngineeringIntelligenceService single-repo fallback', () => {
 
   it('reuses identical repo and lookback requests inside a team report path', async () => {
     const calls: string[] = [];
-    const github = new GitHubAnalyticsService(
+    const githubService = new GitHubAnalyticsService(
       {
         CODEXIA_GITHUB_TOKEN: 'ghp_test',
       } as NodeJS.ProcessEnv,
@@ -188,7 +261,7 @@ describe('EngineeringIntelligenceService single-repo fallback', () => {
 
     const service = new EngineeringIntelligenceService({
       repoRoot: '/tmp/my-service',
-      github,
+      github: githubService,
       teamConfigLoader: {
         load: async () => ({
           enabled: true,
@@ -311,39 +384,39 @@ describe('EngineeringIntelligenceService single-repo fallback', () => {
         getConfig: github.getConfig,
         getPullRequests: async () => [
           {
-            id: 'pr-9',
+            id: 'pr-1',
             repo: 'acme/api',
-            number: 9,
-            title: 'PLAT-109 Ship checkout',
+            number: 1,
+            title: 'PLAT-100 Ship payments',
             author: 'alice',
-            createdAt: '2026-01-01T09:00:00Z',
+            createdAt: '2026-01-01T08:00:00Z',
             updatedAt: '2026-01-02T10:00:00Z',
             mergedAt: '2026-01-02T10:00:00Z',
             closedAt: '2026-01-02T10:00:00Z',
             firstCommitAt: '2026-01-01T08:00:00Z',
             firstReviewAt: '2026-01-01T14:00:00Z',
-            issueKeys: ['PLAT-109'],
+            issueKeys: ['PLAT-100'],
             state: 'merged' as const,
             baseBranch: 'main',
-            headBranch: 'feature/plat-109',
+            headBranch: 'feature/plat-100',
             isDraft: false,
             mergedBy: 'lead-one',
             additions: 120,
             deletions: 30,
             changedFiles: 7,
             reviewCount: 2,
-            mergeCommitSha: 'merge-sha-9',
+            mergeCommitSha: 'merge-sha-1',
           },
         ],
         getDeployments: async () => [
           {
-            id: 'dep-9',
+            id: 'dep-1',
             repo: 'acme/api',
             environment: 'production',
             status: 'success' as const,
             createdAt: '2026-01-02T12:00:00Z',
             updatedAt: '2026-01-02T12:10:00Z',
-            sha: 'merge-sha-9',
+            sha: 'merge-sha-1',
             source: 'github_deployment' as const,
             confidence: 'high' as const,
             linkedPullRequestIds: [],

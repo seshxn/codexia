@@ -8,6 +8,7 @@ import { getAIProvider } from '../../ai/index.js';
 import { EngineeringIntelligenceService } from './engineering.js';
 import { JiraAnalyticsService, type JiraBoardHistoryReport, type JiraSprintReport } from './jira.js';
 import { buildKnowledgeGraphData } from './knowledge-graph.js';
+import { RepoSwitchJobManager } from './repo-switch.js';
 
 export interface DashboardServerOptions {
   port: number;
@@ -100,6 +101,7 @@ export class DashboardServer {
   private requestSequence = 0;
   private latestRequestSequence = new Map<string, number>();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly repoSwitchJobs = new RepoSwitchJobManager();
 
   constructor(engine: CodexiaEngine, repoRoot?: string) {
     this.engine = engine;
@@ -284,6 +286,9 @@ export class DashboardServer {
           break;
         case '/api/repo/select':
           data = await this.selectRepo(url);
+          break;
+        case '/api/repo/switch-status':
+          data = this.getRepoSwitchStatus(url);
           break;
         case '/api/repo/pick':
           data = await this.pickRepoPath();
@@ -2057,11 +2062,24 @@ ${reportJson}`;
       throw new Error('BadRequest: Missing repoPath query parameter.');
     }
 
-    const context = await this.switchRepository(repoPath);
     return {
-      ...context,
-      message: `Switched repository to ${context.repoRoot}`,
+      jobId: this.startRepoSwitch(repoPath),
+      message: `Started repository switch for ${repoPath}.`,
     };
+  }
+
+  private getRepoSwitchStatus(url: URL): object {
+    const jobId = url.searchParams.get('jobId');
+    if (!jobId) {
+      throw new Error('BadRequest: Missing jobId query parameter.');
+    }
+
+    const snapshot = this.repoSwitchJobs.get(jobId);
+    if (!snapshot) {
+      throw new Error(`BadRequest: Unknown repo switch job "${jobId}".`);
+    }
+
+    return snapshot;
   }
 
   private async pickRepoPath(): Promise<object> {
@@ -2077,19 +2095,69 @@ ${reportJson}`;
     };
   }
 
-  private async switchRepository(repoPathInput: string): Promise<{ repoRoot: string; repoName: string }> {
+  private startRepoSwitch(repoPathInput: string): string {
+    const { jobId } = this.repoSwitchJobs.start(repoPathInput, async (job) => {
+      const resolved = await this.validateRepositoryPath(repoPathInput);
+      job.update({
+        phase: 'validating',
+        progress: 15,
+        message: 'Repository validated.',
+      });
+
+      if (resolved === this.currentRepoRoot) {
+        job.update({
+          phase: 'finalizing',
+          progress: 95,
+          message: 'Repository is already active.',
+        });
+        return {
+          repoRoot: this.currentRepoRoot,
+          repoName: path.basename(this.currentRepoRoot),
+        };
+      }
+
+      const newGit = simpleGit(resolved);
+      const newEngine = new CodexiaEngine({ repoRoot: resolved });
+      await newEngine.initialize((progress) => {
+        job.update({
+          phase: progress.phase,
+          progress: progress.progress,
+          message: progress.message,
+        });
+      });
+
+      job.update({
+        phase: 'finalizing',
+        progress: 95,
+        message: 'Applying repository context.',
+      });
+
+      this.engine = newEngine;
+      this.git = newGit;
+      this.currentRepoRoot = resolved;
+      this.engineering = new EngineeringIntelligenceService({
+        repoRoot: this.currentRepoRoot,
+        jira: this.jira,
+      });
+      this.addRecentRepo(resolved);
+      this.resultCache.invalidate('');
+
+      return {
+        repoRoot: this.currentRepoRoot,
+        repoName: path.basename(this.currentRepoRoot),
+      };
+    });
+
+    return jobId;
+  }
+
+  private async validateRepositoryPath(repoPathInput: string): Promise<string> {
     const sanitizedInput = repoPathInput.trim();
     if (!sanitizedInput || sanitizedInput.length > 2000) {
       throw new Error('BadRequest: Invalid repository path.');
     }
 
     const resolved = path.resolve(sanitizedInput);
-    if (resolved === this.currentRepoRoot) {
-      return {
-        repoRoot: this.currentRepoRoot,
-        repoName: path.basename(this.currentRepoRoot),
-      };
-    }
 
     let stat: import('node:fs').Stats;
     try {
@@ -2123,23 +2191,7 @@ ${reportJson}`;
       throw new Error('BadRequest: Selected path is not a Git repository.');
     }
 
-    const newEngine = new CodexiaEngine({ repoRoot: resolved });
-    await newEngine.initialize();
-
-    this.engine = newEngine;
-    this.git = newGit;
-    this.currentRepoRoot = resolved;
-    this.engineering = new EngineeringIntelligenceService({
-      repoRoot: this.currentRepoRoot,
-      jira: this.jira,
-    });
-    this.addRecentRepo(resolved);
-    this.resultCache.invalidate('');
-
-    return {
-      repoRoot: this.currentRepoRoot,
-      repoName: path.basename(this.currentRepoRoot),
-    };
+    return resolved;
   }
 
   private addRecentRepo(repoPath: string): void {

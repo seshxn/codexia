@@ -544,12 +544,13 @@ export class EngineeringIntelligenceService {
       ...team,
       repos: [...new Set(team.repos)],
     };
-    const [pullRequests, workItems, incidents] = await Promise.all([
-      this.collectPullRequests(normalizedTeam, lookbackDays),
+    const pullRequestsPromise = this.collectPullRequests(normalizedTeam, lookbackDays);
+    const [pullRequests, deployments, workItems, incidents] = await Promise.all([
+      pullRequestsPromise,
+      this.collectDeployments(normalizedTeam, lookbackDays, pullRequestsPromise),
       this.collectWorkItems(normalizedTeam, lookbackDays),
       this.collectIncidents(normalizedTeam, lookbackDays),
     ]);
-    const deployments = await this.collectDeployments(normalizedTeam, lookbackDays, pullRequests);
 
     return buildTeamReport({
       team: normalizedTeam,
@@ -579,12 +580,13 @@ export class EngineeringIntelligenceService {
   private async collectDeployments(
     team: TeamConfig,
     lookbackDays: number,
-    repoPulls: EngineeringPullRequest[],
+    pullRequestsPromise?: Promise<EngineeringPullRequest[]>,
   ): Promise<EngineeringDeployment[]> {
     if (!this.github.getConfig().enabled) {
       return [];
     }
 
+    const repoPulls = await (pullRequestsPromise || this.collectPullRequests(team, lookbackDays));
     const snapshots = await Promise.all(
       team.repos.map(async (repo) => {
         const deployments = await this.github.getDeployments(repo, lookbackDays, {

@@ -101,25 +101,21 @@ interface GitHubDeploymentStatusResponse {
 
 const ISSUE_KEY_PATTERN = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
 const GITHUB_API_VERSION = '2026-03-10';
-const SNAPSHOT_CACHE_TTL_MS = 15_000;
-
-interface SnapshotCacheEntry<T> {
-  expiresAt: number;
-  settled: boolean;
-  promise: Promise<T>;
-}
 
 export class GitHubAnalyticsService {
   private readonly token: string | null;
   private readonly apiUrl: string;
   private readonly fetchImpl: FetchLike;
-  private readonly pullRequestCache = new Map<string, SnapshotCacheEntry<GitHubPullRequest[]>>();
-  private readonly deploymentCache = new Map<string, SnapshotCacheEntry<GitHubDeployment[]>>();
+  private readonly cacheTtlMs: number;
+  private readonly responseCache = new Map<string, { expiresAt: number; value: unknown }>();
+  private readonly inFlight = new Map<string, Promise<unknown>>();
 
   constructor(env: NodeJS.ProcessEnv = process.env, fetchImpl: FetchLike = fetch) {
     this.token = (env.CODEXIA_GITHUB_TOKEN || '').trim() || null;
     this.apiUrl = ((env.CODEXIA_GITHUB_API_URL || 'https://api.github.com').trim() || 'https://api.github.com').replace(/\/$/, '');
     this.fetchImpl = fetchImpl;
+    const parsedCacheTtlMs = Number.parseInt(env.CODEXIA_GITHUB_CACHE_TTL_MS || '30000', 10);
+    this.cacheTtlMs = Number.isFinite(parsedCacheTtlMs) ? Math.min(300000, Math.max(1000, parsedCacheTtlMs)) : 30000;
   }
 
   getConfig(): GitHubConfigStatus {
@@ -139,9 +135,8 @@ export class GitHubAnalyticsService {
   }
 
   async getPullRequests(repo: string, lookbackDays: number): Promise<GitHubPullRequest[]> {
-    this.ensureConfigured();
-    const cacheKey = this.makeSnapshotCacheKey('pulls', repo, lookbackDays);
-    return this.getCachedSnapshot(this.pullRequestCache, cacheKey, async () => {
+    return this.getCached(`pulls:${repo}:${lookbackDays}`, async () => {
+      this.ensureConfigured();
       const [owner, name] = this.parseRepo(repo);
       const since = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
 
@@ -159,8 +154,10 @@ export class GitHubAnalyticsService {
 
       return Promise.all(filtered.map(async (pull) => {
         const merged = Boolean(pull.merged_at);
-        const detail = await this.getPullRequestDetail(owner, name, pull.number);
-        const reviews = await this.getPullRequestReviews(owner, name, pull.number);
+        const [detail, reviews] = await Promise.all([
+          this.getPullRequestDetail(owner, name, pull.number),
+          this.getPullRequestReviews(owner, name, pull.number),
+        ]);
         const firstReviewAt = reviews
           .map((review) => review.submitted_at)
           .filter((value): value is string => typeof value === 'string')
@@ -200,15 +197,9 @@ export class GitHubAnalyticsService {
     lookbackDays: number,
     selectors?: { environments?: string[] },
   ): Promise<GitHubDeployment[]> {
-    this.ensureConfigured();
-    const cacheKey = this.makeSnapshotCacheKey(
-      'deployments',
-      repo,
-      lookbackDays,
-      (selectors?.environments || []).slice().sort().join(','),
-    );
-
-    return this.getCachedSnapshot(this.deploymentCache, cacheKey, async () => {
+    const environmentsKey = (selectors?.environments || []).slice().sort().join(',');
+    return this.getCached(`deployments:${repo}:${lookbackDays}:${environmentsKey}`, async () => {
+      this.ensureConfigured();
       const [owner, name] = this.parseRepo(repo);
       const since = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
       const deployments = await this.paginate<GitHubDeploymentResponse>(`/repos/${owner}/${name}/deployments?per_page=100`);
@@ -252,24 +243,30 @@ export class GitHubAnalyticsService {
   }
 
   private async getDeploymentStatus(statusesUrl: string): Promise<{ status: GitHubDeployment['status']; updatedAt?: string }> {
-    const response = await this.request(statusesUrl.startsWith('http') ? statusesUrl : `${this.apiUrl}${statusesUrl}`);
-    const payload = await response.json() as GitHubDeploymentStatusResponse[];
-    const latest = payload[0];
+    return this.getCached(`deployment-status:${statusesUrl}`, async () => {
+      const response = await this.request(statusesUrl.startsWith('http') ? statusesUrl : `${this.apiUrl}${statusesUrl}`);
+      const payload = await response.json() as GitHubDeploymentStatusResponse[];
+      const latest = payload[0];
 
-    return {
-      status: this.mapDeploymentStatus(latest?.state),
-      updatedAt: latest?.updated_at || latest?.created_at,
-    };
+      return {
+        status: this.mapDeploymentStatus(latest?.state),
+        updatedAt: latest?.updated_at || latest?.created_at,
+      };
+    });
   }
 
   private async getPullRequestDetail(owner: string, repo: string, number: number): Promise<GitHubPullDetailResponse> {
-    const response = await this.request(`${this.apiUrl}/repos/${owner}/${repo}/pulls/${number}`);
-    return response.json() as Promise<GitHubPullDetailResponse>;
+    return this.getCached(`pull-detail:${owner}/${repo}:${number}`, async () => {
+      const response = await this.request(`${this.apiUrl}/repos/${owner}/${repo}/pulls/${number}`);
+      return response.json() as Promise<GitHubPullDetailResponse>;
+    });
   }
 
   private async getPullRequestReviews(owner: string, repo: string, number: number): Promise<GitHubReviewResponse[]> {
-    const response = await this.request(`${this.apiUrl}/repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`);
-    return response.json() as Promise<GitHubReviewResponse[]>;
+    return this.getCached(`pull-reviews:${owner}/${repo}:${number}`, async () => {
+      const response = await this.request(`${this.apiUrl}/repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`);
+      return response.json() as Promise<GitHubReviewResponse[]>;
+    });
   }
 
   private async paginate<T>(url: string): Promise<T[]> {
@@ -338,39 +335,32 @@ export class GitHubAnalyticsService {
     }
   }
 
-  private makeSnapshotCacheKey(kind: 'pulls' | 'deployments', repo: string, lookbackDays: number, extra = ''): string {
-    return `${kind}:${repo}:${lookbackDays}:${extra}`;
-  }
-
-  private getCachedSnapshot<T>(
-    cache: Map<string, SnapshotCacheEntry<T>>,
-    key: string,
-    loader: () => Promise<T>,
-  ): Promise<T> {
+  private async getCached<T>(key: string, loader: () => Promise<T>): Promise<T> {
     const now = Date.now();
-    const cached = cache.get(key);
-    if (cached && (!cached.settled || cached.expiresAt > now)) {
-      return cached.promise;
+    const cached = this.responseCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.value as T;
     }
 
-    const entry: SnapshotCacheEntry<T> = {
-      expiresAt: now + SNAPSHOT_CACHE_TTL_MS,
-      settled: false,
-      promise: Promise.resolve().then(loader).then((value) => {
-        entry.settled = true;
-        entry.expiresAt = Date.now() + SNAPSHOT_CACHE_TTL_MS;
-        return value;
-      }).catch((error) => {
-        if (cache.get(key) === entry) {
-          cache.delete(key);
-        }
+    const pending = this.inFlight.get(key);
+    if (pending) {
+      return pending as Promise<T>;
+    }
 
-        throw error;
-      }),
-    };
+    const task = loader().then((value) => {
+      this.responseCache.set(key, {
+        expiresAt: now + this.cacheTtlMs,
+        value,
+      });
+      this.inFlight.delete(key);
+      return value;
+    }).catch((error) => {
+      this.inFlight.delete(key);
+      throw error;
+    });
 
-    cache.set(key, entry);
-    return entry.promise;
+    this.inFlight.set(key, task);
+    return task;
   }
 
   private extractIssueKeys(values: Array<string | undefined>): string[] {
