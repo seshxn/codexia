@@ -110,55 +110,54 @@ interface MonorepoResult {
 
 const categories: CommandCategory[] = [
   {
-    name: 'Analyze Repository',
-    value: 'analyze',
-    description: 'Scan, index, and analyze your codebase',
-    icon: '🔍',
+    name: 'Index',
+    value: 'index',
+    description: 'Build or refresh the repository index before deeper work',
+    icon: '📇',
     commands: [
-      { name: 'scan', value: 'scan', description: 'Scan and index the repository' },
-      { name: 'graph', value: 'graph', description: 'Visualize dependency graph' },
-      { name: 'complexity', value: 'complexity', description: 'Analyze code complexity' },
-      { name: 'hotpaths', value: 'hotpaths', description: 'Find frequently changed files' },
-      { name: 'history', value: 'history', description: 'Analyze git history patterns' },
+      { name: 'analyze', value: 'analyze', description: 'Index and register the repository' },
+      { name: 'update', value: 'update', description: 'Refresh the current repository index' },
+      { name: 'status', value: 'status', description: 'Check index health and freshness' },
+      { name: 'scan', value: 'scan', description: 'Legacy repository scan' },
     ],
   },
   {
-    name: 'Generate Reports',
-    value: 'reports',
-    description: 'Create reports and changelogs',
-    icon: '📊',
+    name: 'Inspect',
+    value: 'inspect',
+    description: 'Inspect impact, structure, history, and hotspots',
+    icon: '🔎',
     commands: [
       { name: 'impact', value: 'impact', description: 'Analyze change impact' },
-      { name: 'pr-report', value: 'pr-report', description: 'Generate PR summary report' },
-      { name: 'changelog', value: 'changelog', description: 'Generate changelog from commits' },
+      { name: 'graph', value: 'graph', description: 'Visualize dependency graph' },
+      { name: 'history', value: 'history', description: 'Analyze git history patterns' },
+      { name: 'complexity', value: 'complexity', description: 'Analyze code complexity' },
       { name: 'signals', value: 'signals', description: 'Show engineering signals' },
+      { name: 'hotpaths', value: 'hotpaths', description: 'Find frequently changed files' },
+      { name: 'changelog', value: 'changelog', description: 'Generate changelog from commits' },
+      { name: 'pr-report', value: 'pr-report', description: 'Generate PR summary report' },
     ],
   },
   {
-    name: 'Quality & Invariants',
-    value: 'quality',
-    description: 'Check code quality and architectural rules',
+    name: 'Enforce',
+    value: 'enforce',
+    description: 'Check conventions, invariants, and test coverage',
     icon: '🛡️',
     commands: [
       { name: 'check', value: 'check', description: 'Run convention checks' },
       { name: 'invariants', value: 'invariants', description: 'Verify architectural invariants' },
-    ],
-  },
-  {
-    name: 'Testing',
-    value: 'testing',
-    description: 'Test prioritization and suggestions',
-    icon: '🧪',
-    commands: [
       { name: 'tests', value: 'tests', description: 'Prioritize and suggest tests' },
     ],
   },
   {
-    name: 'Setup & Tools',
-    value: 'setup',
-    description: 'Initialize and configure Codexia',
-    icon: '⚙️',
+    name: 'Integrate',
+    value: 'integrate',
+    description: 'Connect Codexia to editors, dashboards, and shared tooling',
+    icon: '🔌',
     commands: [
+      { name: 'setup', value: 'setup', description: 'Generate local MCP setup snippets' },
+      { name: 'serve', value: 'serve', description: 'Start the MCP server' },
+      { name: 'list', value: 'list', description: 'List registered repositories' },
+      { name: 'dashboard', value: 'dashboard', description: 'Open the web dashboard' },
       { name: 'init', value: 'init', description: 'Initialize Codexia configuration' },
       { name: 'watch', value: 'watch', description: 'Watch for file changes' },
       { name: 'monorepo', value: 'monorepo', description: 'Analyze monorepo structure' },
@@ -166,6 +165,18 @@ const categories: CommandCategory[] = [
     ],
   },
 ];
+
+const terminalOnlyCommands = new Set(['analyze', 'update', 'status', 'setup', 'serve', 'list', 'dashboard']);
+
+const isTerminalOnlyCommand = (command: string): boolean => terminalOnlyCommands.has(command);
+
+const formatCommandChoice = (cmd: CommandOption): { name: string; value: string } => {
+  const terminalOnlyTag = isTerminalOnlyCommand(cmd.value) ? ` ${chalk.dim('(terminal only)')}` : '';
+  return {
+    name: `  ${chalk.cyan('▸')} ${chalk.white.bold(cmd.name.padEnd(14))}${terminalOnlyTag} ${chalk.dim(cmd.description)}`,
+    value: cmd.value,
+  };
+};
 
 // Custom gradient for Codexia branding
 const codexiaGradient = gradient(['#6366f1', '#8b5cf6', '#a855f7']);
@@ -217,10 +228,7 @@ export const selectCommand = async (categoryValue: string): Promise<string> => {
   return select({
     message: chalk.bold('Choose a command:'),
     choices: [
-      ...category.commands.map((cmd) => ({
-        name: `  ${chalk.cyan('▸')} ${chalk.white.bold(cmd.name.padEnd(14))} ${chalk.dim(cmd.description)}`,
-        value: cmd.value,
-      })),
+      ...category.commands.map(formatCommandChoice),
       { name: `  ${chalk.yellow('◀')} ${chalk.yellow('Back to categories')}`, value: 'back' },
     ],
   });
@@ -272,7 +280,7 @@ export const getCommandOptions = async (command: string): Promise<Record<string,
   }
 
   // Ask about output format for most commands
-  const formatCommands = ['scan', 'impact', 'complexity', 'signals', 'tests', 'hotpaths', 'invariants'];
+  const formatCommands = ['scan', 'impact', 'complexity', 'signals', 'tests', 'hotpaths', 'invariants', 'history', 'changelog', 'monorepo'];
   if (formatCommands.includes(command)) {
     const wantsJson = await confirm({
       message: 'Output as JSON?',
@@ -297,6 +305,8 @@ const createSpinner = (text: string) => {
 export const executeCommand = async (command: string, options: Record<string, unknown>): Promise<void> => {
   const formatter = new Formatter(options.json as boolean);
   const engine = new CodexiaEngine();
+  let activeSpinner: ReturnType<typeof createSpinner> | undefined;
+  let commandSucceeded = false;
 
   console.log();
   console.log(
@@ -315,9 +325,10 @@ export const executeCommand = async (command: string, options: Record<string, un
   try {
     switch (command) {
       case 'scan': {
-        const spinner = createSpinner('Scanning repository...').start();
+        activeSpinner = createSpinner('Scanning repository...').start();
         const result = await engine.scan();
-        spinner.succeed(chalk.green('Scan complete'));
+        activeSpinner.succeed(chalk.green('Scan complete'));
+        commandSucceeded = true;
         console.log();
         console.log(formatter.formatScan(result));
         break;
@@ -325,37 +336,41 @@ export const executeCommand = async (command: string, options: Record<string, un
 
       case 'impact': {
         const staged = (options.staged as boolean) || false;
-        const spinner = createSpinner(`Analyzing impact${staged ? ' (staged changes)' : ''}...`).start();
+        activeSpinner = createSpinner(`Analyzing impact${staged ? ' (staged changes)' : ''}...`).start();
         const diff = staged ? await engine.getStagedDiff() : await engine.getDiff();
         const result = await engine.analyzeImpact({ staged });
-        spinner.succeed(chalk.green('Impact analysis complete'));
+        activeSpinner.succeed(chalk.green('Impact analysis complete'));
+        commandSucceeded = true;
         console.log();
         console.log(formatter.formatImpact(result, diff));
         break;
       }
 
       case 'signals': {
-        const spinner = createSpinner('Analyzing signals...').start();
+        activeSpinner = createSpinner('Analyzing signals...').start();
         const result = await engine.analyzeSignals();
-        spinner.succeed(chalk.green('Signal analysis complete'));
+        activeSpinner.succeed(chalk.green('Signal analysis complete'));
+        commandSucceeded = true;
         console.log();
         console.log(formatter.formatSignals(result));
         break;
       }
 
       case 'check': {
-        const spinner = createSpinner('Running convention checks...').start();
+        activeSpinner = createSpinner('Running convention checks...').start();
         const result = await engine.checkConventions();
-        spinner.succeed(chalk.green('Convention check complete'));
+        activeSpinner.succeed(chalk.green('Convention check complete'));
+        commandSucceeded = true;
         console.log();
         console.log(formatter.formatConventions(result));
         break;
       }
 
       case 'tests': {
-        const spinner = createSpinner('Suggesting tests...').start();
+        activeSpinner = createSpinner('Suggesting tests...').start();
         const result = await engine.suggestTests();
-        spinner.succeed(chalk.green('Test suggestions ready'));
+        activeSpinner.succeed(chalk.green('Test suggestions ready'));
+        commandSucceeded = true;
         console.log();
         console.log(formatter.formatTests(result));
         break;
@@ -363,14 +378,15 @@ export const executeCommand = async (command: string, options: Record<string, un
 
       case 'graph': {
         const file = (options.file as string) || undefined;
-        const spinner = createSpinner('Generating dependency graph...').start();
+        activeSpinner = createSpinner('Generating dependency graph...').start();
         await engine.initialize();
         const rawData = await engine.getGraphData({ focus: file });
         
         // Transform engine's format to Visualizer's expected format using utility
         const graphData = transformGraphData(rawData);
         
-        spinner.succeed(chalk.green('Graph generated'));
+        activeSpinner.succeed(chalk.green('Graph generated'));
+        commandSucceeded = true;
         console.log();
         
         const visualizer = new Visualizer();
@@ -385,9 +401,10 @@ export const executeCommand = async (command: string, options: Record<string, un
 
       case 'complexity': {
         const file = (options.file as string) || undefined;
-        const spinner = createSpinner('Analyzing complexity...').start();
+        activeSpinner = createSpinner('Analyzing complexity...').start();
         const result = await engine.analyzeComplexity(file);
-        spinner.succeed(chalk.green('Complexity analysis complete'));
+        activeSpinner.succeed(chalk.green('Complexity analysis complete'));
+        commandSucceeded = true;
         console.log();
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));
@@ -399,9 +416,10 @@ export const executeCommand = async (command: string, options: Record<string, un
 
       case 'history': {
         const file = (options.file as string) || undefined;
-        const spinner = createSpinner('Analyzing git history...').start();
+        activeSpinner = createSpinner('Analyzing git history...').start();
         const result = await engine.analyzeHistory({ file });
-        spinner.succeed(chalk.green('History analysis complete'));
+        activeSpinner.succeed(chalk.green('History analysis complete'));
+        commandSucceeded = true;
         console.log();
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));
@@ -412,9 +430,10 @@ export const executeCommand = async (command: string, options: Record<string, un
       }
 
       case 'invariants': {
-        const spinner = createSpinner('Checking architectural invariants...').start();
+        activeSpinner = createSpinner('Checking architectural invariants...').start();
         const result = await engine.checkInvariants();
-        spinner.succeed(chalk.green('Invariants check complete'));
+        activeSpinner.succeed(chalk.green('Invariants check complete'));
+        commandSucceeded = true;
         console.log();
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));
@@ -425,9 +444,10 @@ export const executeCommand = async (command: string, options: Record<string, un
       }
 
       case 'hotpaths': {
-        const spinner = createSpinner('Finding hot paths...').start();
+        activeSpinner = createSpinner('Finding hot paths...').start();
         const result = await engine.analyzeHotPaths();
-        spinner.succeed(chalk.green('Hot path analysis complete'));
+        activeSpinner.succeed(chalk.green('Hot path analysis complete'));
+        commandSucceeded = true;
         console.log();
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));
@@ -440,14 +460,14 @@ export const executeCommand = async (command: string, options: Record<string, un
       case 'changelog': {
         let from = (options.from as string) || undefined;
         const to = (options.to as string) || 'HEAD';
-        const spinner = createSpinner('Generating changelog...').start();
+        activeSpinner = createSpinner('Generating changelog...').start();
         
         // Auto-detect from ref if not provided
         if (!from) {
           const latestTag = await engine.getLatestTag();
           if (latestTag) {
             from = latestTag;
-            spinner.text = `Using latest tag: ${latestTag}`;
+            activeSpinner.text = `Using latest tag: ${latestTag}`;
           } else {
             // Get the root commit as fallback
             const { simpleGit } = await import('simple-git');
@@ -455,17 +475,18 @@ export const executeCommand = async (command: string, options: Record<string, un
             try {
               const rootCommit = await git.raw(['rev-list', '--max-parents=0', 'HEAD']);
               from = rootCommit.trim();
-              spinner.text = 'Generating changelog from all commits...';
+              activeSpinner.text = 'Generating changelog from all commits...';
             } catch {
               from = 'HEAD~3';
-              spinner.text = 'Using last 3 commits...';
+              activeSpinner.text = 'Using last 3 commits...';
             }
           }
         }
         
         try {
           const result = await engine.generateChangelog({ from, to });
-          spinner.succeed(chalk.green('Changelog generated'));
+          activeSpinner.succeed(chalk.green('Changelog generated'));
+          commandSucceeded = true;
           console.log();
           if (options.json) {
             console.log(JSON.stringify(result, null, 2));
@@ -473,7 +494,8 @@ export const executeCommand = async (command: string, options: Record<string, un
             formatChangelogResult(result);
           }
         } catch (error) {
-          spinner.fail(chalk.red('Could not generate changelog'));
+          activeSpinner.fail(chalk.red('Could not generate changelog'));
+          commandSucceeded = true;
           console.error(chalk.dim(`Error: ${error instanceof Error ? error.message : String(error)}`));
           console.log(chalk.yellow('Try specifying a valid --from ref.'));
         }
@@ -481,9 +503,10 @@ export const executeCommand = async (command: string, options: Record<string, un
       }
 
       case 'monorepo': {
-        const spinner = createSpinner('Analyzing monorepo structure...').start();
+        activeSpinner = createSpinner('Analyzing monorepo structure...').start();
         const result = await engine.analyzeMonorepo();
-        spinner.succeed(chalk.green('Monorepo analysis complete'));
+        activeSpinner.succeed(chalk.green('Monorepo analysis complete'));
+        commandSucceeded = true;
         console.log();
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));
@@ -494,16 +517,17 @@ export const executeCommand = async (command: string, options: Record<string, un
       }
 
       case 'pr-report': {
-        const spinner = createSpinner('Generating PR report...').start();
+        activeSpinner = createSpinner('Generating PR report...').start();
         const result = await engine.generatePrReport();
-        spinner.succeed(chalk.green('PR report generated'));
+        activeSpinner.succeed(chalk.green('PR report generated'));
+        commandSucceeded = true;
         console.log();
         console.log(formatter.formatPrReport(result));
         break;
       }
 
       case 'init': {
-        const spinner = createSpinner('Initializing Codexia...').start();
+        activeSpinner = createSpinner('Initializing Codexia...').start();
         // Create default invariants file
         const fs = await import('node:fs/promises');
         const path = await import('node:path');
@@ -522,13 +546,15 @@ rules:
     severity: warning
     from: "src/core/**"
     cannotImport: "src/cli/**"
-`;
+        `;
         try {
           await fs.access(invariantsPath);
-          spinner.warn(chalk.yellow('codexia.invariants.yaml already exists'));
+          activeSpinner.warn(chalk.yellow('codexia.invariants.yaml already exists'));
+          commandSucceeded = true;
         } catch {
           await fs.writeFile(invariantsPath, defaultContent);
-          spinner.succeed(chalk.green('Created codexia.invariants.yaml'));
+          activeSpinner.succeed(chalk.green('Created codexia.invariants.yaml'));
+          commandSucceeded = true;
         }
         break;
       }
@@ -569,10 +595,18 @@ rules:
       }
 
       default:
-        console.log(chalk.yellow(`Command '${command}' not yet implemented in interactive mode.`));
-        console.log(chalk.dim(`Try running: codexia ${command}`));
+        if (isTerminalOnlyCommand(command)) {
+          console.log(chalk.yellow(`Command '${command}' is terminal-only in the interactive wizard.`));
+          console.log(chalk.dim(`Run it directly from your shell: codexia ${command}`));
+        } else {
+          console.log(chalk.yellow(`Command '${command}' not yet implemented in interactive mode.`));
+          console.log(chalk.dim(`Try running: codexia ${command}`));
+        }
     }
   } catch (error) {
+    if (activeSpinner && !commandSucceeded) {
+      activeSpinner.fail(chalk.red(`${command} failed`));
+    }
     console.error(formatter.formatError(error as Error));
   }
 };
@@ -834,7 +868,7 @@ export const runQuickCommand = async (): Promise<void> => {
 
   const allCommands = categories.flatMap((cat) =>
     cat.commands.map((cmd) => ({
-      name: `${chalk.green(cmd.name.padEnd(12))} ${chalk.dim(cmd.description)}`,
+      name: `${chalk.green(cmd.name.padEnd(12))}${isTerminalOnlyCommand(cmd.value) ? ` ${chalk.dim('(terminal only)')}` : ''} ${chalk.dim(cmd.description)}`,
       value: cmd.value,
     }))
   );

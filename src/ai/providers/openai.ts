@@ -1,4 +1,5 @@
 import type { AIProvider, AIMessage, AICompletionOptions, AIConfig } from '../types.js';
+import { requestWithPolicy } from '../../shared/http/request-policy.js';
 
 /**
  * OpenAI provider that uses the latest official Responses API by default.
@@ -40,7 +41,7 @@ export class OpenAIProvider implements AIProvider {
     messages: AIMessage[],
     options: { model: string; maxTokens: number; temperature: number },
   ): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/responses`, {
+    const response = await requestWithPolicy(`${this.baseUrl}/responses`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -80,7 +81,7 @@ export class OpenAIProvider implements AIProvider {
     messages: AIMessage[],
     options: { model: string; maxTokens: number; temperature: number },
   ): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+    const response = await requestWithPolicy(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

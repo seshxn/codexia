@@ -1,4 +1,5 @@
 import type { AIProvider, AIMessage, AICompletionOptions, AIConfig } from '../types.js';
+import { requestWithPolicy } from '../../shared/http/request-policy.js';
 
 /**
  * Anthropic Claude provider
@@ -11,7 +12,7 @@ export class AnthropicProvider implements AIProvider {
 
   constructor(config: AIConfig) {
     this.apiKey = config.apiKey || '';
-    this.baseUrl = config.baseUrl || 'https://api.anthropic.com';
+    this.baseUrl = (config.baseUrl || 'https://api.anthropic.com').replace(/\/$/, '');
     this.defaultModel = config.model || 'claude-3-5-sonnet-20241022';
   }
 
@@ -24,11 +25,13 @@ export class AnthropicProvider implements AIProvider {
     const maxTokens = options?.maxTokens || 2048;
     const temperature = options?.temperature ?? 0.3;
 
-    // Extract system message if present
-    const systemMessage = messages.find(m => m.role === 'system');
+    const systemMessages = messages
+      .filter((message) => message.role === 'system')
+      .map((message) => message.content)
+      .join('\n\n');
     const chatMessages = messages
-      .filter(m => m.role !== 'system')
-      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      .filter((message) => message.role !== 'system')
+      .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content }));
 
     const body: Record<string, unknown> = {
       model,
@@ -37,11 +40,11 @@ export class AnthropicProvider implements AIProvider {
       messages: chatMessages,
     };
 
-    if (systemMessage) {
-      body.system = systemMessage.content;
+    if (systemMessages) {
+      body.system = systemMessages;
     }
 
-    const response = await fetch(`${this.baseUrl}/v1/messages`, {
+    const response = await requestWithPolicy(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

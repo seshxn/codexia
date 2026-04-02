@@ -4,7 +4,20 @@ import { CodexiaEngine } from '../engine.js';
 import { Formatter } from '../formatter.js';
 
 export const statusCommand = new Command('status')
-  .description('Show CodeGraph status for the current repository')
+  .description('Show whether the current repository index is fresh')
+  .addHelpText('after', `
+When to use:
+  Check this before relying on repository data or after a recent change.
+
+Depends on:
+  A repository checkout. This command shows whether a local index exists and whether it is stale.
+
+Usually next:
+  Run \`codexia update\` if the index is stale, or \`codexia analyze\` if no index exists.
+
+Examples:
+  $ codexia status
+`)
   .action(async (_options, command) => {
     const globalOpts = command.parent?.opts() || {};
     const formatter = new Formatter(globalOpts.json);

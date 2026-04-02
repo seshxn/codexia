@@ -245,13 +245,7 @@ export const computeDoraMetrics = ({
   });
 
   const failedDeployments = scopedDeployments.filter((deployment) =>
-    incidents.some((incident) =>
-      incident.linkedDeploymentIds.includes(deployment.id)
-      || incident.issueKeys.some((key) => {
-        const linkedPulls = mergedPullRequests.filter((pull) => deployment.linkedPullRequestIds.includes(pull.id));
-        return linkedPulls.some((pull) => pull.issueKeys.includes(key));
-      }),
-    ),
+    incidents.some((incident) => deploymentMatchesIncident(deployment, incident, mergedPullRequests)),
   );
 
   const restoreTimes = incidents
@@ -294,14 +288,17 @@ export const buildTeamReport = ({
   now,
 }: TeamReportInput): TeamReport => {
   const nowIso = now || new Date().toISOString();
-  const repos = new Set(team.repos);
-  const scopedPullRequests = pullRequests.filter((pull) => repos.has(pull.repo));
-  const scopedDeployments = deployments.filter((deployment) => repos.has(deployment.repo));
+  const repos = [...new Set(team.repos)];
+  const repoSet = new Set(repos);
+  const scopedPullRequests = pullRequests.filter((pull) => repoSet.has(pull.repo));
+  const scopedDeployments = deployments.filter((deployment) => repoSet.has(deployment.repo));
   const scopedIssueKeys = new Set(workItems.map((item) => item.key));
-  const scopedIncidents = incidents.filter((incident) =>
-    incident.issueKeys.some((key) => scopedIssueKeys.has(key))
-    || incident.linkedDeploymentIds.some((id) => scopedDeployments.some((deployment) => deployment.id === id)),
-  );
+  const scopedIncidents = workItems.length === 0
+    ? incidents
+    : incidents.filter((incident) =>
+        incident.issueKeys.some((key) => scopedIssueKeys.has(key))
+        || scopedDeployments.some((deployment) => deploymentMatchesIncident(deployment, incident, scopedPullRequests)),
+      );
 
   const jiraFlowIssues = workItems.map((item) => ({
     key: item.key,
@@ -336,7 +333,7 @@ export const buildTeamReport = ({
   return {
     team: {
       name: team.name,
-      repos: [...repos],
+      repos,
     },
     dora: computeDoraMetrics({
       pullRequests: scopedPullRequests,
@@ -360,7 +357,7 @@ export const buildTeamReport = ({
     incidents: {
       total: scopedIncidents.length,
       active: scopedIncidents.filter((incident) => !incident.resolvedAt).length,
-      failedChanges: scopedDeployments.filter((deployment) => scopedIncidents.some((incident) => incident.linkedDeploymentIds.includes(deployment.id))).length,
+      failedChanges: scopedDeployments.filter((deployment) => scopedIncidents.some((incident) => deploymentMatchesIncident(deployment, incident, scopedPullRequests))).length,
     },
     prHealth,
     planning: {
@@ -382,12 +379,7 @@ export const buildTeamReport = ({
         status: deployment.status,
         source: deployment.source,
         confidence: deployment.confidence,
-        linkedIncidentCount: scopedIncidents.filter((incident) =>
-          incident.linkedDeploymentIds.includes(deployment.id)
-          || incident.issueKeys.some((key) => scopedPullRequests
-            .filter((pull) => deployment.linkedPullRequestIds.includes(pull.id))
-            .some((pull) => pull.issueKeys.includes(key))),
-        ).length,
+        linkedIncidentCount: scopedIncidents.filter((incident) => deploymentMatchesIncident(deployment, incident, scopedPullRequests)).length,
       })),
     recentIncidents: scopedIncidents
       .slice()
@@ -548,16 +540,20 @@ export class EngineeringIntelligenceService {
   }
 
   private async getReportForTeam(team: TeamConfig, lookbackDays: number): Promise<TeamReport> {
-    const pullRequestsPromise = this.collectPullRequests(team, lookbackDays);
+    const normalizedTeam = {
+      ...team,
+      repos: [...new Set(team.repos)],
+    };
+    const pullRequestsPromise = this.collectPullRequests(normalizedTeam, lookbackDays);
     const [pullRequests, deployments, workItems, incidents] = await Promise.all([
       pullRequestsPromise,
-      this.collectDeployments(team, lookbackDays, pullRequestsPromise),
-      this.collectWorkItems(team, lookbackDays),
-      this.collectIncidents(team, lookbackDays),
+      this.collectDeployments(normalizedTeam, lookbackDays, pullRequestsPromise),
+      this.collectWorkItems(normalizedTeam, lookbackDays),
+      this.collectIncidents(normalizedTeam, lookbackDays),
     ]);
 
     return buildTeamReport({
-      team,
+      team: normalizedTeam,
       pullRequests,
       deployments,
       incidents,
@@ -857,6 +853,19 @@ const computeThroughputMetrics = (deployments: EngineeringDeployment[], workItem
     })),
 });
 
+const deploymentMatchesIncident = (
+  deployment: EngineeringDeployment,
+  incident: EngineeringIncident,
+  pullRequests: EngineeringPullRequest[],
+): boolean => {
+  if (incident.linkedDeploymentIds.includes(deployment.id)) {
+    return true;
+  }
+
+  const linkedPulls = pullRequests.filter((pull) => deployment.linkedPullRequestIds.includes(pull.id));
+  return incident.issueKeys.some((key) => linkedPulls.some((pull) => pull.issueKeys.includes(key)));
+};
+
 const computePeopleRisk = (pullRequests: EngineeringPullRequest[], deployments: EngineeringDeployment[]) => {
   const topAuthorShare = computeTopShare(pullRequests.map((pull) => pull.author));
   const topMergerShare = computeTopShare(pullRequests.filter((pull) => pull.mergedBy).map((pull) => pull.mergedBy!));
@@ -892,7 +901,9 @@ const computeLinkageQuality = (
   const linkedIssues = new Set(pullRequests.flatMap((pull) => pull.issueKeys));
   const deploymentTraceabilityCount = deployments.filter((deployment) => deployment.linkedPullRequestIds.length > 0).length;
   const incidentLinkedCount = incidents.filter((incident) => incident.issueKeys.length > 0 || incident.linkedDeploymentIds.length > 0).length;
-  const incidentDeploymentCount = incidents.filter((incident) => incident.linkedDeploymentIds.length > 0).length;
+  const incidentDeploymentCount = incidents.filter((incident) =>
+    deployments.some((deployment) => deploymentMatchesIncident(deployment, incident, pullRequests)),
+  ).length;
 
   return {
     githubLinkageCoverage: {

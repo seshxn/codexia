@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { scanCommand } from './commands/scan.js';
 import { impactCommand } from './commands/impact.js';
 import { checkCommand } from './commands/check.js';
@@ -57,57 +58,91 @@ const loadEnvFiles = (): void => {
   }
 };
 
-loadEnvFiles();
+type PackageMetadata = {
+  version: string;
+};
 
-const program = new Command();
+const packageJsonPath = new URL('../../package.json', import.meta.url);
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as PackageMetadata;
 
-program
-  .name('codexia')
-  .description('Engineering intelligence layer for repositories')
-  .version('0.1.0')
-  .option('--json', 'Output results as JSON')
-  .option('--format <format>', 'Output format: text, json, or markdown', 'text')
-  .option('-v, --verbose', 'Verbose output');
+export const cliVersion = packageJson.version;
 
-// Core commands
-program.addCommand(initCommand);
-program.addCommand(scanCommand);
-program.addCommand(impactCommand);
-program.addCommand(checkCommand);
-program.addCommand(testsCommand);
-program.addCommand(signalsCommand);
-program.addCommand(prReportCommand);
-program.addCommand(watchCommand);
-
-// Advanced analysis commands
-program.addCommand(graphCommand);
-program.addCommand(complexityCommand);
-program.addCommand(historyCommand);
-program.addCommand(invariantsCommand);
-program.addCommand(hotpathsCommand);
-program.addCommand(changelogCommand);
-program.addCommand(monorepoCommand);
-program.addCommand(mcpServerCommand);
-program.addCommand(dashboardCommand);
-program.addCommand(analyzeCommand);
-program.addCommand(updateCommand);
-program.addCommand(statusCommand);
-program.addCommand(listCommand);
-program.addCommand(cleanCommand);
-program.addCommand(setupCommand);
-program.addCommand(serveCommand);
-
-// Wrap in async IIFE for ES module compatibility
-(async () => {
+const resolveRealPath = (value: string): string => {
   try {
-    // If no arguments provided (just 'codexia'), launch interactive wizard
-    if (process.argv.length <= 2) {
+    return fs.realpathSync.native(value);
+  } catch {
+    return path.resolve(value);
+  }
+};
+
+export const shouldRunCli = (argv1: string | undefined, moduleUrl: string = import.meta.url): boolean => {
+  if (argv1 === undefined) {
+    return false;
+  }
+
+  return resolveRealPath(argv1) === resolveRealPath(fileURLToPath(moduleUrl));
+};
+
+export const createCliProgram = (): Command => {
+  const program = new Command();
+
+  program
+    .name('codexia')
+    .description('Engineering intelligence layer for repositories')
+    .version(cliVersion)
+    .option('--json', 'Output results as JSON')
+    .option('--format <format>', 'Output format: text, json, or markdown', 'text')
+    .option('-v, --verbose', 'Verbose output');
+
+  // Core commands
+  program.addCommand(initCommand);
+  program.addCommand(scanCommand);
+  program.addCommand(impactCommand);
+  program.addCommand(checkCommand);
+  program.addCommand(testsCommand);
+  program.addCommand(signalsCommand);
+  program.addCommand(prReportCommand);
+  program.addCommand(watchCommand);
+
+  // Advanced analysis commands
+  program.addCommand(graphCommand);
+  program.addCommand(complexityCommand);
+  program.addCommand(historyCommand);
+  program.addCommand(invariantsCommand);
+  program.addCommand(hotpathsCommand);
+  program.addCommand(changelogCommand);
+  program.addCommand(monorepoCommand);
+  program.addCommand(dashboardCommand);
+  program.addCommand(analyzeCommand);
+  program.addCommand(updateCommand);
+  program.addCommand(statusCommand);
+  program.addCommand(listCommand);
+  program.addCommand(cleanCommand);
+  program.addCommand(setupCommand);
+  program.addCommand(serveCommand);
+  program.addCommand(mcpServerCommand, { hidden: true });
+
+  return program;
+};
+
+export const runCli = async (argv: string[] = process.argv): Promise<void> => {
+  loadEnvFiles();
+  const program = createCliProgram();
+
+  try {
+    if (argv.length <= 2) {
       await runInteractiveWizard();
     } else {
-      await program.parseAsync(process.argv);
+      await program.parseAsync(argv);
     }
   } catch (error) {
     console.error('Error:', error instanceof Error ? error.message : error);
     process.exit(1);
   }
-})();
+};
+
+const isDirectExecution = shouldRunCli(process.argv[1], import.meta.url);
+
+if (isDirectExecution) {
+  void runCli();
+}

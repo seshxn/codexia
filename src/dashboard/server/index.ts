@@ -96,14 +96,17 @@ export class DashboardServer {
   private recentRepoRoots: string[] = [];
   private static readonly MAX_RECENT_REPOS = 10;
   private resultCache = new ResultCache();
+  private aiInsightRequests = new Map<string, Promise<object>>();
+  private engineeringReportRequests = new Map<string, Promise<object>>();
+  private requestSequence = 0;
+  private latestRequestSequence = new Map<string, number>();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   private readonly repoSwitchJobs = new RepoSwitchJobManager();
 
   constructor(engine: CodexiaEngine, repoRoot?: string) {
     this.engine = engine;
-    // Static files are built by Vite to src/dashboard/dist
-    // Navigate from dist/dashboard/server -> project root -> src/dashboard/dist
-    this.staticDir = path.join(import.meta.dirname, '../../../src/dashboard/dist');
+    // Runtime contract: dist/dashboard/server/index.js serves ../.. /dashboard-client
+    this.staticDir = path.resolve(import.meta.dirname, '../../dashboard-client');
     this.currentRepoRoot = path.resolve(repoRoot || process.cwd());
     this.git = simpleGit(this.currentRepoRoot);
     this.jira = new JiraAnalyticsService();
@@ -446,14 +449,29 @@ export class DashboardServer {
   private async getGraph(url: URL): Promise<object> {
     const depth = this.normalizeDepth(url.searchParams.get('depth'));
     const focus = this.normalizeFocus(url.searchParams.get('focus'));
-    const cacheKey = `graph::${this.currentRepoRoot}::${depth}::${focus ?? ''}`;
+    const repoRoot = this.currentRepoRoot;
+    const repoFiles = new Map(this.engine.getFiles());
+    const cacheKey = `graph::${repoRoot}::${depth}::${focus ?? ''}`;
     const cached = this.resultCache.get<object>(cacheKey);
     if (cached !== undefined) return cached;
 
-    const graphData = await this.engine.getGraphData({ depth, focus });
+    const graphDataPromise = this.engine.getGraphData({ depth, focus });
     // When a focus is set, restrict the file set to only those referenced by
     // the filtered edges so that node construction respects the focus/depth.
-    let files = this.engine.getFiles();
+    let files = repoFiles;
+    // getCognitiveLoadMap runs git log and can be slow on large repos.
+    // Time-box it to 15s; if it exceeds that, render the graph without
+    // temporal heat (nodes will simply have no cognitive-load coloring).
+    const COGNITIVE_LOAD_TIMEOUT_MS = 15_000;
+    const cognitiveLoadPromise = Promise.race([
+      this.engine
+        .getCognitiveLoadMap({ maxTemporalFiles: 120 })
+        .then((result) => new Map(result.files.map((entry) => [entry.path, entry.score]))),
+      new Promise<Map<string, number>>((resolve) =>
+        setTimeout(() => resolve(new Map()), COGNITIVE_LOAD_TIMEOUT_MS),
+      ),
+    ]);
+    const graphData = await graphDataPromise;
     if (focus) {
       const relevantPaths = new Set<string>([focus]);
       for (const edge of graphData.edges) {
@@ -462,19 +480,8 @@ export class DashboardServer {
       }
       files = new Map([...files].filter(([p]) => relevantPaths.has(p)));
     }
-    // getCognitiveLoadMap runs git log and can be slow on large repos.
-    // Time-box it to 15s; if it exceeds that, render the graph without
-    // temporal heat (nodes will simply have no cognitive-load coloring).
-    const COGNITIVE_LOAD_TIMEOUT_MS = 15_000;
-    const cognitiveLoadByFile = await Promise.race([
-      this.engine
-        .getCognitiveLoadMap({ maxTemporalFiles: 120 })
-        .then((result) => new Map(result.files.map((entry) => [entry.path, entry.score]))),
-      new Promise<Map<string, number>>((resolve) =>
-        setTimeout(() => resolve(new Map()), COGNITIVE_LOAD_TIMEOUT_MS),
-      ),
-    ]);
-    const result = await buildKnowledgeGraphData(this.currentRepoRoot, files, graphData.edges, {
+    const cognitiveLoadByFile = await cognitiveLoadPromise;
+    const result = await buildKnowledgeGraphData(repoRoot, files, graphData.edges, {
       cognitiveLoadByFile,
     });
     this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
@@ -1665,7 +1672,14 @@ export class DashboardServer {
 
   private async getEngineeringOverview(url: URL): Promise<object> {
     const lookbackDays = this.parsePositiveInt(url.searchParams.get('lookbackDays')) || 90;
-    return this.engineering.getOverview(lookbackDays);
+    const refresh = this.shouldBypassCache(url);
+    const cacheKey = this.buildEngineeringCacheKey('overview', lookbackDays);
+    return this.getCachedOrInFlight({
+      cacheKey,
+      refresh,
+      inflight: this.engineeringReportRequests,
+      loader: () => this.engineering.getOverview(lookbackDays),
+    });
   }
 
   private async getEngineeringTeams(): Promise<object> {
@@ -1678,22 +1692,38 @@ export class DashboardServer {
 
   private async getEngineeringTeamReport(url: URL): Promise<object> {
     const teamName = url.searchParams.get('team');
-    if (!teamName) {
+    const normalizedTeamName = teamName?.trim();
+    if (!normalizedTeamName) {
       throw new Error('BadRequest: Missing team query parameter.');
     }
 
     const lookbackDays = this.parsePositiveInt(url.searchParams.get('lookbackDays')) || 90;
-    return this.engineering.getTeamReport(teamName, lookbackDays);
+    const refresh = this.shouldBypassCache(url);
+    const cacheKey = this.buildEngineeringCacheKey('team-report', lookbackDays, normalizedTeamName);
+    return this.getCachedOrInFlight({
+      cacheKey,
+      refresh,
+      inflight: this.engineeringReportRequests,
+      loader: () => this.engineering.getTeamReport(normalizedTeamName, lookbackDays),
+    });
   }
 
   private async getEngineeringRepoReport(url: URL): Promise<object> {
     const repo = url.searchParams.get('repo');
-    if (!repo) {
+    const normalizedRepo = repo?.trim();
+    if (!normalizedRepo) {
       throw new Error('BadRequest: Missing repo query parameter.');
     }
 
     const lookbackDays = this.parsePositiveInt(url.searchParams.get('lookbackDays')) || 90;
-    return this.engineering.getRepoReport(repo, lookbackDays);
+    const refresh = this.shouldBypassCache(url);
+    const cacheKey = this.buildEngineeringCacheKey('repo-report', lookbackDays, normalizedRepo);
+    return this.getCachedOrInFlight({
+      cacheKey,
+      refresh,
+      inflight: this.engineeringReportRequests,
+      loader: () => this.engineering.getRepoReport(normalizedRepo, lookbackDays),
+    });
   }
 
   private async getJiraInsights(url: URL): Promise<object> {
@@ -1716,25 +1746,43 @@ export class DashboardServer {
       throw new Error('BadRequest: AI is not configured. Set CODEXIA_AI_PROVIDER and provider credentials.');
     }
 
-    const prompt = scope === 'board'
-      ? this.buildBoardInsightPrompt(await this.jira.getBoardHistoryReport(boardId, maxSprints))
-      : this.buildSprintInsightPrompt(await this.jira.getSprintReport(boardId, sprintId!));
-
-    const raw = await provider.complete(prompt, {
-      temperature: 0.2,
-      maxTokens: 1400,
+    const refresh = this.shouldBypassCache(url);
+    const model = process.env.CODEXIA_AI_MODEL || 'default';
+    const cacheKey = this.buildJiraInsightsCacheKey({
+      boardId,
+      maxSprints,
+      model,
+      providerName: provider.name,
+      scope,
+      sprintId,
     });
 
-    const parsed = this.parseJiraInsightResponse(raw);
+    return this.getCachedOrInFlight({
+      cacheKey,
+      refresh,
+      inflight: this.aiInsightRequests,
+      loader: async () => {
+        const prompt = scope === 'board'
+          ? this.buildBoardInsightPrompt(await this.jira.getBoardHistoryReport(boardId, maxSprints))
+          : this.buildSprintInsightPrompt(await this.jira.getSprintReport(boardId, sprintId!));
 
-    return {
-      scope,
-      provider: provider.name,
-      model: process.env.CODEXIA_AI_MODEL || 'default',
-      generatedAt: new Date().toISOString(),
-      ...parsed,
-      raw,
-    };
+        const raw = await provider.complete(prompt, {
+          temperature: 0.2,
+          maxTokens: 1400,
+        });
+
+        const parsed = this.parseJiraInsightResponse(raw);
+
+        return {
+          scope,
+          provider: provider.name,
+          model,
+          generatedAt: new Date().toISOString(),
+          ...parsed,
+          raw,
+        };
+      },
+    });
   }
 
   private buildSprintInsightPrompt(report: JiraSprintReport): string {
@@ -1841,6 +1889,101 @@ ${reportJson}`;
     } catch {
       return defaultResult;
     }
+  }
+
+  private shouldBypassCache(url: URL): boolean {
+    return url.searchParams.get('refresh') === 'true';
+  }
+
+  private buildEngineeringCacheKey(
+    kind: 'overview' | 'team-report' | 'repo-report',
+    lookbackDays: number,
+    value?: string,
+  ): string {
+    const normalizedValue = value?.trim() || '';
+    return [
+      'engineering',
+      kind,
+      this.currentRepoRoot,
+      String(lookbackDays),
+      normalizedValue,
+    ].join('::');
+  }
+
+  private buildJiraInsightsCacheKey(args: {
+    boardId: number;
+    maxSprints: number;
+    model: string;
+    providerName: string;
+    scope: 'sprint' | 'board';
+    sprintId?: number;
+  }): string {
+    return [
+      'ai',
+      'jira-insights',
+      this.currentRepoRoot,
+      args.providerName,
+      args.model,
+      args.scope,
+      String(args.boardId),
+      String(args.maxSprints),
+      String(args.sprintId || ''),
+    ].join('::');
+  }
+
+  private async getCachedOrInFlight<T>({
+    cacheKey,
+    refresh = false,
+    inflight,
+    loader,
+  }: {
+    cacheKey: string;
+    refresh?: boolean;
+    inflight: Map<string, Promise<T>>;
+    loader: () => Promise<T>;
+  }): Promise<T> {
+    const normalRequestKey = this.getRequestKey(cacheKey, false);
+    const refreshRequestKey = this.getRequestKey(cacheKey, true);
+
+    if (!refresh) {
+      const cached = this.resultCache.get<T>(cacheKey);
+      if (cached !== undefined) {
+        return cached;
+      }
+
+      const pending = inflight.get(normalRequestKey) || inflight.get(refreshRequestKey);
+      if (pending) {
+        return pending;
+      }
+    } else {
+      const pending = inflight.get(refreshRequestKey);
+      if (pending) {
+        return pending;
+      }
+    }
+
+    const requestKey = refresh ? refreshRequestKey : normalRequestKey;
+    const sequence = ++this.requestSequence;
+    this.latestRequestSequence.set(cacheKey, sequence);
+    const request = (async () => {
+      const result = await loader();
+      if (this.latestRequestSequence.get(cacheKey) === sequence) {
+        this.resultCache.set(cacheKey, result, this.CACHE_TTL_MS);
+      }
+      return result;
+    })();
+
+    inflight.set(requestKey, request);
+
+    try {
+      return await request;
+    } finally {
+      inflight.delete(requestKey);
+    }
+  }
+
+  private getRequestKey(cacheKey: string, refresh: boolean): string {
+    return `${cacheKey}::${refresh ? 'refresh' : 'normal'}`;
   }
 
   private extractJsonFromText(text: string): string | null {
