@@ -6,7 +6,9 @@ import { simpleGit, SimpleGit } from 'simple-git';
 import { CodexiaEngine } from '../../cli/engine.js';
 import { getAIProvider } from '../../ai/index.js';
 import { EngineeringIntelligenceService } from './engineering.js';
+import type { GitHubAnalyticsServiceOptions } from './github.js';
 import { JiraAnalyticsService, type JiraBoardHistoryReport, type JiraSprintReport } from './jira.js';
+import type { JiraAnalyticsServiceOptions } from './jira.js';
 import { buildKnowledgeGraphData } from './knowledge-graph.js';
 import { RepoSwitchJobManager } from './repo-switch.js';
 
@@ -14,6 +16,11 @@ export interface DashboardServerOptions {
   port: number;
   host?: string;
   open?: boolean;
+}
+
+export interface DashboardAnalyticsOptions {
+  githubConfig?: GitHubAnalyticsServiceOptions;
+  jiraConfig?: JiraAnalyticsServiceOptions;
 }
 
 class ResultCache {
@@ -51,6 +58,63 @@ async function processInBatches<T, R>(
   }
   return results;
 }
+
+export interface LocalRepoAnalytics {
+  getLanguageStats(): Promise<object>;
+  getContributors(url?: URL): Promise<object>;
+  getRecentCommits(url?: URL): Promise<object>;
+  getBranches(): Promise<object>;
+  getCommitActivity(): Promise<object>;
+  getFileOwnership(url?: URL): Promise<object>;
+  getCodeHealth(): Promise<object>;
+  getVelocityMetrics(): Promise<object>;
+}
+
+export const createLocalRepoAnalytics = (repoRoot: string): LocalRepoAnalytics => {
+  const engine = new CodexiaEngine({ repoRoot });
+  const server = new DashboardServer(engine, repoRoot);
+  let readiness: Promise<void> | null = null;
+
+  const ensureReady = async (): Promise<void> => {
+    readiness ??= engine.initialize();
+    await readiness;
+  };
+
+  return {
+    async getLanguageStats(): Promise<object> {
+      await ensureReady();
+      return server.getLanguageStats();
+    },
+    async getContributors(url?: URL): Promise<object> {
+      await ensureReady();
+      return server.getContributors(url);
+    },
+    async getRecentCommits(url?: URL): Promise<object> {
+      await ensureReady();
+      return server.getRecentCommits(url);
+    },
+    async getBranches(): Promise<object> {
+      await ensureReady();
+      return server.getBranches();
+    },
+    async getCommitActivity(): Promise<object> {
+      await ensureReady();
+      return server.getCommitActivity();
+    },
+    async getFileOwnership(url?: URL): Promise<object> {
+      await ensureReady();
+      return server.getFileOwnership(url);
+    },
+    async getCodeHealth(): Promise<object> {
+      await ensureReady();
+      return server.getCodeHealth();
+    },
+    async getVelocityMetrics(): Promise<object> {
+      await ensureReady();
+      return server.getVelocityMetrics();
+    },
+  };
+};
 
 /**
  * Dashboard REST API server
@@ -102,17 +166,22 @@ export class DashboardServer {
   private latestRequestSequence = new Map<string, number>();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   private readonly repoSwitchJobs = new RepoSwitchJobManager();
+  private readonly githubConfig?: GitHubAnalyticsServiceOptions;
+  private readonly jiraConfig?: JiraAnalyticsServiceOptions;
 
-  constructor(engine: CodexiaEngine, repoRoot?: string) {
+  constructor(engine: CodexiaEngine, repoRoot?: string, analyticsOptions: DashboardAnalyticsOptions = {}) {
     this.engine = engine;
     // Runtime contract: dist/dashboard/server/index.js serves ../.. /dashboard-client
     this.staticDir = path.resolve(import.meta.dirname, '../../dashboard-client');
     this.currentRepoRoot = path.resolve(repoRoot || process.cwd());
     this.git = simpleGit(this.currentRepoRoot);
-    this.jira = new JiraAnalyticsService();
+    this.githubConfig = analyticsOptions.githubConfig;
+    this.jiraConfig = analyticsOptions.jiraConfig;
+    this.jira = new JiraAnalyticsService(this.jiraConfig);
     this.engineering = new EngineeringIntelligenceService({
       repoRoot: this.currentRepoRoot,
       jira: this.jira,
+      githubConfig: this.githubConfig,
     });
     this.addRecentRepo(this.currentRepoRoot);
   }
@@ -653,7 +722,7 @@ export class DashboardServer {
   /**
    * Get language statistics
    */
-  private async getLanguageStats(): Promise<object> {
+  async getLanguageStats(): Promise<object> {
     const files = this.engine.getFiles();
     const langCounts: Record<string, number> = {};
     const langLines: Record<string, number> = {};
@@ -674,7 +743,7 @@ export class DashboardServer {
   /**
    * Get contributors/authors with their stats
    */
-  private async getContributors(url?: URL): Promise<object> {
+  async getContributors(url?: URL): Promise<object> {
     const { limit } = url ? this.getPaginationParams(url, 50) : { limit: 50 };
     const cacheKey = `contributors::${this.currentRepoRoot}::${limit}`;
     const cached = this.resultCache.get<object>(cacheKey);
@@ -756,7 +825,7 @@ export class DashboardServer {
   /**
    * Get recent commits
    */
-  private async getRecentCommits(url?: URL): Promise<object> {
+  async getRecentCommits(url?: URL): Promise<object> {
     const { limit } = url ? this.getPaginationParams(url, 100) : { limit: 100 };
     try {
       const maxCount = limit === Infinity ? 500 : Math.min(limit, 500);
@@ -783,7 +852,7 @@ export class DashboardServer {
   /**
    * Get branch information
    */
-  private async getBranches(): Promise<object> {
+  async getBranches(): Promise<object> {
     try {
       const branches = await this.git.branchLocal();
       const currentBranch = branches.current;
@@ -838,7 +907,7 @@ export class DashboardServer {
   /**
    * Get commit activity over time (for heatmap/calendar)
    */
-  private async getCommitActivity(): Promise<object> {
+  async getCommitActivity(): Promise<object> {
     const cacheKey = `commit-activity::${this.currentRepoRoot}`;
     const cached = this.resultCache.get<object>(cacheKey);
     if (cached !== undefined) return cached;
@@ -915,7 +984,7 @@ export class DashboardServer {
   /**
    * Get file ownership data (who owns what)
    */
-  private async getFileOwnership(url?: URL): Promise<object> {
+  async getFileOwnership(url?: URL): Promise<object> {
     const { limit } = url ? this.getPaginationParams(url, 200) : { limit: 200 };
     const cacheKey = `ownership::${this.currentRepoRoot}::${limit}`;
     const cached = this.resultCache.get<object>(cacheKey);
@@ -1054,7 +1123,7 @@ export class DashboardServer {
   /**
    * Get code health metrics (maintainability, technical debt, etc.)
    */
-  private async getCodeHealth(): Promise<object> {
+  async getCodeHealth(): Promise<object> {
     try {
       const complexityData = await this.engine.getComplexity({});
       const signals = await this.engine.getSignals({ include: ['all'] });
@@ -1169,7 +1238,7 @@ export class DashboardServer {
   /**
    * Get velocity metrics from git history
    */
-  private async getVelocityMetrics(): Promise<object> {
+  async getVelocityMetrics(): Promise<object> {
     const cacheKey = `velocity::${this.currentRepoRoot}`;
     const cached = this.resultCache.get<object>(cacheKey);
     if (cached !== undefined) return cached;
@@ -1754,7 +1823,7 @@ export class DashboardServer {
       model,
       providerName: provider.name,
       scope,
-      sprintId,
+      sprintId: sprintId ?? undefined,
     });
 
     return this.getCachedOrInFlight({
@@ -2138,6 +2207,7 @@ ${reportJson}`;
       this.engineering = new EngineeringIntelligenceService({
         repoRoot: this.currentRepoRoot,
         jira: this.jira,
+        githubConfig: this.githubConfig,
       });
       this.addRecentRepo(resolved);
       this.resultCache.invalidate('');
@@ -2326,8 +2396,15 @@ ${reportJson}`;
   }
 }
 
-export const startDashboard = async (engine: CodexiaEngine, port: number, open = false, host?: string, repoRoot?: string): Promise<DashboardServer> => {
-  const server = new DashboardServer(engine, repoRoot);
+export const startDashboard = async (
+  engine: CodexiaEngine,
+  port: number,
+  open = false,
+  host?: string,
+  repoRoot?: string,
+  analyticsOptions: DashboardAnalyticsOptions = {},
+): Promise<DashboardServer> => {
+  const server = new DashboardServer(engine, repoRoot, analyticsOptions);
   await server.start({ port, open, host });
   return server;
 };

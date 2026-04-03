@@ -1,4 +1,5 @@
 type FetchLike = typeof fetch;
+type FetchInput = Parameters<FetchLike>[0];
 
 export type RequestPolicyErrorKind = 'timeout' | 'cancelled' | 'rate-limit' | 'auth' | 'http';
 
@@ -38,7 +39,7 @@ const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 const AUTH_STATUSES = new Set([401, 403]);
 
 export async function requestWithPolicy(
-  input: RequestInfo | URL,
+  input: FetchInput,
   init: RequestInit = {},
   options: RequestPolicyOptions = {},
 ): Promise<Response> {

@@ -3,6 +3,57 @@ import { GitHubAnalyticsService } from './github.js';
 import { EngineeringIntelligenceService, type TeamConfig } from './engineering.js';
 
 describe('EngineeringIntelligenceService request reuse', () => {
+  it('builds default GitHub and Jira services from injected config', async () => {
+    const originalBearerToken = process.env.CODEXIA_JIRA_BEARER_TOKEN;
+    process.env.CODEXIA_JIRA_BEARER_TOKEN = '';
+    try {
+      const service = new EngineeringIntelligenceService({
+        repoRoot: '/tmp/codexia',
+        githubConfig: {
+          token: 'ghp_test',
+          apiUrl: 'https://github.example.com',
+          cacheTtlMs: 1000,
+        },
+        jiraConfig: {
+          baseUrl: 'https://jira.example.com',
+          email: 'user@example.com',
+          apiToken: 'secret',
+        },
+        teamConfigLoader: {
+          load: async () => ({
+            enabled: true,
+            path: 'test',
+            message: 'ok',
+            teams: [{
+              name: 'Platform',
+              repos: ['acme/api'],
+            } satisfies TeamConfig],
+          }),
+        } as never,
+      });
+
+      const config = await service.getConfig();
+
+      expect(config.providers.github).toEqual({
+        enabled: true,
+        apiUrl: 'https://github.example.com',
+        message: 'GitHub analytics is configured.',
+      });
+      expect(config.providers.jira).toEqual({
+        enabled: true,
+        baseUrl: 'https://jira.example.com',
+        authMode: 'basic',
+        message: 'Jira analytics is configured.',
+      });
+    } finally {
+      if (originalBearerToken === undefined) {
+        delete process.env.CODEXIA_JIRA_BEARER_TOKEN;
+      } else {
+        process.env.CODEXIA_JIRA_BEARER_TOKEN = originalBearerToken;
+      }
+    }
+  });
+
   it('reuses pull requests when building deployments for the same report', async () => {
     const getPullRequests = vi.fn(async () => [
       {

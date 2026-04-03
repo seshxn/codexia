@@ -32,6 +32,16 @@ npm run dev:dashboard
 
 GitHub analytics are optional. They use a token plus a repo slug that resolves from the checked-out remote, and they make remote API calls only when configured.
 
+For local interactive use, the simplest path is:
+
+```bash
+codexia auth github
+```
+
+The dashboard startup path now reads those stored credentials automatically. CI and headless use should continue to rely on environment variables.
+
+Environment-variable setup remains supported:
+
 ```bash
 export CODEXIA_GITHUB_TOKEN=ghp_...
 ```
@@ -45,6 +55,16 @@ export CODEXIA_DASHBOARD_TEAMS_JSON='{"teams":[{"name":"Platform","repos":["acme
 ## Jira Analytics Setup
 
 Jira metrics are optional and only apply when you want sprint and board context in the dashboard. They make remote API calls only when configured.
+
+For local interactive use:
+
+```bash
+codexia auth jira
+```
+
+That stores Jira base URL, email, and API token in the OS keychain. Bearer-token mode remains env-only for headless or enterprise setups.
+
+Environment-variable setup remains supported:
 
 ```bash
 export CODEXIA_JIRA_BASE_URL=https://your-company.atlassian.net
