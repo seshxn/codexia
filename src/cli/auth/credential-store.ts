@@ -1,4 +1,3 @@
-import keytar from 'keytar';
 import type { CredentialStore } from './types.js';
 
 const SERVICE_NAME = 'codexia';
@@ -12,8 +11,24 @@ const wrapError = (action: string, error: unknown): Error => {
   return new Error(`Keychain storage is unavailable while trying to ${action}. ${message}`);
 };
 
+type KeytarModule = {
+  getPassword(service: string, account: string): Promise<string | null>;
+  setPassword(service: string, account: string, password: string): Promise<void>;
+  deletePassword(service: string, account: string): Promise<boolean>;
+};
+
+const loadKeytar = async (): Promise<KeytarModule> => {
+  try {
+    const module = await import('keytar');
+    return module.default;
+  } catch (error) {
+    throw wrapError('load keychain backend', error);
+  }
+};
+
 const readPassword = async (account: string): Promise<string | null> => {
   try {
+    const keytar = await loadKeytar();
     return await keytar.getPassword(SERVICE_NAME, account);
   } catch (error) {
     throw wrapError(`read ${account}`, error);
@@ -22,6 +37,7 @@ const readPassword = async (account: string): Promise<string | null> => {
 
 const writePassword = async (account: string, value: string): Promise<void> => {
   try {
+    const keytar = await loadKeytar();
     await keytar.setPassword(SERVICE_NAME, account, value);
   } catch (error) {
     throw wrapError(`write ${account}`, error);
@@ -30,6 +46,7 @@ const writePassword = async (account: string, value: string): Promise<void> => {
 
 const deletePassword = async (account: string): Promise<void> => {
   try {
+    const keytar = await loadKeytar();
     await keytar.deletePassword(SERVICE_NAME, account);
   } catch (error) {
     throw wrapError(`delete ${account}`, error);
