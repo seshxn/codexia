@@ -20,6 +20,45 @@ describe('JiraAnalyticsService config', () => {
     }
   });
 
+  it('prefers injected Jira basic auth config over env defaults', () => {
+    process.env.CODEXIA_JIRA_BASE_URL = '';
+    process.env.CODEXIA_JIRA_EMAIL = 'env@example.com';
+    process.env.CODEXIA_JIRA_API_TOKEN = 'env-secret';
+    process.env.CODEXIA_JIRA_BEARER_TOKEN = '';
+
+    const jira = new JiraAnalyticsService({
+      baseUrl: 'https://example.atlassian.net',
+      email: 'user@example.com',
+      apiToken: 'secret',
+    } as never);
+
+    expect(jira.getConfig()).toEqual({
+      enabled: true,
+      baseUrl: 'https://example.atlassian.net',
+      authMode: 'basic',
+      message: 'Jira analytics is configured.',
+    });
+  });
+
+  it('prefers injected Jira bearer config over env defaults', () => {
+    process.env.CODEXIA_JIRA_BASE_URL = '';
+    process.env.CODEXIA_JIRA_EMAIL = 'env@example.com';
+    process.env.CODEXIA_JIRA_API_TOKEN = 'env-secret';
+    process.env.CODEXIA_JIRA_BEARER_TOKEN = '';
+
+    const jira = new JiraAnalyticsService({
+      baseUrl: 'https://example.atlassian.net',
+      bearerToken: 'bearer-secret',
+    } as never);
+
+    expect(jira.getConfig()).toEqual({
+      enabled: true,
+      baseUrl: 'https://example.atlassian.net',
+      authMode: 'bearer',
+      message: 'Jira analytics is configured.',
+    });
+  });
+
   it('reports missing base URL as disabled configuration', () => {
     const jira = new JiraAnalyticsService();
 

@@ -92,6 +92,23 @@ interface JiraCacheEntry<T> {
   expiresAt: number;
 }
 
+export interface JiraAnalyticsServiceOptions {
+  env?: NodeJS.ProcessEnv;
+  baseUrl?: string | null;
+  email?: string | null;
+  apiToken?: string | null;
+  bearerToken?: string | null;
+  requestRetryMax?: number | string | null;
+  requestRetryBaseMs?: number | string | null;
+  requestRetryMaxMs?: number | string | null;
+  requestTimeoutMs?: number | string | null;
+  maxIssuesPerSprint?: number | string | null;
+  sprintSearchTimeBudgetMs?: number | string | null;
+  sprintMembershipMode?: string | null;
+  cacheTtlMs?: number | string | null;
+  boardHistoryTimeBudgetMs?: number | string | null;
+}
+
 export interface JiraConfig {
   enabled: boolean;
   baseUrl: string | null;
@@ -256,6 +273,27 @@ class JiraConfigError extends Error {
   }
 }
 
+const hasJiraOptionKeys = (value: NodeJS.ProcessEnv | JiraAnalyticsServiceOptions): value is JiraAnalyticsServiceOptions =>
+  Object.prototype.hasOwnProperty.call(value, 'env')
+  || Object.prototype.hasOwnProperty.call(value, 'baseUrl')
+  || Object.prototype.hasOwnProperty.call(value, 'email')
+  || Object.prototype.hasOwnProperty.call(value, 'apiToken')
+  || Object.prototype.hasOwnProperty.call(value, 'bearerToken')
+  || Object.prototype.hasOwnProperty.call(value, 'requestRetryMax')
+  || Object.prototype.hasOwnProperty.call(value, 'requestRetryBaseMs')
+  || Object.prototype.hasOwnProperty.call(value, 'requestRetryMaxMs')
+  || Object.prototype.hasOwnProperty.call(value, 'requestTimeoutMs')
+  || Object.prototype.hasOwnProperty.call(value, 'maxIssuesPerSprint')
+  || Object.prototype.hasOwnProperty.call(value, 'sprintSearchTimeBudgetMs')
+  || Object.prototype.hasOwnProperty.call(value, 'sprintMembershipMode')
+  || Object.prototype.hasOwnProperty.call(value, 'cacheTtlMs')
+  || Object.prototype.hasOwnProperty.call(value, 'boardHistoryTimeBudgetMs');
+
+const normalizeConfigValue = (value: unknown, fallback: string): string => {
+  const normalized = String(value ?? fallback).trim();
+  return normalized || fallback;
+};
+
 /**
  * Jira analytics adapter used by the dashboard API.
  *
@@ -286,27 +324,30 @@ export class JiraAnalyticsService {
   private storyPointsFieldId: string | null | undefined;
   private sprintFieldId: string | null | undefined;
 
-  constructor(env: NodeJS.ProcessEnv = process.env) {
-    const rawBaseUrl = (env.CODEXIA_JIRA_BASE_URL || '').trim();
+  constructor(input: NodeJS.ProcessEnv | JiraAnalyticsServiceOptions = process.env) {
+    const hasOptions = hasJiraOptionKeys(input);
+    const env = hasOptions ? (input.env || process.env) : input;
+
+    const rawBaseUrl = normalizeConfigValue(hasOptions ? (input.baseUrl ?? env.CODEXIA_JIRA_BASE_URL) : env.CODEXIA_JIRA_BASE_URL, '');
     this.baseUrl = rawBaseUrl ? rawBaseUrl.replace(/\/$/, '') : null;
 
-    const email = (env.CODEXIA_JIRA_EMAIL || '').trim();
-    const apiToken = (env.CODEXIA_JIRA_API_TOKEN || '').trim();
+    const email = normalizeConfigValue(hasOptions ? (input.email ?? env.CODEXIA_JIRA_EMAIL) : env.CODEXIA_JIRA_EMAIL, '');
+    const apiToken = normalizeConfigValue(hasOptions ? (input.apiToken ?? env.CODEXIA_JIRA_API_TOKEN) : env.CODEXIA_JIRA_API_TOKEN, '');
     this.basicAuth = email && apiToken
       ? Buffer.from(`${email}:${apiToken}`).toString('base64')
       : null;
 
-    const bearerToken = (env.CODEXIA_JIRA_BEARER_TOKEN || '').trim();
+    const bearerToken = normalizeConfigValue(hasOptions ? (input.bearerToken ?? env.CODEXIA_JIRA_BEARER_TOKEN) : env.CODEXIA_JIRA_BEARER_TOKEN, '');
     this.bearerToken = bearerToken || null;
-    const parsedRetryMax = Number.parseInt(env.CODEXIA_JIRA_RETRY_MAX || '1', 10);
-    const parsedRetryBaseMs = Number.parseInt(env.CODEXIA_JIRA_RETRY_BASE_MS || '500', 10);
-    const parsedRetryMaxMs = Number.parseInt(env.CODEXIA_JIRA_RETRY_MAX_MS || '4000', 10);
-    const parsedTimeoutMs = Number.parseInt(env.CODEXIA_JIRA_REQUEST_TIMEOUT_MS || '15000', 10);
-    const parsedMaxIssuesPerSprint = Number.parseInt(env.CODEXIA_JIRA_MAX_ISSUES_PER_SPRINT || '500', 10);
-    const parsedSprintSearchTimeBudgetMs = Number.parseInt(env.CODEXIA_JIRA_SPRINT_SEARCH_TIME_BUDGET_MS || '15000', 10);
-    const membershipMode = (env.CODEXIA_JIRA_SPRINT_MEMBERSHIP_MODE || 'current_only').trim().toLowerCase();
-    const parsedCacheTtlMs = Number.parseInt(env.CODEXIA_JIRA_CACHE_TTL_MS || '90000', 10);
-    const parsedBoardHistoryTimeBudgetMs = Number.parseInt(env.CODEXIA_JIRA_BOARD_TIME_BUDGET_MS || '45000', 10);
+    const parsedRetryMax = Number.parseInt(normalizeConfigValue(hasOptions ? (input.requestRetryMax ?? env.CODEXIA_JIRA_RETRY_MAX) : env.CODEXIA_JIRA_RETRY_MAX, '1'), 10);
+    const parsedRetryBaseMs = Number.parseInt(normalizeConfigValue(hasOptions ? (input.requestRetryBaseMs ?? env.CODEXIA_JIRA_RETRY_BASE_MS) : env.CODEXIA_JIRA_RETRY_BASE_MS, '500'), 10);
+    const parsedRetryMaxMs = Number.parseInt(normalizeConfigValue(hasOptions ? (input.requestRetryMaxMs ?? env.CODEXIA_JIRA_RETRY_MAX_MS) : env.CODEXIA_JIRA_RETRY_MAX_MS, '4000'), 10);
+    const parsedTimeoutMs = Number.parseInt(normalizeConfigValue(hasOptions ? (input.requestTimeoutMs ?? env.CODEXIA_JIRA_REQUEST_TIMEOUT_MS) : env.CODEXIA_JIRA_REQUEST_TIMEOUT_MS, '15000'), 10);
+    const parsedMaxIssuesPerSprint = Number.parseInt(normalizeConfigValue(hasOptions ? (input.maxIssuesPerSprint ?? env.CODEXIA_JIRA_MAX_ISSUES_PER_SPRINT) : env.CODEXIA_JIRA_MAX_ISSUES_PER_SPRINT, '500'), 10);
+    const parsedSprintSearchTimeBudgetMs = Number.parseInt(normalizeConfigValue(hasOptions ? (input.sprintSearchTimeBudgetMs ?? env.CODEXIA_JIRA_SPRINT_SEARCH_TIME_BUDGET_MS) : env.CODEXIA_JIRA_SPRINT_SEARCH_TIME_BUDGET_MS, '15000'), 10);
+    const membershipMode = normalizeConfigValue(hasOptions ? (input.sprintMembershipMode ?? env.CODEXIA_JIRA_SPRINT_MEMBERSHIP_MODE) : env.CODEXIA_JIRA_SPRINT_MEMBERSHIP_MODE, 'current_only').toLowerCase();
+    const parsedCacheTtlMs = Number.parseInt(normalizeConfigValue(hasOptions ? (input.cacheTtlMs ?? env.CODEXIA_JIRA_CACHE_TTL_MS) : env.CODEXIA_JIRA_CACHE_TTL_MS, '90000'), 10);
+    const parsedBoardHistoryTimeBudgetMs = Number.parseInt(normalizeConfigValue(hasOptions ? (input.boardHistoryTimeBudgetMs ?? env.CODEXIA_JIRA_BOARD_TIME_BUDGET_MS) : env.CODEXIA_JIRA_BOARD_TIME_BUDGET_MS, '45000'), 10);
 
     this.requestRetryMax = Number.isFinite(parsedRetryMax) ? Math.min(10, Math.max(0, parsedRetryMax)) : 1;
     this.requestRetryBaseMs = Number.isFinite(parsedRetryBaseMs) ? Math.min(10000, Math.max(100, parsedRetryBaseMs)) : 500;

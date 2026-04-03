@@ -1,9 +1,9 @@
 import * as path from 'node:path';
 import { simpleGit } from 'simple-git';
 import { computeJiraFlowMetrics } from './jira-flow.js';
-import { GitHubAnalyticsService, type GitHubDeployment, type GitHubPullRequest } from './github.js';
+import { GitHubAnalyticsService, type GitHubAnalyticsServiceOptions, type GitHubDeployment, type GitHubPullRequest } from './github.js';
 import { TeamConfigLoader } from './teams.js';
-import type { JiraAnalyticsService, JiraFlowWorkItem, JiraIncidentReportItem } from './jira.js';
+import { JiraAnalyticsService, type JiraAnalyticsServiceOptions, type JiraFlowWorkItem, type JiraIncidentReportItem } from './jira.js';
 import type { TeamConfig } from './teams.js';
 
 export type MetricConfidence = 'high' | 'medium' | 'low';
@@ -213,7 +213,9 @@ export interface TeamReportInput extends DoraMetricsInput {
 interface EngineeringIntelligenceServiceOptions {
   repoRoot: string;
   github?: GitHubAnalyticsService;
+  githubConfig?: GitHubAnalyticsServiceOptions;
   jira?: JiraAnalyticsService;
+  jiraConfig?: JiraAnalyticsServiceOptions;
   teamConfigLoader?: TeamConfigLoader;
   fallbackRepoSlug?: string;
 }
@@ -421,8 +423,8 @@ export class EngineeringIntelligenceService {
   constructor(options: EngineeringIntelligenceServiceOptions) {
     this.repoRoot = options.repoRoot;
     this.teamConfigLoader = options.teamConfigLoader || new TeamConfigLoader(options.repoRoot);
-    this.github = options.github || new GitHubAnalyticsService();
-    this.jira = options.jira || null;
+    this.github = options.github || new GitHubAnalyticsService(options.githubConfig);
+    this.jira = options.jira || (options.jiraConfig ? new JiraAnalyticsService(options.jiraConfig) : null);
     this.fallbackRepoSlug = options.fallbackRepoSlug;
   }
 

@@ -133,6 +133,9 @@ const categories: CommandCategory[] = [
       { name: 'complexity', value: 'complexity', description: 'Analyze code complexity' },
       { name: 'signals', value: 'signals', description: 'Show engineering signals' },
       { name: 'hotpaths', value: 'hotpaths', description: 'Find frequently changed files' },
+      { name: 'drift', value: 'drift', description: 'Analyze architectural drift' },
+      { name: 'cognitive-load', value: 'cognitive-load', description: 'Map cognitive load hotspots' },
+      { name: 'repo', value: 'repo', description: 'Browse local repo analytics summaries' },
       { name: 'changelog', value: 'changelog', description: 'Generate changelog from commits' },
       { name: 'pr-report', value: 'pr-report', description: 'Generate PR summary report' },
     ],
@@ -151,22 +154,47 @@ const categories: CommandCategory[] = [
   {
     name: 'Integrate',
     value: 'integrate',
-    description: 'Connect Codexia to editors, dashboards, and shared tooling',
+    description: 'Connect Codexia to editors and shared tooling',
     icon: '🔌',
     commands: [
       { name: 'setup', value: 'setup', description: 'Generate local MCP setup snippets' },
+      { name: 'auth', value: 'auth', description: 'Configure GitHub and Jira auth locally' },
       { name: 'serve', value: 'serve', description: 'Start the MCP server' },
       { name: 'list', value: 'list', description: 'List registered repositories' },
-      { name: 'dashboard', value: 'dashboard', description: 'Open the web dashboard' },
       { name: 'init', value: 'init', description: 'Initialize Codexia configuration' },
       { name: 'watch', value: 'watch', description: 'Watch for file changes' },
       { name: 'monorepo', value: 'monorepo', description: 'Analyze monorepo structure' },
       { name: 'mcp-server', value: 'mcp-server', description: 'Start MCP server for AI tools' },
     ],
   },
+  {
+    name: 'Operations',
+    value: 'operations',
+    description: 'Run dashboard, Jira, and engineering analytics workflows',
+    icon: '📈',
+    commands: [
+      { name: 'dashboard', value: 'dashboard', description: 'Open the web dashboard' },
+      { name: 'jira', value: 'jira', description: 'Run Jira analytics from the CLI' },
+      { name: 'engineering', value: 'engineering', description: 'Run engineering analytics from the CLI' },
+    ],
+  },
 ];
 
-const terminalOnlyCommands = new Set(['analyze', 'update', 'status', 'setup', 'serve', 'list', 'dashboard']);
+const terminalOnlyCommands = new Set([
+  'analyze',
+  'update',
+  'status',
+  'setup',
+  'serve',
+  'list',
+  'dashboard',
+  'drift',
+  'cognitive-load',
+  'repo',
+  'auth',
+  'jira',
+  'engineering',
+]);
 
 const isTerminalOnlyCommand = (command: string): boolean => terminalOnlyCommands.has(command);
 

@@ -5,6 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { createCliProgram, cliVersion, shouldRunCli } from './index.js';
 import { dashboardCommand } from './commands/dashboard.js';
+import { driftCommand } from './commands/drift.js';
+import { cognitiveLoadCommand } from './commands/cognitive-load.js';
+import { authCommand } from './commands/auth.js';
+import { jiraCommand } from './commands/jira.js';
+import { engineeringCommand } from './commands/engineering.js';
+import { repoCommand } from './commands/repo.js';
 import { setupCommand } from './commands/setup.js';
 import packageJson from '../../package.json' with { type: 'json' };
 
@@ -38,6 +44,18 @@ describe('CLI metadata', () => {
     expect(legacy?.description()).toMatch(/compatibility alias/i);
   });
 
+  it('publishes the new analytics commands at the top level', () => {
+    const program = createCliProgram();
+    const visibleCommands = program.commands.filter((command) => !command._hidden).map((command) => command.name());
+
+    expect(visibleCommands).toContain('drift');
+    expect(visibleCommands).toContain('cognitive-load');
+    expect(visibleCommands).toContain('auth');
+    expect(visibleCommands).toContain('jira');
+    expect(visibleCommands).toContain('engineering');
+    expect(visibleCommands).toContain('repo');
+  });
+
   it('treats symlinked bin paths as direct CLI execution', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'codexia-cli-'));
     const symlinkPath = join(tempDir, 'codexia');
@@ -56,5 +74,11 @@ describe('CLI metadata', () => {
   it('describes setup and dashboard in workflow terms', () => {
     expect(setupCommand.description()).toContain('Integrate workflow');
     expect(dashboardCommand.description()).toContain('workflow');
+    expect(driftCommand.description()).toContain('drift');
+    expect(cognitiveLoadCommand.description()).toContain('cognitive load');
+    expect(authCommand.description()).toContain('auth');
+    expect(jiraCommand.description()).toContain('Jira analytics');
+    expect(engineeringCommand.description()).toContain('engineering analytics');
+    expect(repoCommand.description()).toContain('repository analytics');
   });
 });

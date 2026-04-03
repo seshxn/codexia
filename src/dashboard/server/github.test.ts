@@ -11,6 +11,32 @@ const okJson = (body: unknown, headers: Record<string, string> = {}): Response =
   });
 
 describe('GitHubAnalyticsService', () => {
+  it('prefers injected GitHub config over env defaults', async () => {
+    process.env.CODEXIA_GITHUB_TOKEN = 'env-token';
+    process.env.CODEXIA_GITHUB_API_URL = 'https://env.github.local';
+
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const service = new GitHubAnalyticsService(
+      {
+        token: 'injected-token',
+        apiUrl: 'https://github.local',
+        cacheTtlMs: 1000,
+      } as never,
+      async (input, init) => {
+        calls.push({ url: String(input), init });
+        return okJson([]);
+      },
+    );
+
+    await service.getDeployments('acme/api', 90);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('https://github.local/repos/acme/api/deployments?per_page=100');
+    expect(calls[0].init?.headers).toMatchObject({
+      Authorization: 'Bearer injected-token',
+    });
+  });
+
   it('uses the current recommended GitHub REST headers', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const service = new GitHubAnalyticsService(

@@ -11,10 +11,10 @@ Operations-related dashboard engineering analytics performs remote API calls whe
 Codexia commands are easiest to think about as workflows:
 
 - `Core`: `analyze`, `update`, `status`
-- `Inspect`: `impact`, `graph`, `history`, `complexity`, `signals`, `hotpaths`, `pr-report`
+- `Inspect`: `impact`, `graph`, `history`, `complexity`, `signals`, `hotpaths`, `drift`, `cognitive-load`, `repo`, `pr-report`
 - `Enforce`: `check`, `invariants`, `tests`
-- `Integrations`: `setup`, `serve`, `list`, `mcp-server`
-- `Operations`: `dashboard`
+- `Integrations`: `setup`, `auth`, `serve`, `list`, `mcp-server`
+- `Operations`: `dashboard`, `jira`, `engineering`
 
 Run `codexia` with no arguments if you want the interactive wizard instead of a direct command.
 
@@ -37,6 +37,9 @@ Use these commands to understand what changed and what it affects.
 - `codexia history` surfaces temporal and ownership patterns.
 - `codexia complexity` highlights maintainability and coupling hot spots.
 - `codexia signals` and `codexia hotpaths` focus attention on critical areas.
+- `codexia drift` summarizes architecture drift and trajectory.
+- `codexia cognitive-load` maps cognitive load hotspots.
+- `codexia repo ...` exposes the dashboard’s local repo summaries directly in the CLI.
 - `codexia pr-report` packages review evidence for pull requests.
 
 ### Enforce
@@ -52,6 +55,7 @@ Use these commands to check rules and quality gates.
 Use these commands when Codexia is wired into other tools. Core analysis still stays local.
 
 - `codexia setup` writes an MCP config snippet.
+- `codexia auth ...` stores local GitHub and Jira credentials in the OS keychain for interactive CLI use.
 - `codexia serve` starts the MCP server.
 - `codexia list` shows registered graph repos.
 - `codexia mcp-server` remains available as a legacy alias.
@@ -61,6 +65,20 @@ Use these commands when Codexia is wired into other tools. Core analysis still s
 Use these commands for the source-run dashboard and engineering analytics.
 
 - `codexia dashboard` starts the web dashboard from a repo checkout or source build; it is not included in the published npm package.
+- `codexia jira ...` runs Jira analytics from the CLI and prompts for Jira auth inline when needed.
+- `codexia engineering ...` runs engineering analytics from the CLI and prompts for GitHub auth inline when needed.
+
+## Auth
+
+Remote analytics can use environment variables or secure local storage.
+
+- `codexia auth status` shows which providers are configured and whether values come from env or keychain.
+- `codexia auth doctor` shows readiness plus the next setup step.
+- `codexia auth github` starts GitHub auth. If a GitHub OAuth client id is configured, Codexia uses device flow; otherwise it prompts for a personal access token.
+- `codexia auth jira` prompts for Jira base URL, email, and API token and stores them in the OS keychain.
+- `codexia auth logout [github|jira|all]` removes stored credentials but does not touch environment variables.
+
+Environment variables still take priority, which keeps CI and headless usage unchanged.
 
 ## JSON And Automation
 

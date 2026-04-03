@@ -103,11 +103,12 @@ describe('Interactive Wizard', () => {
         'inspect',
         'enforce',
         'integrate',
+        'operations',
       ]);
     });
 
     it('should return the selected workflow value', async () => {
-      const categories = ['index', 'inspect', 'enforce', 'integrate'];
+      const categories = ['index', 'inspect', 'enforce', 'integrate', 'operations'];
       
       for (const category of categories) {
         mockSelect.mockResolvedValue(category);
@@ -118,7 +119,7 @@ describe('Interactive Wizard', () => {
   });
 
   describe('selectCommand', () => {
-    const directRunOnlyCommands = new Set(['analyze', 'update', 'status', 'setup', 'serve', 'list', 'dashboard']);
+    const directRunOnlyCommands = new Set(['analyze', 'update', 'status', 'setup', 'auth', 'serve', 'list', 'dashboard', 'drift', 'cognitive-load', 'repo', 'jira', 'engineering']);
     const commandPlacementCases = [
       {
         category: 'index',
@@ -126,7 +127,7 @@ describe('Interactive Wizard', () => {
       },
       {
         category: 'inspect',
-        commands: ['impact', 'graph', 'history', 'complexity', 'signals', 'hotpaths', 'changelog', 'pr-report'],
+        commands: ['impact', 'graph', 'history', 'complexity', 'signals', 'hotpaths', 'drift', 'cognitive-load', 'repo', 'changelog', 'pr-report'],
       },
       {
         category: 'enforce',
@@ -134,7 +135,11 @@ describe('Interactive Wizard', () => {
       },
       {
         category: 'integrate',
-        commands: ['setup', 'serve', 'list', 'dashboard', 'init', 'watch', 'monorepo', 'mcp-server'],
+        commands: ['setup', 'auth', 'serve', 'list', 'init', 'watch', 'monorepo', 'mcp-server'],
+      },
+      {
+        category: 'operations',
+        commands: ['dashboard', 'jira', 'engineering'],
       },
     ] as const;
 

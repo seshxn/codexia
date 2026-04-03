@@ -1,7 +1,57 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'node:path';
+import { AuthManager } from '../auth/auth-manager.js';
 import { CodexiaEngine } from '../engine.js';
+import type { GitHubAnalyticsServiceOptions } from '../../dashboard/server/github.js';
+import type { JiraAnalyticsServiceOptions } from '../../dashboard/server/jira.js';
+
+const resolveDashboardAnalyticsOptions = async (): Promise<{
+  githubConfig?: GitHubAnalyticsServiceOptions;
+  jiraConfig?: JiraAnalyticsServiceOptions;
+}> => {
+  const authManager = new AuthManager();
+
+  let githubConfig: GitHubAnalyticsServiceOptions | undefined;
+  let jiraConfig: JiraAnalyticsServiceOptions | undefined;
+
+  try {
+    const github = await authManager.resolveGitHubCredentials();
+    if (github.token) {
+      githubConfig = {
+        env: process.env,
+        token: github.token,
+      };
+    }
+  } catch (error) {
+    console.warn(
+      chalk.yellow(
+        `Skipping stored GitHub credentials for dashboard startup: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    );
+  }
+
+  try {
+    const jira = await authManager.resolveJiraCredentials();
+    if (jira.mode !== 'missing' && jira.baseUrl) {
+      jiraConfig = {
+        env: process.env,
+        baseUrl: jira.baseUrl,
+        email: jira.mode === 'basic' ? jira.email : undefined,
+        apiToken: jira.mode === 'basic' ? jira.apiToken : undefined,
+        bearerToken: jira.mode === 'bearer' ? jira.bearerToken : undefined,
+      };
+    }
+  } catch (error) {
+    console.warn(
+      chalk.yellow(
+        `Skipping stored Jira credentials for dashboard startup: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    );
+  }
+
+  return { githubConfig, jiraConfig };
+};
 
 export const dashboardCommand = new Command('dashboard')
   .description('Open the workflow dashboard for repository analysis')
@@ -35,8 +85,9 @@ Examples:
       
       // Dynamically import the dashboard server
       const { startDashboard } = await import('../../dashboard/server/index.js');
+      const analyticsOptions = await resolveDashboardAnalyticsOptions();
       
-      await startDashboard(engine, port, options.open !== false, host, repoRoot);
+      await startDashboard(engine, port, options.open !== false, host, repoRoot, analyticsOptions);
       
       const displayHost = host === '0.0.0.0' ? 'localhost' : host;
       console.log(chalk.green(`Dashboard is running at ${chalk.bold(`http://${displayHost}:${port}`)}`));

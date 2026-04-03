@@ -45,6 +45,13 @@ export interface GitHubDeployment {
 
 type FetchLike = typeof fetch;
 
+export interface GitHubAnalyticsServiceOptions {
+  env?: NodeJS.ProcessEnv;
+  token?: string | null;
+  apiUrl?: string | null;
+  cacheTtlMs?: number | string | null;
+}
+
 interface GitHubPullResponse {
   number: number;
   id?: number;
@@ -102,6 +109,12 @@ interface GitHubDeploymentStatusResponse {
 const ISSUE_KEY_PATTERN = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
 const GITHUB_API_VERSION = '2026-03-10';
 
+const hasGitHubOptionKeys = (value: NodeJS.ProcessEnv | GitHubAnalyticsServiceOptions): value is GitHubAnalyticsServiceOptions =>
+  Object.prototype.hasOwnProperty.call(value, 'env')
+  || Object.prototype.hasOwnProperty.call(value, 'token')
+  || Object.prototype.hasOwnProperty.call(value, 'apiUrl')
+  || Object.prototype.hasOwnProperty.call(value, 'cacheTtlMs');
+
 export class GitHubAnalyticsService {
   private readonly token: string | null;
   private readonly apiUrl: string;
@@ -110,11 +123,17 @@ export class GitHubAnalyticsService {
   private readonly responseCache = new Map<string, { expiresAt: number; value: unknown }>();
   private readonly inFlight = new Map<string, Promise<unknown>>();
 
-  constructor(env: NodeJS.ProcessEnv = process.env, fetchImpl: FetchLike = fetch) {
-    this.token = (env.CODEXIA_GITHUB_TOKEN || '').trim() || null;
-    this.apiUrl = ((env.CODEXIA_GITHUB_API_URL || 'https://api.github.com').trim() || 'https://api.github.com').replace(/\/$/, '');
+  constructor(input: NodeJS.ProcessEnv | GitHubAnalyticsServiceOptions = process.env, fetchImpl: FetchLike = fetch) {
+    const hasOptions = hasGitHubOptionKeys(input);
+    const env = hasOptions ? (input.env || process.env) : input;
+    const token = hasOptions ? input.token : env.CODEXIA_GITHUB_TOKEN;
+    const apiUrl = hasOptions ? input.apiUrl : env.CODEXIA_GITHUB_API_URL;
+    const cacheTtlMs = hasOptions ? input.cacheTtlMs : env.CODEXIA_GITHUB_CACHE_TTL_MS;
+
+    this.token = (typeof token === 'string' ? token : '').trim() || null;
+    this.apiUrl = ((typeof apiUrl === 'string' ? apiUrl : String(apiUrl ?? 'https://api.github.com')).trim() || 'https://api.github.com').replace(/\/$/, '');
     this.fetchImpl = fetchImpl;
-    const parsedCacheTtlMs = Number.parseInt(env.CODEXIA_GITHUB_CACHE_TTL_MS || '30000', 10);
+    const parsedCacheTtlMs = Number.parseInt(String(cacheTtlMs ?? '30000').trim() || '30000', 10);
     this.cacheTtlMs = Number.isFinite(parsedCacheTtlMs) ? Math.min(300000, Math.max(1000, parsedCacheTtlMs)) : 30000;
   }
 

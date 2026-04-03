@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RequestPolicyError, requestWithPolicy } from './request-policy.js';
 
+type FetchInput = Parameters<typeof fetch>[0];
+
 const okJson = (body: unknown): Response =>
   new Response(JSON.stringify(body), {
     status: 200,
@@ -124,7 +126,7 @@ describe('requestWithPolicy', () => {
     vi.useFakeTimers();
 
     const controller = new AbortController();
-    const fetchImpl = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+    const fetchImpl = vi.fn((_input: FetchInput, init?: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => {
           reject(Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' }));
