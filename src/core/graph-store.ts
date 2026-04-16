@@ -13,6 +13,8 @@ export class GraphStore {
   private db?: kuzu.Database;
   private conn?: kuzu.Connection;
   private initialized = false;
+  private pendingStatements: string[] = [];
+  private readonly BATCH_SIZE = 150;
 
   constructor(repoRoot: string) {
     this.dbPath = path.join(repoRoot, DB_FILE);
@@ -76,7 +78,7 @@ export class GraphStore {
     );
 
     for (const commit of commits) {
-      await this.run(`
+      await this.batchRun(`
         CREATE (:Commit {
           sha: '${this.escape(commit.hash)}',
           message: '${this.escape(commit.message)}',
@@ -93,7 +95,7 @@ export class GraphStore {
           continue;
         }
 
-        await this.run(`
+        await this.batchRun(`
           MATCH (f:File {path: '${this.escape(change.path)}'}), (c:Commit {sha: '${this.escape(commit.hash)}'})
           CREATE (f)-[:MODIFIED_IN {
             lines_added: ${change.additions},
@@ -107,7 +109,7 @@ export class GraphStore {
         );
 
         for (const symbol of impactedFunctions) {
-          await this.run(`
+          await this.batchRun(`
             MATCH (fn:Function {id: '${this.escape(this.symbolId(symbol))}'}), (c:Commit {sha: '${this.escape(commit.hash)}'})
             CREATE (fn)-[:FN_MODIFIED_IN {
               lines_added: ${change.additions},
@@ -117,6 +119,8 @@ export class GraphStore {
         }
       }
     }
+
+    await this.flushBatch();
   }
 
   private async indexFiles(
@@ -134,7 +138,7 @@ export class GraphStore {
       if (!scope.has(filePath)) {
         continue;
       }
-      await this.run(`
+      await this.batchRun(`
         CREATE (:File {
           path: '${this.escape(filePath)}',
           language: '${this.escape(fileInfo.language)}',
@@ -152,7 +156,7 @@ export class GraphStore {
       for (const symbol of fileInfo.symbols) {
         if (symbol.kind === 'class') {
           classSymbols.push(symbol);
-          await this.run(`
+          await this.batchRun(`
             CREATE (:Class {
               id: '${this.escape(this.symbolId(symbol))}',
               name: '${this.escape(symbol.name)}',
@@ -163,7 +167,7 @@ export class GraphStore {
             });
           `);
 
-          await this.run(`
+          await this.batchRun(`
             MATCH (f:File {path: '${this.escape(filePath)}'}), (c:Class {id: '${this.escape(this.symbolId(symbol))}'})
             CREATE (f)-[:CONTAINS_CLASS]->(c);
           `);
@@ -172,7 +176,7 @@ export class GraphStore {
 
         if (['function', 'method'].includes(symbol.kind)) {
           functionSymbols.push(symbol);
-          await this.run(`
+          await this.batchRun(`
             CREATE (:Function {
               id: '${this.escape(this.symbolId(symbol))}',
               name: '${this.escape(symbol.name)}',
@@ -188,12 +192,12 @@ export class GraphStore {
           `);
 
           if (symbol.parentSymbol) {
-            await this.run(`
+            await this.batchRun(`
               MATCH (c:Class {name: '${this.escape(symbol.parentSymbol)}', file_path: '${this.escape(symbol.filePath)}'}), (fn:Function {id: '${this.escape(this.symbolId(symbol))}'})
               CREATE (c)-[:CLASS_CONTAINS]->(fn);
             `);
           } else {
-            await this.run(`
+            await this.batchRun(`
               MATCH (f:File {path: '${this.escape(filePath)}'}), (fn:Function {id: '${this.escape(this.symbolId(symbol))}'})
               CREATE (f)-[:CONTAINS_FUNCTION]->(fn);
             `);
@@ -203,7 +207,7 @@ export class GraphStore {
 
         if (['interface', 'type', 'enum'].includes(symbol.kind)) {
           typeSymbols.push(symbol);
-          await this.run(`
+          await this.batchRun(`
             CREATE (:Type {
               id: '${this.escape(this.symbolId(symbol))}',
               name: '${this.escape(symbol.name)}',
@@ -213,7 +217,7 @@ export class GraphStore {
             });
           `);
 
-          await this.run(`
+          await this.batchRun(`
             MATCH (f:File {path: '${this.escape(filePath)}'}), (t:Type {id: '${this.escape(this.symbolId(symbol))}'})
             CREATE (f)-[:CONTAINS_TYPE]->(t);
           `);
@@ -221,15 +225,18 @@ export class GraphStore {
       }
     }
 
-    for (const source of allImportSources) {
-      const existing = await this.query(`
-        MATCH (m:Module {path: '${this.escape(source)}'})
-        RETURN m.path AS path
-        LIMIT 1;
-      `);
+    // Flush pending node CREATEs before querying for existing modules
+    await this.flushBatch();
 
-      if (existing.length === 0) {
-        await this.run(`
+    // Fetch all existing modules in one query, then create only missing ones
+    const existingModuleRows = await this.query(`MATCH (m:Module) RETURN m.path AS path;`);
+    const existingModules = new Set(existingModuleRows.map((r) => r.path as string));
+    const createdModules = new Set<string>();
+
+    for (const source of allImportSources) {
+      if (!existingModules.has(source) && !createdModules.has(source)) {
+        createdModules.add(source);
+        await this.batchRun(`
           CREATE (:Module {
             path: '${this.escape(source)}',
             is_external: ${this.isExternalImport(source) ? 'true' : 'false'}
@@ -238,12 +245,15 @@ export class GraphStore {
       }
     }
 
+    // Flush module CREATEs before creating relationships that reference them
+    await this.flushBatch();
+
     for (const [filePath, fileInfo] of files) {
       if (!scope.has(filePath)) {
         continue;
       }
       for (const imp of fileInfo.imports) {
-        await this.run(`
+        await this.batchRun(`
           MATCH (f:File {path: '${this.escape(filePath)}'}), (m:Module {path: '${this.escape(imp.source)}'})
           CREATE (f)-[:IMPORTS_FROM {
             symbols: '${this.escape(imp.specifiers.join(','))}',
@@ -256,7 +266,7 @@ export class GraphStore {
         if (!files.has(target)) {
           continue;
         }
-        await this.run(`
+        await this.batchRun(`
           MATCH (from:File {path: '${this.escape(filePath)}'}), (to:File {path: '${this.escape(target)}'})
           CREATE (from)-[:DEPENDS_ON]->(to);
         `);
@@ -278,7 +288,7 @@ export class GraphStore {
         if (!target) {
           continue;
         }
-        await this.run(`
+        await this.batchRun(`
           MATCH (src:Class {id: '${this.escape(this.symbolId(classSymbol))}'}), (dst:Class {id: '${this.escape(this.symbolId(target))}'})
           CREATE (src)-[:INHERITS]->(dst);
         `);
@@ -289,7 +299,7 @@ export class GraphStore {
         if (!target) {
           continue;
         }
-        await this.run(`
+        await this.batchRun(`
           MATCH (src:Class {id: '${this.escape(this.symbolId(classSymbol))}'}), (dst:Type {id: '${this.escape(this.symbolId(target))}'})
           CREATE (src)-[:IMPLEMENTS]->(dst);
         `);
@@ -307,12 +317,14 @@ export class GraphStore {
           continue;
         }
 
-        await this.run(`
+        await this.batchRun(`
           MATCH (src:Function {id: '${this.escape(this.symbolId(functionSymbol))}'}), (dst:Function {id: '${this.escape(this.symbolId(preferred))}'})
           CREATE (src)-[:CALLS {line_number: ${ref.line}}]->(dst);
         `);
       }
     }
+
+    await this.flushBatch();
   }
 
   async queryText(search: string, limit: number = 10): Promise<QueryRow[]> {
@@ -496,22 +508,23 @@ export class GraphStore {
   private async deleteFileSubgraphs(filePaths: string[]): Promise<void> {
     for (const filePath of filePaths) {
       const escaped = this.escape(filePath);
-      await this.run(`MATCH (f:File {path: '${escaped}'})-[r:CONTAINS_FUNCTION]->(fn:Function)-[call:CALLS]->() DELETE call;`, true);
-      await this.run(`MATCH ()-[call:CALLS]->(fn:Function {file_path: '${escaped}'}) DELETE call;`, true);
-      await this.run(`MATCH (c:Class {file_path: '${escaped}'})-[r:CLASS_CONTAINS]->(fn:Function) DELETE r;`, true);
-      await this.run(`MATCH (c:Class {file_path: '${escaped}'})-[r:INHERITS]->() DELETE r;`, true);
-      await this.run(`MATCH (c:Class {file_path: '${escaped}'})-[r:IMPLEMENTS]->() DELETE r;`, true);
-      await this.run(`MATCH (f:File {path: '${escaped}'})-[r:CONTAINS_FUNCTION]->(fn:Function) DELETE r;`, true);
-      await this.run(`MATCH (f:File {path: '${escaped}'})-[r:CONTAINS_CLASS]->(c:Class) DELETE r;`, true);
-      await this.run(`MATCH (f:File {path: '${escaped}'})-[r:CONTAINS_TYPE]->(t:Type) DELETE r;`, true);
-      await this.run(`MATCH (f:File {path: '${escaped}'})-[r:IMPORTS_FROM]->() DELETE r;`, true);
-      await this.run(`MATCH (f:File {path: '${escaped}'})-[r:DEPENDS_ON]->() DELETE r;`, true);
-      await this.run(`MATCH ()-[r:DEPENDS_ON]->(f:File {path: '${escaped}'}) DELETE r;`, true);
-      await this.run(`MATCH (fn:Function {file_path: '${escaped}'}) DETACH DELETE fn;`, true);
-      await this.run(`MATCH (c:Class {file_path: '${escaped}'}) DETACH DELETE c;`, true);
-      await this.run(`MATCH (t:Type {file_path: '${escaped}'}) DETACH DELETE t;`, true);
-      await this.run(`MATCH (f:File {path: '${escaped}'}) DETACH DELETE f;`, true);
+      await this.batchRun(`MATCH (f:File {path: '${escaped}'})-[r:CONTAINS_FUNCTION]->(fn:Function)-[call:CALLS]->() DELETE call;`);
+      await this.batchRun(`MATCH ()-[call:CALLS]->(fn:Function {file_path: '${escaped}'}) DELETE call;`);
+      await this.batchRun(`MATCH (c:Class {file_path: '${escaped}'})-[r:CLASS_CONTAINS]->(fn:Function) DELETE r;`);
+      await this.batchRun(`MATCH (c:Class {file_path: '${escaped}'})-[r:INHERITS]->() DELETE r;`);
+      await this.batchRun(`MATCH (c:Class {file_path: '${escaped}'})-[r:IMPLEMENTS]->() DELETE r;`);
+      await this.batchRun(`MATCH (f:File {path: '${escaped}'})-[r:CONTAINS_FUNCTION]->(fn:Function) DELETE r;`);
+      await this.batchRun(`MATCH (f:File {path: '${escaped}'})-[r:CONTAINS_CLASS]->(c:Class) DELETE r;`);
+      await this.batchRun(`MATCH (f:File {path: '${escaped}'})-[r:CONTAINS_TYPE]->(t:Type) DELETE r;`);
+      await this.batchRun(`MATCH (f:File {path: '${escaped}'})-[r:IMPORTS_FROM]->() DELETE r;`);
+      await this.batchRun(`MATCH (f:File {path: '${escaped}'})-[r:DEPENDS_ON]->() DELETE r;`);
+      await this.batchRun(`MATCH ()-[r:DEPENDS_ON]->(f:File {path: '${escaped}'}) DELETE r;`);
+      await this.batchRun(`MATCH (fn:Function {file_path: '${escaped}'}) DETACH DELETE fn;`);
+      await this.batchRun(`MATCH (c:Class {file_path: '${escaped}'}) DETACH DELETE c;`);
+      await this.batchRun(`MATCH (t:Type {file_path: '${escaped}'}) DETACH DELETE t;`);
+      await this.batchRun(`MATCH (f:File {path: '${escaped}'}) DETACH DELETE f;`);
     }
+    await this.flushBatch();
   }
 
   private async ensureSchema(): Promise<void> {
@@ -550,6 +563,20 @@ export class GraphStore {
       }
       throw error;
     }
+  }
+
+  private async batchRun(statement: string): Promise<void> {
+    this.pendingStatements.push(statement);
+    if (this.pendingStatements.length >= this.BATCH_SIZE) {
+      await this.flushBatch();
+    }
+  }
+
+  private async flushBatch(): Promise<void> {
+    if (this.pendingStatements.length === 0) return;
+    const batch = this.pendingStatements.join('\n');
+    this.pendingStatements = [];
+    await this.conn!.query(batch);
   }
 
   private symbolId(symbol: Symbol): string {

@@ -3,6 +3,19 @@ import * as path from 'node:path';
 import type { DependencyEdge, FileInfo, ImportInfo, Symbol, SymbolKind } from '../../core/types.js';
 import { getLanguageRegistry } from '../../core/language-providers/index.js';
 
+async function concurrentMap<T, R>(items: T[], fn: (item: T) => Promise<R>, concurrency: number): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let index = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (index < items.length) {
+      const i = index++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export type KnowledgeGraphNodeKind =
   | 'repo'
   | 'directory'
@@ -80,6 +93,8 @@ export interface KnowledgeGraphData {
 
 export interface BuildKnowledgeGraphOptions {
   cognitiveLoadByFile?: Map<string, number>;
+  fileContents?: Map<string, string>;
+  sorted?: boolean;
 }
 
 interface SymbolRange {
@@ -395,14 +410,21 @@ export const buildKnowledgeGraphData = async (
     edges.set(edge.id, edge);
   };
 
-  for (const [relativePath] of files) {
-    const absolutePath = path.resolve(repoRoot, relativePath);
-    try {
-      const content = await fs.readFile(absolutePath, 'utf-8');
+  if (options.fileContents) {
+    for (const [relativePath, content] of options.fileContents) {
       fileContents.set(relativePath, content);
-    } catch {
-      fileContents.set(relativePath, '');
     }
+  } else {
+    const filePaths = Array.from(files.keys());
+    await concurrentMap(filePaths, async (relativePath) => {
+      const absolutePath = path.resolve(repoRoot, relativePath);
+      try {
+        const content = await fs.readFile(absolutePath, 'utf-8');
+        fileContents.set(relativePath, content);
+      } catch {
+        fileContents.set(relativePath, '');
+      }
+    }, 32);
   }
 
   for (const edge of dependencyEdges) {
@@ -587,58 +609,66 @@ export const buildKnowledgeGraphData = async (
     const ranges = symbolRangesByFile.get(relativePath) || [];
     const localSymbols = localSymbolIdsByFile.get(relativePath) || new Map<string, string>();
     const importedSymbols = importedSymbolBindingsByFile.get(relativePath) || new Map<string, string>();
+    const hasClasses = content.includes('class ');
+    const hasInterfaces = content.includes('interface ');
 
     for (let index = 0; index < lines.length; index++) {
       const rawLine = lines[index];
       const line = rawLine.trim();
       const lineNumber = index + 1;
 
-      const classMatch = /class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([^{]+))?/.exec(line);
-      if (classMatch) {
-        const sourceId = localSymbols.get(classMatch[1]);
-        if (sourceId && classMatch[2]) {
-          const targetId = resolveTargetSymbolId(classMatch[2], localSymbols, importedSymbols, exportedSymbolIdsByName);
-          if (targetId) {
-            addEdge({
-              id: `extends:${sourceId}->${targetId}`,
-              source: sourceId,
-              target: targetId,
-              kind: 'extends',
-              weight: 0.9,
-            });
-          }
-        }
+      if (!hasClasses && !hasInterfaces && !rawLine.includes('(')) continue;
 
-        if (sourceId && classMatch[3]) {
-          for (const contract of classMatch[3].split(',').map((item) => item.trim()).filter(Boolean)) {
-            const targetId = resolveTargetSymbolId(contract, localSymbols, importedSymbols, exportedSymbolIdsByName);
-            if (targetId) {
-              addEdge({
-                id: `implements:${sourceId}->${targetId}`,
-                source: sourceId,
-                target: targetId,
-                kind: 'implements',
-                weight: 0.8,
-              });
-            }
-          }
-        }
-      }
-
-      const interfaceMatch = /interface\s+(\w+)(?:\s+extends\s+([^{]+))?/.exec(line);
-      if (interfaceMatch && interfaceMatch[2]) {
-        const sourceId = localSymbols.get(interfaceMatch[1]);
-        if (sourceId) {
-          for (const contract of interfaceMatch[2].split(',').map((item) => item.trim()).filter(Boolean)) {
-            const targetId = resolveTargetSymbolId(contract, localSymbols, importedSymbols, exportedSymbolIdsByName);
+      if (hasClasses) {
+        const classMatch = /class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([^{]+))?/.exec(line);
+        if (classMatch) {
+          const sourceId = localSymbols.get(classMatch[1]);
+          if (sourceId && classMatch[2]) {
+            const targetId = resolveTargetSymbolId(classMatch[2], localSymbols, importedSymbols, exportedSymbolIdsByName);
             if (targetId) {
               addEdge({
                 id: `extends:${sourceId}->${targetId}`,
                 source: sourceId,
                 target: targetId,
                 kind: 'extends',
-                weight: 0.75,
+                weight: 0.9,
               });
+            }
+          }
+
+          if (sourceId && classMatch[3]) {
+            for (const contract of classMatch[3].split(',').map((item) => item.trim()).filter(Boolean)) {
+              const targetId = resolveTargetSymbolId(contract, localSymbols, importedSymbols, exportedSymbolIdsByName);
+              if (targetId) {
+                addEdge({
+                  id: `implements:${sourceId}->${targetId}`,
+                  source: sourceId,
+                  target: targetId,
+                  kind: 'implements',
+                  weight: 0.8,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (hasInterfaces) {
+        const interfaceMatch = /interface\s+(\w+)(?:\s+extends\s+([^{]+))?/.exec(line);
+        if (interfaceMatch && interfaceMatch[2]) {
+          const sourceId = localSymbols.get(interfaceMatch[1]);
+          if (sourceId) {
+            for (const contract of interfaceMatch[2].split(',').map((item) => item.trim()).filter(Boolean)) {
+              const targetId = resolveTargetSymbolId(contract, localSymbols, importedSymbols, exportedSymbolIdsByName);
+              if (targetId) {
+                addEdge({
+                  id: `extends:${sourceId}->${targetId}`,
+                  source: sourceId,
+                  target: targetId,
+                  kind: 'extends',
+                  weight: 0.75,
+                });
+              }
             }
           }
         }
@@ -646,6 +676,10 @@ export const buildKnowledgeGraphData = async (
 
       const containingSymbol = findContainingSymbol(ranges, lineNumber);
       if (!containingSymbol) {
+        continue;
+      }
+
+      if (!rawLine.includes('(')) {
         continue;
       }
 
@@ -672,12 +706,16 @@ export const buildKnowledgeGraphData = async (
     }
   }
 
+  const descendantsCache = new Map<string, string[]>();
   const collectDescendants = (nodeId: string): string[] => {
+    const cached = descendantsCache.get(nodeId);
+    if (cached) return cached;
     const descendants: string[] = [];
     const children = childrenByParent.get(nodeId) || [];
     for (const childId of children) {
       descendants.push(childId, ...collectDescendants(childId));
     }
+    descendantsCache.set(nodeId, descendants);
     return descendants;
   };
 
@@ -889,19 +927,23 @@ export const buildKnowledgeGraphData = async (
     byEdgeKind[edge.kind] += 1;
   }
 
-  const nodeList = Array.from(nodes.values()).sort((left, right) => {
-    if (left.depth !== right.depth) {
-      return left.depth - right.depth;
-    }
+  const nodeList = options.sorted !== false
+    ? Array.from(nodes.values()).sort((left, right) => {
+        if (left.depth !== right.depth) {
+          return left.depth - right.depth;
+        }
 
-    if (left.kind !== right.kind) {
-      return left.kind.localeCompare(right.kind);
-    }
+        if (left.kind !== right.kind) {
+          return left.kind.localeCompare(right.kind);
+        }
 
-    return left.label.localeCompare(right.label);
-  });
+        return left.label.localeCompare(right.label);
+      })
+    : Array.from(nodes.values());
 
-  const edgeList = Array.from(edges.values()).sort((left, right) => left.id.localeCompare(right.id));
+  const edgeList = options.sorted !== false
+    ? Array.from(edges.values()).sort((left, right) => left.id.localeCompare(right.id))
+    : Array.from(edges.values());
 
   return {
     nodes: nodeList,
