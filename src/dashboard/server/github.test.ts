@@ -10,6 +10,8 @@ const okJson = (body: unknown, headers: Record<string, string> = {}): Response =
     },
   });
 
+const daysAgo = (n: number): string => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+
 describe('GitHubAnalyticsService', () => {
   it('prefers injected GitHub config over env defaults', async () => {
     process.env.CODEXIA_GITHUB_TOKEN = 'env-token';
@@ -187,8 +189,8 @@ describe('GitHubAnalyticsService', () => {
               state: 'open',
               title: 'PLAT-14 Active work',
               user: { login: 'sesh' },
-              created_at: '2026-01-03T09:00:00Z',
-              updated_at: '2026-01-03T12:00:00Z',
+              created_at: daysAgo(10),
+              updated_at: daysAgo(5),
               draft: false,
               head: { ref: 'feature/plat-14', sha: 'ghi789' },
               base: { ref: 'main' },
@@ -203,10 +205,10 @@ describe('GitHubAnalyticsService', () => {
               state: 'closed',
               title: 'PLAT-15 Completed work',
               user: { login: 'sesh' },
-              created_at: '2026-01-04T09:00:00Z',
-              updated_at: '2026-01-04T12:00:00Z',
-              merged_at: '2026-01-04T12:00:00Z',
-              closed_at: '2026-01-04T12:00:00Z',
+              created_at: daysAgo(8),
+              updated_at: daysAgo(3),
+              merged_at: daysAgo(3),
+              closed_at: daysAgo(3),
               draft: false,
               merged_by: { login: 'maintainer' },
               head: { ref: 'feature/plat-15', sha: 'jkl012' },
@@ -262,8 +264,8 @@ describe('GitHubAnalyticsService', () => {
               state: 'open',
               title: 'PLAT-16 Cached work',
               user: { login: 'sesh' },
-              created_at: '2026-01-05T09:00:00Z',
-              updated_at: '2026-01-05T12:00:00Z',
+              created_at: daysAgo(7),
+              updated_at: daysAgo(2),
               draft: false,
               head: { ref: 'feature/plat-16', sha: 'mno345' },
               base: { ref: 'main' },
@@ -474,10 +476,10 @@ describe('GitHubAnalyticsService', () => {
               state: 'closed',
               title: 'PLAT-77 Cached call',
               user: { login: 'sesh' },
-              created_at: '2026-01-05T09:00:00Z',
-              updated_at: '2026-01-05T13:00:00Z',
-              merged_at: '2026-01-05T13:00:00Z',
-              closed_at: '2026-01-05T13:00:00Z',
+              created_at: daysAgo(9),
+              updated_at: daysAgo(4),
+              merged_at: daysAgo(4),
+              closed_at: daysAgo(4),
               draft: false,
               merged_by: { login: 'maintainer' },
               head: { ref: 'feature/plat-77', sha: 'cached-sha' },

@@ -6,6 +6,19 @@ import type { FileInfo, ImportInfo, ExportInfo, Symbol, SymbolKind } from './typ
 import { getLanguageRegistry, type LanguageProviderRegistry } from './language-providers/index.js';
 import { TreeSitterParser } from './parser.js';
 
+async function concurrentMap<T, R>(items: T[], fn: (item: T) => Promise<R>, concurrency: number): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let index = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (index < items.length) {
+      const i = index++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 interface CacheMetadata {
   version: string;
   timestamp: number;
@@ -118,14 +131,14 @@ export class RepoIndexer {
       }
     }
 
-    for (const relativePath of discoveredFiles) {
+    await concurrentMap(discoveredFiles, async (relativePath) => {
       const absolutePath = path.join(this.repoRoot, relativePath);
       try {
         const content = await fs.readFile(absolutePath, 'utf-8');
         const hash = this.hashContent(content);
         if (previousHashes.get(relativePath) === hash) {
           unchangedFiles.push(relativePath);
-          continue;
+          return;
         }
 
         nextFiles.set(relativePath, this.analyzeFile(relativePath, content));
@@ -133,7 +146,7 @@ export class RepoIndexer {
       } catch {
         // Skip unreadable files during incremental updates.
       }
-    }
+    }, 32);
 
     this.files = nextFiles;
     this.indexed = true;
@@ -175,7 +188,7 @@ export class RepoIndexer {
       absolute: false,
     });
 
-    for (const relativePath of filePaths) {
+    await concurrentMap(filePaths, async (relativePath) => {
       const absolutePath = path.join(this.repoRoot, relativePath);
       try {
         const content = await fs.readFile(absolutePath, 'utf-8');
@@ -184,7 +197,7 @@ export class RepoIndexer {
       } catch {
         // Skip files that can't be read
       }
-    }
+    }, 32);
 
     this.indexed = true;
   }
