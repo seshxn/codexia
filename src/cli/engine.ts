@@ -219,6 +219,8 @@ export class CodexiaEngine {
     const start = Date.now();
     await this.graphStore.initialize();
     const incremental = await this.indexer.incrementalUpdate();
+    const previousDepGraph = new DependencyGraph(this.repoRoot);
+    previousDepGraph.buildFromImports(incremental.previousFiles);
 
     this.depGraph = new DependencyGraph(this.repoRoot);
     this.symbolMap = new SymbolMap(this.repoRoot);
@@ -226,17 +228,33 @@ export class CodexiaEngine {
     this.symbolMap.buildFromFiles(this.indexer.getFiles());
 
     if (incremental.changedFiles.length > 0 || incremental.deletedFiles.length > 0) {
+      const affectedFiles = Array.from(new Set([
+        ...previousDepGraph.getAffectedByFileChanges(incremental.changedFiles, incremental.deletedFiles),
+        ...this.depGraph.getAffectedByFileChanges(incremental.changedFiles, incremental.deletedFiles),
+        ...incremental.dependencyRepairFiles,
+      ])).sort();
       await this.graphStore.updateFiles(
         this.indexer.getFiles(),
-        this.depGraph,
-        incremental.changedFiles,
+        {
+          getDependencies: (filePath: string) => this.depGraph.getDependencies(filePath),
+          getDependents: (filePath: string) => Array.from(new Set([
+            ...previousDepGraph.getDependents(filePath),
+            ...this.depGraph.getDependents(filePath),
+          ])),
+        },
+        affectedFiles,
         incremental.deletedFiles
       );
     }
 
     if (await this.git.isGitRepo()) {
       const commits = await this.git.getRecentCommits(200);
-      await this.graphStore.syncTemporalData(this.indexer.getFiles(), commits);
+      if (incremental.changedFiles.length > 0 || incremental.deletedFiles.length > 0) {
+        await this.graphStore.syncTemporalDataForFiles(this.indexer.getFiles(), commits, [
+          ...incremental.changedFiles,
+          ...incremental.deletedFiles,
+        ]);
+      }
     }
     if (incremental.changedFiles.length > 0 || incremental.deletedFiles.length > 0 || !(await this.semanticIndex.exists())) {
       await this.semanticIndex.build(this.indexer.getFiles());
@@ -835,7 +853,7 @@ export class CodexiaEngine {
   async executePseudoCypher(query: string): Promise<Record<string, unknown>> {
     await this.initialize();
     return {
-      rows: await this.graphStore.runCypher(query),
+      rows: await this.graphStore.runReadOnlyCypher(query),
     };
   }
 
@@ -924,6 +942,27 @@ export class CodexiaEngine {
     const status = await this.getRepoStatus();
     const graphStats = await this.graphStore.getStats();
     const semanticStats = this.semanticIndex.getStats();
+    const graphFiles = Number(graphStats.files || 0);
+    const mcpReasons: string[] = [];
+    const mcpWarnings: string[] = [];
+    let suggestedCommand: 'codexia analyze' | 'codexia update' | 'codexia embed_graph' | undefined;
+
+    if (!status.analyzed) {
+      mcpReasons.push('Repository has not been analyzed yet.');
+      suggestedCommand = 'codexia analyze';
+    }
+    if (graphFiles === 0) {
+      mcpReasons.push('Persisted graph is empty.');
+      suggestedCommand = 'codexia analyze';
+    }
+    if (status.isStale) {
+      mcpReasons.push('Repository index is stale.');
+      suggestedCommand = suggestedCommand || 'codexia update';
+    }
+    if (!semanticStats.generatedAt && semanticStats.documents === 0) {
+      mcpWarnings.push('Semantic index has not been built; structural graph tools can still work.');
+      suggestedCommand = suggestedCommand || 'codexia embed_graph';
+    }
 
     return {
       repo: {
@@ -936,7 +975,59 @@ export class CodexiaEngine {
       index: status.stats || this.indexer.getStats(),
       graph: graphStats,
       semantic: semanticStats,
+      mcp: {
+        ready: mcpReasons.length === 0,
+        reasons: mcpReasons,
+        warnings: mcpWarnings,
+        suggestedCommand,
+        transports: ['stdio', 'http'],
+      },
       sessionsRecorded: status.sessionsRecorded,
+    };
+  }
+
+  async graphLookup(options: {
+    query?: string;
+    file?: string;
+    symbol?: string;
+    depth?: number;
+    limit?: number;
+    includeHistory?: boolean;
+  }): Promise<Record<string, unknown>> {
+    await this.initialize();
+
+    const limit = Math.max(1, Math.min(Number(options.limit || 8), 25));
+    const depth = Math.max(0, Math.min(Number(options.depth || 1), 4));
+    const context = options.file || options.symbol
+      ? await this.getCodeContext({
+          file: options.file,
+          symbol: options.symbol,
+          includeHistory: options.includeHistory,
+        })
+      : undefined;
+    const query = options.query || options.symbol || options.file || '';
+    const matches = query ? await this.queryGraph(query, limit) : [];
+    const semanticMatches = query ? await this.semanticSearch(query, Math.min(limit, 8)) : [];
+    const blastRadius = options.file
+      ? await this.getBlastRadius([options.file], depth)
+      : undefined;
+
+    return {
+      target: {
+        query: options.query,
+        file: options.file,
+        symbol: options.symbol,
+      },
+      tokenStrategy: 'Use this compact graph-backed summary before reading source files. Read only the listed files that remain relevant.',
+      context,
+      matches: matches.slice(0, limit),
+      semanticMatches: semanticMatches.slice(0, Math.min(limit, 8)),
+      blastRadius,
+      nextTool: options.file || options.symbol
+        ? 'context'
+        : matches.length > 0
+          ? 'context'
+          : 'semantic_search',
     };
   }
 

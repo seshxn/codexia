@@ -332,7 +332,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'query',
-        description: 'Search files and symbols in the indexed repository',
+        description: 'Token-saving graph DB lookup for files and symbols; use before reading source files',
         inputSchema: {
           type: 'object',
           properties: {
@@ -350,7 +350,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'semantic_search',
-        description: 'Hybrid lexical and semantic search across files and symbols',
+        description: 'Token-saving hybrid lexical and semantic graph search across indexed files and symbols',
         inputSchema: {
           type: 'object',
           properties: {
@@ -368,7 +368,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'semantic_search_nodes_tool',
-        description: 'Compatibility alias for semantic search',
+        description: 'Compatibility alias for semantic_search',
         inputSchema: {
           type: 'object',
           properties: {
@@ -382,6 +382,39 @@ export class CodexiaMCPServer {
             },
           },
           required: ['query'],
+        },
+      },
+      {
+        name: 'graph_lookup',
+        description: 'Return a compact graph DB summary for a file, symbol, or query so agents avoid rediscovering repo structure from source text',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Natural-language or symbol/file search query',
+            },
+            file: {
+              type: 'string',
+              description: 'File path to anchor the graph lookup',
+            },
+            symbol: {
+              type: 'string',
+              description: 'Symbol name to anchor the graph lookup',
+            },
+            depth: {
+              type: 'number',
+              description: 'Blast-radius depth for file lookups, capped at 4',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum search results, capped at 25',
+            },
+            includeHistory: {
+              type: 'boolean',
+              description: 'Include compact temporal history when a file or symbol is supplied',
+            },
+          },
         },
       },
       {
@@ -408,7 +441,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'review_context',
-        description: 'Return token-efficient review context for changed files and their blast radius',
+        description: 'Return token-efficient graph-backed review context for changed files and their blast radius',
         inputSchema: {
           type: 'object',
           properties: {
@@ -452,7 +485,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'context',
-        description: 'Get structural and temporal context for a file or symbol',
+        description: 'Get compact structural and temporal graph context for a file or symbol before opening source files',
         inputSchema: {
           type: 'object',
           properties: {
@@ -486,7 +519,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'cypher',
-        description: 'Execute a read-only Cypher query against the persisted graph',
+        description: 'Execute a bounded read-only Cypher query against the persisted graph DB',
         inputSchema: {
           type: 'object',
           properties: {
@@ -500,7 +533,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'history',
-        description: 'Get temporal history for a file or symbol',
+        description: 'Get compact temporal graph history for a file or symbol',
         inputSchema: {
           type: 'object',
           properties: {
@@ -514,7 +547,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'co_changes',
-        description: 'List files that frequently change with the given file',
+        description: 'List graph-backed co-change neighbors for a file without reading commit history manually',
         inputSchema: {
           type: 'object',
           properties: {
@@ -619,7 +652,7 @@ export class CodexiaMCPServer {
       },
       {
         name: 'graph_stats',
-        description: 'Return graph size, freshness, and semantic-index health',
+        description: 'Return graph DB readiness, freshness, size, and semantic-index health for MCP clients',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -721,6 +754,9 @@ export class CodexiaMCPServer {
         case 'semantic_search_nodes_tool':
           result = await this.handleSemanticSearch(params);
           break;
+        case 'graph_lookup':
+          result = await this.handleGraphLookup(params);
+          break;
         case 'impact':
           result = await this.handleCodeGraphImpact(params);
           break;
@@ -785,8 +821,10 @@ export class CodexiaMCPServer {
     }
   }
 
-  private async handleScan(_params: Record<string, unknown>): Promise<MCPToolResult> {
-    const result = await this.engine.scan();
+  private async handleScan(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const result = await this.engine.analyzeRepository({
+      force: params.force as boolean | undefined,
+    });
     
     return {
       content: [{
@@ -877,6 +915,24 @@ export class CodexiaMCPServer {
         json: {
           results,
         },
+      }],
+    };
+  }
+
+  private async handleGraphLookup(params: Record<string, unknown>): Promise<MCPToolResult> {
+    const result = await this.engine.graphLookup({
+      query: params.query as string | undefined,
+      file: params.file as string | undefined,
+      symbol: params.symbol as string | undefined,
+      depth: params.depth as number | undefined,
+      limit: params.limit as number | undefined,
+      includeHistory: params.includeHistory as boolean | undefined,
+    });
+
+    return {
+      content: [{
+        type: 'json',
+        json: result,
       }],
     };
   }

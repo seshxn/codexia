@@ -3,12 +3,19 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import kuzu from 'kuzu';
 import type { CommitRecord, FileInfo, Symbol } from './types.js';
-
-type QueryRow = Record<string, unknown>;
+import { buildGraphRecords, countGraphRelationships } from './graph-build-records.js';
+import { bulkLoadGraphRecords } from './graph-kuzu-bulk-loader.js';
+import type {
+  DependencyGraphReader,
+  DependencyGraphUpdateReader,
+  GraphStoreAdapter,
+  GraphStoreBuildMetrics,
+  QueryRow,
+} from './graph-store-types.js';
 
 const DB_FILE = path.join('.codexia', 'codegraph', 'graph.kuzu');
 
-export class GraphStore {
+export class GraphStore implements GraphStoreAdapter {
   private readonly dbPath: string;
   private db?: kuzu.Database;
   private conn?: kuzu.Connection;
@@ -31,18 +38,22 @@ export class GraphStore {
     this.initialized = true;
   }
 
-  async rebuild(files: Map<string, FileInfo>, dependencyGraph: { getDependencies(filePath: string): string[] }): Promise<void> {
+  async rebuild(files: Map<string, FileInfo>, dependencyGraph: DependencyGraphReader): Promise<GraphStoreBuildMetrics> {
+    const start = Date.now();
     await this.reset();
     await this.initialize();
-    await this.indexFiles(files, dependencyGraph, new Set(files.keys()));
+    const records = buildGraphRecords(files, dependencyGraph);
+    await bulkLoadGraphRecords(this.conn!, path.join(path.dirname(this.dbPath), 'tmp'), records);
+    return this.getBuildMetrics(start, countGraphRelationships(records));
   }
 
   async updateFiles(
     files: Map<string, FileInfo>,
-    dependencyGraph: { getDependencies(filePath: string): string[]; getDependents(filePath: string): string[] },
+    dependencyGraph: DependencyGraphUpdateReader,
     changedFiles: string[],
     deletedFiles: string[]
-  ): Promise<void> {
+  ): Promise<GraphStoreBuildMetrics> {
+    const start = Date.now();
     await this.initialize();
 
     const affected = new Set<string>();
@@ -62,9 +73,11 @@ export class GraphStore {
     await this.deleteFileSubgraphs(Array.from(affected));
     const existingAffected = new Set(Array.from(affected).filter((file) => files.has(file)));
     await this.indexFiles(files, dependencyGraph, existingAffected);
+    return this.getBuildMetrics(start);
   }
 
-  async syncTemporalData(files: Map<string, FileInfo>, commits: CommitRecord[]): Promise<void> {
+  async syncTemporalData(files: Map<string, FileInfo>, commits: CommitRecord[]): Promise<GraphStoreBuildMetrics> {
+    const start = Date.now();
     await this.initialize();
 
     await this.run('MATCH ()-[r:MODIFIED_IN]->() DELETE r;', true);
@@ -117,6 +130,70 @@ export class GraphStore {
         }
       }
     }
+    return this.getBuildMetrics(start);
+  }
+
+  async syncTemporalDataForFiles(
+    files: Map<string, FileInfo>,
+    commits: CommitRecord[],
+    targetFiles: string[]
+  ): Promise<GraphStoreBuildMetrics> {
+    const start = Date.now();
+    await this.initialize();
+
+    const targets = Array.from(new Set(targetFiles)).filter(Boolean);
+    if (targets.length === 0) {
+      return this.getBuildMetrics(start);
+    }
+
+    const targetSet = new Set(targets);
+    const functionSymbols = Array.from(files.values()).flatMap((file) =>
+      file.symbols.filter((symbol) =>
+        (symbol.kind === 'function' || symbol.kind === 'method') && targetSet.has(symbol.filePath)
+      )
+    );
+
+    for (const chunk of this.chunk(targets, 200)) {
+      const list = this.cypherStringList(chunk);
+      await this.run(`MATCH (f:File)-[r:MODIFIED_IN]->() WHERE f.path IN ${list} DELETE r;`, true);
+      await this.run(`MATCH (fn:Function)-[r:FN_MODIFIED_IN]->() WHERE fn.file_path IN ${list} DELETE r;`, true);
+    }
+
+    for (const commit of commits) {
+      const relevantChanges = commit.changes.filter((change) => targetSet.has(change.path) && files.has(change.path));
+      if (relevantChanges.length === 0) {
+        continue;
+      }
+
+      await this.ensureCommit(commit);
+
+      for (const change of relevantChanges) {
+        await this.run(`
+          MATCH (f:File {path: '${this.escape(change.path)}'}), (c:Commit {sha: '${this.escape(commit.hash)}'})
+          CREATE (f)-[:MODIFIED_IN {
+            lines_added: ${change.additions},
+            lines_removed: ${change.deletions}
+          }]->(c);
+        `);
+
+        const impactedFunctions = functionSymbols.filter((symbol) =>
+          symbol.filePath === change.path &&
+          change.hunks.some((hunk) => this.rangesOverlap(symbol.line, symbol.endLine || symbol.line, hunk.newStart, hunk.newStart + Math.max(hunk.newLines, 1) - 1))
+        );
+
+        for (const symbol of impactedFunctions) {
+          await this.run(`
+            MATCH (fn:Function {id: '${this.escape(this.symbolId(symbol))}'}), (c:Commit {sha: '${this.escape(commit.hash)}'})
+            CREATE (fn)-[:FN_MODIFIED_IN {
+              lines_added: ${change.additions},
+              lines_removed: ${change.deletions}
+            }]->(c);
+          `);
+        }
+      }
+    }
+
+    return this.getBuildMetrics(start);
   }
 
   private async indexFiles(
@@ -448,14 +525,12 @@ export class GraphStore {
 
   async getStats(): Promise<QueryRow> {
     await this.initialize();
-    const [files, functions, classes, types, modules, commits] = await Promise.all([
-      this.query(`MATCH (f:File) RETURN count(f) AS value;`),
-      this.query(`MATCH (fn:Function) RETURN count(fn) AS value;`),
-      this.query(`MATCH (c:Class) RETURN count(c) AS value;`),
-      this.query(`MATCH (t:Type) RETURN count(t) AS value;`),
-      this.query(`MATCH (m:Module) RETURN count(m) AS value;`),
-      this.query(`MATCH (c:Commit) RETURN count(c) AS value;`),
-    ]);
+    const files = await this.query(`MATCH (f:File) RETURN count(f) AS value;`);
+    const functions = await this.query(`MATCH (fn:Function) RETURN count(fn) AS value;`);
+    const classes = await this.query(`MATCH (c:Class) RETURN count(c) AS value;`);
+    const types = await this.query(`MATCH (t:Type) RETURN count(t) AS value;`);
+    const modules = await this.query(`MATCH (m:Module) RETURN count(m) AS value;`);
+    const commits = await this.query(`MATCH (c:Commit) RETURN count(c) AS value;`);
 
     return {
       files: Number(files[0]?.value || 0),
@@ -467,9 +542,9 @@ export class GraphStore {
     };
   }
 
-  async runCypher(query: string): Promise<QueryRow[]> {
+  async runReadOnlyCypher(query: string, options: { limit?: number } = {}): Promise<QueryRow[]> {
     await this.initialize();
-    return this.query(query);
+    return this.query(this.toReadOnlyQuery(query, options.limit ?? 100));
   }
 
   async close(): Promise<void> {
@@ -493,6 +568,19 @@ export class GraphStore {
     await fs.rm(this.dbPath, { recursive: true, force: true });
   }
 
+  private async getBuildMetrics(start: number, relationships: number = 0): Promise<GraphStoreBuildMetrics> {
+    const stats = await this.getStats();
+    return {
+      files: Number(stats.files || 0),
+      functions: Number(stats.functions || 0),
+      classes: Number(stats.classes || 0),
+      types: Number(stats.types || 0),
+      modules: Number(stats.modules || 0),
+      relationships,
+      durationMs: Date.now() - start,
+    };
+  }
+
   private async deleteFileSubgraphs(filePaths: string[]): Promise<void> {
     for (const filePath of filePaths) {
       const escaped = this.escape(filePath);
@@ -512,6 +600,41 @@ export class GraphStore {
       await this.run(`MATCH (t:Type {file_path: '${escaped}'}) DETACH DELETE t;`, true);
       await this.run(`MATCH (f:File {path: '${escaped}'}) DETACH DELETE f;`, true);
     }
+  }
+
+  private async ensureCommit(commit: CommitRecord): Promise<void> {
+    const existing = await this.query(`
+      MATCH (c:Commit {sha: '${this.escape(commit.hash)}'})
+      RETURN c.sha AS sha
+      LIMIT 1;
+    `);
+    if (existing.length > 0) {
+      return;
+    }
+
+    await this.run(`
+      CREATE (:Commit {
+        sha: '${this.escape(commit.hash)}',
+        message: '${this.escape(commit.message)}',
+        author: '${this.escape(commit.author)}',
+        date: '${commit.date.toISOString()}',
+        is_merge: ${commit.isMerge ? 'true' : 'false'},
+        is_revert: ${commit.isRevert ? 'true' : 'false'},
+        reverts_sha: '${this.escape(commit.revertsSha || '')}'
+      });
+    `);
+  }
+
+  private chunk<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let index = 0; index < items.length; index += size) {
+      chunks.push(items.slice(index, index + size));
+    }
+    return chunks;
+  }
+
+  private cypherStringList(values: string[]): string {
+    return `[${values.map((value) => `'${this.escape(value)}'`).join(', ')}]`;
   }
 
   private async ensureSchema(): Promise<void> {
@@ -538,6 +661,39 @@ export class GraphStore {
     const result = await this.conn!.query(statement);
     const rows = Array.isArray(result) ? result[0] : result;
     return rows.getAll() as Promise<QueryRow[]>;
+  }
+
+  private toReadOnlyQuery(query: string, limit: number): string {
+    const trimmed = query.trim();
+    if (trimmed.length === 0) {
+      throw new Error('Cypher query cannot be empty');
+    }
+
+    if (trimmed.includes(';')) {
+      throw new Error('Only one read-only Cypher statement is allowed');
+    }
+
+    const normalized = trimmed
+      .replace(/\/\/.*$/gm, ' ')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+    if (!/^(match|with|return|unwind)\b/.test(normalized)) {
+      throw new Error('Only read-only Cypher queries are allowed');
+    }
+
+    const forbidden = /\b(create|merge|set|delete|detach|drop|alter|copy|load|install|remove|call\s+create_|call\s+drop_|import)\b/i;
+    if (forbidden.test(normalized)) {
+      throw new Error('Only read-only Cypher queries are allowed');
+    }
+
+    if (/\blimit\s+\d+\b/i.test(trimmed)) {
+      return trimmed;
+    }
+
+    return `${trimmed} LIMIT ${Math.max(1, Math.floor(limit))}`;
   }
 
   private async run(statement: string, ignoreExists: boolean = false): Promise<void> {

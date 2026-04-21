@@ -67,6 +67,25 @@ describe('DependencyGraph', () => {
     });
   });
 
+  describe('getAffectedByFileChanges', () => {
+    it('limits graph updates to changed files and direct dependents', () => {
+      const files = new Map([
+        ['src/entry.ts', { imports: [{ source: './changed.js' }] }],
+        ['src/changed.ts', { imports: [{ source: './leaf.js' }] }],
+        ['src/leaf.ts', { imports: [] }],
+        ['src/unrelated.ts', { imports: [] }],
+      ]);
+
+      graph.buildFromImports(files);
+
+      expect(graph.getAffectedByFileChanges(['src/changed.ts'], [])).toEqual([
+        'src/changed.ts',
+        'src/entry.ts',
+      ]);
+      expect(graph.getAffectedByFileChanges(['src/changed.ts'], [])).not.toContain('src/unrelated.ts');
+    });
+  });
+
   describe('detectCycles', () => {
     it('should detect circular dependencies', () => {
       const files = new Map([

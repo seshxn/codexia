@@ -105,6 +105,17 @@ export class DependencyGraph {
     return Array.from(result);
   }
 
+  getAffectedByFileChanges(changedFiles: string[], deletedFiles: string[]): string[] {
+    const affected = new Set<string>();
+    for (const filePath of [...changedFiles, ...deletedFiles]) {
+      affected.add(filePath);
+      for (const dependent of this.getDependents(filePath)) {
+        affected.add(dependent);
+      }
+    }
+    return Array.from(affected).sort();
+  }
+
   /**
    * Detect circular dependencies
    */

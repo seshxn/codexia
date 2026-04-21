@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitHubAnalyticsService } from './github.js';
 
 const okJson = (body: unknown, headers: Record<string, string> = {}): Response =>
@@ -11,6 +11,14 @@ const okJson = (body: unknown, headers: Record<string, string> = {}): Response =
   });
 
 describe('GitHubAnalyticsService', () => {
+  beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-01-10T00:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('prefers injected GitHub config over env defaults', async () => {
     process.env.CODEXIA_GITHUB_TOKEN = 'env-token';
     process.env.CODEXIA_GITHUB_API_URL = 'https://env.github.local';

@@ -5,6 +5,29 @@ All notable changes to Codexia will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-21
+
+### Added
+- Opt-in large-repository benchmark mode via `codexia analyze --benchmark`.
+- Deterministic benchmark fixture generation for graph/index performance testing.
+- `GraphStoreAdapter` storage boundary for future graph backend comparisons.
+- Graph storage decision record documenting why Kuzu remains the default local graph store.
+- MCP graph readiness details in `graph_stats`, including reasons, warnings, suggested command, and supported transports.
+- `graph_lookup` MCP tool for compact graph-backed file, symbol, or query orientation before agents read source files.
+
+### Changed
+- Full graph rebuilds now bulk-load Kuzu records with `COPY FROM` instead of issuing one Cypher statement per node and edge.
+- Incremental indexing now compares file-content hashes correctly and reports changed imports, changed symbol surface, and dependency repair scope.
+- Graph update repair now considers both previous and current dependency graphs so deleted files still repair former dependents.
+- Temporal graph sync can update only changed-file history instead of rebuilding all temporal relationships on every update.
+- Semantic search now persists an inverted token index for faster lexical candidate lookup.
+- `codexia/scan` now builds the persisted graph for MCP clients.
+- MCP tool descriptions now explicitly steer agents toward graph-first, token-saving lookups.
+
+### Fixed
+- MCP `cypher` now enforces read-only queries and applies a default result limit.
+- GitHub analytics tests now use a deterministic clock so lookback fixtures do not fail as calendar time advances.
+- Graph stats avoid concurrent queries on a single Kuzu connection.
 
 ## [0.4.0] - 2026-01-21
 

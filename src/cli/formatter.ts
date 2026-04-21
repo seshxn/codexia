@@ -8,6 +8,7 @@ import type {
   GitDiff,
   Signal,
 } from '../core/types.js';
+import type { IndexBenchmarkResult } from '../core/index-benchmark.js';
 
 export class Formatter {
   private json: boolean;
@@ -48,6 +49,34 @@ export class Formatter {
     ];
 
     return lines.join('\n');
+  }
+
+  formatIndexBenchmark(result: IndexBenchmarkResult): string {
+    if (this.json) {
+      return JSON.stringify(result, null, 2);
+    }
+
+    const semantic = result.mcpLike.semanticSearch;
+    const context = result.mcpLike.context;
+    const queryGraph = result.mcpLike.queryGraph;
+    const cypher = result.mcpLike.cypher;
+    const graphFiles = typeof result.graph.files === 'number' ? result.graph.files : 'unknown';
+
+    return [
+      '',
+      chalk.bold('Index Benchmark'),
+      chalk.gray('═'.repeat(50)),
+      `Repository:       ${chalk.cyan(result.repoRoot)}`,
+      `Graph files:      ${chalk.cyan(graphFiles)}`,
+      `Analyze:          ${chalk.cyan(`${result.analyze.durationMs}ms`)} (${result.analyze.stats.files} files)`,
+      `Update:           ${chalk.cyan(`${result.update.durationMs}ms`)} (${result.update.changedFiles.length} changed)`,
+      `Graph stats:      ${chalk.cyan(`${result.mcpLike.graphStats.durationMs}ms`)}`,
+      `Context:          ${chalk.cyan(`${context.durationMs}ms`)} (${context.resultCount} fields)`,
+      `Query graph:      ${chalk.cyan(`${queryGraph.durationMs}ms`)} (${queryGraph.resultCount} results)`,
+      `Semantic search:  ${chalk.cyan(`${semantic.durationMs}ms`)} (${semantic.resultCount} results)`,
+      `Cypher:           ${chalk.cyan(`${cypher.durationMs}ms`)} (${cypher.resultCount} rows)`,
+      '',
+    ].join('\n');
   }
 
   /**

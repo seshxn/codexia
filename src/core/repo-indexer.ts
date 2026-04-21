@@ -32,6 +32,9 @@ export interface IncrementalIndexResult {
   changedFiles: string[];
   deletedFiles: string[];
   unchangedFiles: string[];
+  changedImports: string[];
+  changedSymbols: string[];
+  dependencyRepairFiles: string[];
   previousFiles: Map<string, FileInfo>;
   currentFiles: Map<string, FileInfo>;
 }
@@ -101,6 +104,8 @@ export class RepoIndexer {
     const changedFiles: string[] = [];
     const deletedFiles: string[] = [];
     const unchangedFiles: string[] = [];
+    const changedImports: string[] = [];
+    const changedSymbols: string[] = [];
 
     const patterns = this.languageRegistry.getAllPatterns();
     const ignorePatterns = this.languageRegistry.getIgnorePatterns();
@@ -128,8 +133,16 @@ export class RepoIndexer {
           continue;
         }
 
-        nextFiles.set(relativePath, this.analyzeFile(relativePath, content));
+        const nextInfo = this.analyzeFile(relativePath, content);
+        const previousInfo = previousFiles.get(relativePath);
+        nextFiles.set(relativePath, nextInfo);
         changedFiles.push(relativePath);
+        if (!previousInfo || this.importFingerprint(previousInfo) !== this.importFingerprint(nextInfo)) {
+          changedImports.push(relativePath);
+        }
+        if (!previousInfo || this.symbolFingerprint(previousInfo) !== this.symbolFingerprint(nextInfo)) {
+          changedSymbols.push(relativePath);
+        }
       } catch {
         // Skip unreadable files during incremental updates.
       }
@@ -143,6 +156,9 @@ export class RepoIndexer {
       changedFiles,
       deletedFiles,
       unchangedFiles,
+      changedImports,
+      changedSymbols,
+      dependencyRepairFiles: Array.from(new Set([...changedFiles, ...deletedFiles, ...changedImports])).sort(),
       previousFiles,
       currentFiles: new Map(nextFiles),
     };
@@ -253,10 +269,11 @@ export class RepoIndexer {
         const absolutePath = path.join(this.repoRoot, key);
         try {
           const stats = await fs.stat(absolutePath);
+          const content = await fs.readFile(absolutePath, 'utf-8');
           filesObj[key] = {
             info: value,
             mtime: stats.mtimeMs,
-            hash: this.hashFileInfo(value),
+            hash: this.hashContent(content),
           };
         } catch {
           // Skip files that can't be accessed
@@ -370,6 +387,22 @@ export class RepoIndexer {
 
   private hashFileInfo(fileInfo: FileInfo): string {
     return crypto.createHash('sha256').update(JSON.stringify(fileInfo)).digest('hex');
+  }
+
+  private importFingerprint(fileInfo: FileInfo): string {
+    return this.hashFileInfo({
+      ...fileInfo,
+      symbols: [],
+      exports: [],
+    });
+  }
+
+  private symbolFingerprint(fileInfo: FileInfo): string {
+    return this.hashFileInfo({
+      ...fileInfo,
+      imports: [],
+      exports: [],
+    });
   }
 
   /**

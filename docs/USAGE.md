@@ -69,6 +69,21 @@ It reports:
 - persisted graph node counts
 - semantic-index document and vocabulary counts
 - recorded learning sessions
+- MCP readiness, warnings, suggested next command, and supported transports
+
+## Large Repositories
+
+Run `codexia analyze` once after cloning or before connecting an MCP client. This builds the parser cache, the persisted Kuzu graph, and the semantic index.
+
+After local edits, run `codexia update`. Incremental updates are scoped to changed files plus their direct repair set, and deleted files are repaired using both the previous and current dependency graph.
+
+Use the benchmark mode when you need repeatable local numbers:
+
+```bash
+codexia analyze --benchmark --fixture-files 10000 --fixture-fanout 4 --fixture-symbols 5
+```
+
+Use `codexia status` or MCP `graph_stats` before relying on graph-backed workflows in Claude Code, Codex, or another MCP client.
 
 ## Visualization
 

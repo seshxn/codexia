@@ -37,10 +37,11 @@ interface SemanticDocument {
 }
 
 interface SemanticIndexPayload {
-  version: 1;
+  version: 1 | 2;
   generatedAt: string;
   vocabularySize: number;
   documents: SemanticDocument[];
+  invertedIndex?: Record<string, string[]>;
 }
 
 export interface SemanticIndexStats {
@@ -53,6 +54,8 @@ export class SemanticIndex {
   private readonly repoRoot: string;
   private readonly indexPath: string;
   private documents: SemanticDocument[] = [];
+  private documentsById = new Map<string, SemanticDocument>();
+  private invertedIndex = new Map<string, Set<string>>();
   private vocabularySize = 0;
   private generatedAt?: string;
   private loaded = false;
@@ -123,6 +126,7 @@ export class SemanticIndex {
       ...draft,
       vector: this.vectorize(draft.tokens, documentFrequencies, totalDocs),
     }));
+    this.rebuildRuntimeIndexes();
     this.vocabularySize = documentFrequencies.size;
     this.generatedAt = new Date().toISOString();
     this.loaded = true;
@@ -140,11 +144,14 @@ export class SemanticIndex {
       const raw = await fs.readFile(this.indexPath, 'utf-8');
       const payload = JSON.parse(raw) as SemanticIndexPayload;
       this.documents = payload.documents || [];
+      this.rebuildRuntimeIndexes(payload.invertedIndex);
       this.vocabularySize = payload.vocabularySize || 0;
       this.generatedAt = payload.generatedAt;
       this.loaded = true;
     } catch {
       this.documents = [];
+      this.documentsById = new Map();
+      this.invertedIndex = new Map();
       this.vocabularySize = 0;
       this.generatedAt = undefined;
       this.loaded = true;
@@ -160,13 +167,16 @@ export class SemanticIndex {
     }
 
     const queryVector = this.vectorize(queryTokens, new Map(), Math.max(this.documents.length, 1));
-    const lexicalRanked = this.documents
+    const lexicalCandidates = this.getLexicalCandidates(queryTokens);
+    const semanticCandidates = lexicalCandidates.length > 0 ? lexicalCandidates : this.documents;
+
+    const lexicalRanked = lexicalCandidates
       .map((doc) => ({ doc, score: this.computeLexicalScore(queryTokens, doc) }))
       .filter((entry) => entry.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit * 4);
 
-    const semanticRanked = this.documents
+    const semanticRanked = semanticCandidates
       .map((doc) => ({ doc, score: this.cosineSimilarity(queryVector, doc.vector) }))
       .filter((entry) => entry.score > 0)
       .sort((a, b) => b.score - a.score)
@@ -206,10 +216,11 @@ export class SemanticIndex {
 
   private async persist(): Promise<void> {
     const payload: SemanticIndexPayload = {
-      version: 1,
+      version: 2,
       generatedAt: this.generatedAt || new Date().toISOString(),
       vocabularySize: this.vocabularySize,
       documents: this.documents,
+      invertedIndex: this.serializeInvertedIndex(),
     };
     await fs.mkdir(path.dirname(this.indexPath), { recursive: true });
     await fs.writeFile(this.indexPath, JSON.stringify(payload), 'utf-8');
@@ -249,6 +260,49 @@ export class SemanticIndex {
     for (const token of uniqueTokens) {
       documentFrequencies.set(token, (documentFrequencies.get(token) || 0) + 1);
     }
+  }
+
+  private rebuildRuntimeIndexes(serialized?: Record<string, string[]>): void {
+    this.documentsById = new Map(this.documents.map((doc) => [doc.id, doc]));
+    this.invertedIndex = new Map();
+
+    if (serialized) {
+      for (const [token, ids] of Object.entries(serialized)) {
+        this.invertedIndex.set(token, new Set(ids.filter((id) => this.documentsById.has(id))));
+      }
+      return;
+    }
+
+    for (const doc of this.documents) {
+      for (const token of new Set(doc.tokens)) {
+        const ids = this.invertedIndex.get(token) || new Set<string>();
+        ids.add(doc.id);
+        this.invertedIndex.set(token, ids);
+      }
+    }
+  }
+
+  private serializeInvertedIndex(): Record<string, string[]> {
+    const serialized: Record<string, string[]> = {};
+    for (const [token, ids] of this.invertedIndex) {
+      serialized[token] = Array.from(ids);
+    }
+    return serialized;
+  }
+
+  private getLexicalCandidates(queryTokens: string): SemanticDocument[];
+  private getLexicalCandidates(queryTokens: string[]): SemanticDocument[];
+  private getLexicalCandidates(queryTokens: string[] | string): SemanticDocument[] {
+    const tokens = Array.isArray(queryTokens) ? queryTokens : this.tokenize(queryTokens);
+    const ids = new Set<string>();
+    for (const token of tokens) {
+      for (const id of this.invertedIndex.get(token) || []) {
+        ids.add(id);
+      }
+    }
+    return Array.from(ids)
+      .map((id) => this.documentsById.get(id))
+      .filter((doc): doc is SemanticDocument => Boolean(doc));
   }
 
   private vectorize(tokens: string[], documentFrequencies: Map<string, number>, totalDocs: number): number[] {

@@ -19,6 +19,8 @@ codexia status
 
 That is the shortest path to a first local scan and health check. `codexia analyze` and `codexia status` operate on the current working directory, so `cd` into the repository you want to inspect first.
 
+For large repositories, `codexia analyze` persists a local Kuzu graph under `.codexia/codegraph/graph.kuzu`. Use `codexia update` after edits, and use `codexia analyze --benchmark --fixture-files 10000` when you need a repeatable local performance check.
+
 ## Choose Your Path
 
 - Local CLI: use `codexia analyze`, `codexia update`, `codexia impact`, and related workflows from the [CLI Guide](docs/cli.md).
